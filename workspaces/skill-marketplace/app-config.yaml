@@ -1,0 +1,84 @@
+app:
+  title: Skills Marketplace Developer Hub
+  baseUrl: http://localhost:3000
+
+organization:
+  name: Red Hat
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+  cors:
+    origin: http://localhost:3000
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+
+auth:
+  environment: development
+  providers:
+    guest: {}
+
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  rules:
+    - allow: [Component, System, API, Resource, Location]
+
+# Skills Marketplace plugin configuration
+skillMarketplace:
+  registryDir: ${SKILL_REGISTRY_DIR:-../../../registry}
+
+  neo4j:
+    uri: ${NEO4J_URI:-bolt://localhost:7687}
+    user: ${NEO4J_USER:-neo4j}
+    password: ${NEO4J_PASSWORD:-changeme}
+    database: ${NEO4J_DATABASE:-neo4j}
+
+  builderAgent:
+    url: ${BUILDER_AGENT_URL:-http://localhost:8001}
+    apiKey: ${BUILDER_API_KEY:-changeme}
+
+  kagenti:
+    apiUrl: ${KAGENTI_API_URL:-https://kagenti-api.your-cluster.example.com}
+    agentName: ${KAGENTI_AGENT_NAME:-builder-agent}
+    namespace: ${KAGENTI_AGENT_NS:-skills-marketplace}
+    keycloak:
+      tokenUrl: ${KEYCLOAK_TOKEN_URL:-https://keycloak.your-cluster.example.com/realms/kagenti/protocol/openid-connect/token}
+      clientId: ${KEYCLOAK_CLIENT_ID:-kagenti}
+      username: ${KEYCLOAK_USERNAME:-admin}
+      password: ${KEYCLOAK_PASSWORD:-changeme}
+
+  oci:
+    cacheTimeout: 300
+    publishRegistry:
+      url: ${OCI_PUBLISH_REGISTRY_URL:-https://registry.your-cluster.example.com/your-namespace}
+      token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+    registries:
+      - url: https://registry.your-cluster.example.com/your-namespace/skill-resume-screener
+        name: resume-screener
+        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+      - url: https://registry.your-cluster.example.com/your-namespace/skill-policy-comparator
+        name: policy-comparator
+        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+      - url: https://registry.your-cluster.example.com/your-namespace/skill-checklist-auditor
+        name: checklist-auditor
+        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+      - url: https://registry.your-cluster.example.com/your-namespace/skill-code-review
+        name: code-review
+        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+      - url: https://registry.your-cluster.example.com/your-namespace/skill-url-summary
+        name: url-summary
+        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+      - url: https://registry.your-cluster.example.com/your-namespace/skill-pdf-summary
+        name: pdf-summary
+        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+
+  security:
+    mode: 'none'

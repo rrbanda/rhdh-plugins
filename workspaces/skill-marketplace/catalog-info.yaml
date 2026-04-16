@@ -1,0 +1,9 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: skill-marketplace
+  description: Skills Marketplace plugin for Backstage — browse, search, and manage AI agent skills with a Neo4j knowledge graph.
+spec:
+  type: website
+  owner: rrbanda
+  lifecycle: experimental
