@@ -45,32 +45,10 @@ const LABEL_PALETTE = [
   '#14b8a6', '#e11d48', '#a855f7', '#22c55e', '#eab308',
 ];
 
-const CAPTION_KEYS = ['label', 'name', 'title', 'caption', 'displayName', 'description'];
+import { toNumber, serializeProps as sharedSerializeProps, resolveId, resolveCaption } from './neo4jUtils';
 
 function relColor(type: string): string {
   return REL_COLORS[type] ?? '#475569';
-}
-
-function toNumber(val: unknown): number {
-  if (typeof val === 'number') return val;
-  if (val && typeof val === 'object' && 'toNumber' in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return Number(val) || 0;
-}
-
-function resolveId(props: Record<string, unknown>, fallbackEid: string): string {
-  for (const key of ['id', 'uid', 'uuid', 'name', 'slug']) {
-    if (typeof props[key] === 'string' && props[key]) return props[key] as string;
-  }
-  return fallbackEid;
-}
-
-function resolveCaption(props: Record<string, unknown>, fallbackLabel: string): string {
-  for (const key of CAPTION_KEYS) {
-    if (typeof props[key] === 'string' && props[key]) return props[key] as string;
-  }
-  return fallbackLabel;
 }
 
 const COMPLEXITY_SIZE: Record<string, number> = {
@@ -98,22 +76,7 @@ function resolveNodeColor(
 }
 
 function serializeProps(props: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(props)) {
-    if (value && typeof value === 'object' && 'toNumber' in value) {
-      result[key] = (value as { toNumber: () => number }).toNumber();
-    } else if (
-      value &&
-      typeof value === 'object' &&
-      'toString' in value &&
-      typeof value.toString === 'function'
-    ) {
-      result[key] = value.toString();
-    } else {
-      result[key] = value;
-    }
-  }
-  return result;
+  return sharedSerializeProps(props, { stripKeys: new Set() });
 }
 
 export class Neo4jService {
@@ -151,7 +114,7 @@ export class Neo4jService {
     }
   }
 
-  private async getHealthySession() {
+  async getHealthySession() {
     let d = this.getDriver();
     try {
       await d.verifyConnectivity({ database: this.database });

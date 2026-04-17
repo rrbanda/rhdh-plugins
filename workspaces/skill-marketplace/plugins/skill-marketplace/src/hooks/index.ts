@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export { useSkills } from './useSkills';
+export { useSkills, SkillsProvider } from './useSkills';
 export { useGraphData } from './useGraphData';
-export { useOciSkills } from './useOciSkills';
-export { useAgents } from './useAgents';
+export { useAgenticSearch } from './useAgenticSearch';
+export type { AgenticMessage, StreamingState } from './useAgenticSearch';

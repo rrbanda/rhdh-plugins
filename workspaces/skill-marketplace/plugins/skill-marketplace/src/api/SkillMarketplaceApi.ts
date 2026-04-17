@@ -21,55 +21,43 @@ import {
 import { ResponseError } from '@backstage/errors';
 import type {
   SkillData,
-  Skill,
   MarketplaceData,
   NvlGraphData,
-  GraphSchema,
-  SyncResult,
-  KagentiAgent,
-  AgentDeployRequest,
-  OciRegistryConfig,
+  GraphRAGQuery,
+  GraphRAGResult,
+  GraphSyncResult,
+  AgenticQuery,
+  AgenticResult,
+  LifecycleState,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 /** @public */
 export interface SkillMarketplaceApi {
-  // Skills (OCI-backed)
   getSkills(): Promise<{ skills: SkillData[]; marketplace: MarketplaceData }>;
   getSkillBySlug(slug: string): Promise<SkillData>;
 
-  // OCI skills
-  getOciSkills(registry?: string): Promise<{ skills: Skill[]; registries: OciRegistryConfig[] }>;
-  getOciSkill(ref: string): Promise<Skill>;
-  getOciSkillContent(ref: string): Promise<string>;
-  searchOciSkills(query: string): Promise<{ skills: Skill[] }>;
-  getOciRegistries(): Promise<{ registries: OciRegistryConfig[] }>;
-
-  // Graph
   getGraphData(limit?: number): Promise<NvlGraphData>;
-  getGraphSchema(): Promise<GraphSchema>;
   searchGraph(query: string): Promise<NvlGraphData>;
   getNeighborhood(nodeId: string, depth?: number, limit?: number): Promise<NvlGraphData>;
+  triggerSync(): Promise<GraphSyncResult>;
+  queryRAG(query: GraphRAGQuery): Promise<GraphRAGResult>;
+  agenticQuery(query: AgenticQuery): Promise<AgenticResult>;
+  agenticQueryStreamUrl(query: AgenticQuery): Promise<{ url: string; body: string; headers: Record<string, string> }>;
 
-  // Builder
+  getLifecycleState(ref: string): Promise<{ ref: string; lifecycleState: LifecycleState; version: string; name: string }>;
+  promoteSkill(ociRef: string, targetState: LifecycleState): Promise<{ success: boolean; previousState: LifecycleState; newState: LifecycleState; newOciRef: string }>;
+
   generateSkill(body: Record<string, unknown>): Promise<Response>;
   refineSkill(body: Record<string, unknown>): Promise<Response>;
-  saveSkill(body: Record<string, unknown>): Promise<unknown>;
-  buildGraph(): Promise<Response>;
-  syncRegistry(): Promise<SyncResult>;
   publishSkill(body: { skillName: string; version: string; description: string; author: string; content: string; registry?: string }): Promise<unknown>;
 
-  // Kagenti agents
-  listAgents(namespace?: string): Promise<KagentiAgent[]>;
   getAgentDetail(namespace: string, name: string): Promise<unknown>;
-  deployAgent(request: AgentDeployRequest): Promise<unknown>;
-  deleteAgent(namespace: string, name: string): Promise<unknown>;
-  getAgentSkills(namespace: string, name: string): Promise<unknown>;
-  assignSkill(namespace: string, agentName: string, skillRef: string, skillName: string): Promise<unknown>;
-  removeSkill(namespace: string, agentName: string, skillName: string): Promise<unknown>;
   getAgentLogs(namespace: string, name: string, tail?: number): Promise<unknown>;
   getAgentCard(namespace?: string, agentName?: string): Promise<unknown>;
   chatWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string): Promise<unknown>;
-  streamAgent(message: string, sessionId?: string, namespace?: string, agentName?: string): Promise<Response>;
+  streamWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string): Promise<Response>;
+  listAgentNamespaces(): Promise<{ namespaces: string[] }>;
+  getHealth(): Promise<Record<string, unknown>>;
 }
 
 /** @public */
@@ -117,46 +105,12 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
   }
 
   // ---------------------------------------------------------------------------
-  // OCI skills
-  // ---------------------------------------------------------------------------
-
-  async getOciSkills(
-    registry?: string,
-  ): Promise<{ skills: Skill[]; registries: OciRegistryConfig[] }> {
-    const query = registry ? `?registry=${encodeURIComponent(registry)}` : '';
-    return this.request(`/oci/skills${query}`);
-  }
-
-  async getOciSkill(ref: string): Promise<Skill> {
-    return this.request(`/oci/skill?ref=${encodeURIComponent(ref)}`);
-  }
-
-  async getOciSkillContent(ref: string): Promise<string> {
-    const result = await this.request<{ content: string }>(
-      `/oci/skill-content?ref=${encodeURIComponent(ref)}`,
-    );
-    return result.content;
-  }
-
-  async searchOciSkills(query: string): Promise<{ skills: Skill[] }> {
-    return this.request(`/oci/search?q=${encodeURIComponent(query)}`);
-  }
-
-  async getOciRegistries(): Promise<{ registries: OciRegistryConfig[] }> {
-    return this.request('/oci/registries');
-  }
-
-  // ---------------------------------------------------------------------------
   // Graph
   // ---------------------------------------------------------------------------
 
   async getGraphData(limit?: number): Promise<NvlGraphData> {
     const query = limit ? `?limit=${limit}` : '';
     return this.request(`/graph${query}`);
-  }
-
-  async getGraphSchema(): Promise<GraphSchema> {
-    return this.request('/graph/schema');
   }
 
   async searchGraph(query: string): Promise<NvlGraphData> {
@@ -174,6 +128,63 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     return this.request('/graph/neighborhood', {
       method: 'POST',
       body: JSON.stringify({ nodeId, depth, limit }),
+    });
+  }
+
+  async triggerSync(): Promise<GraphSyncResult> {
+    return this.request('/sync', { method: 'POST' });
+  }
+
+  async queryRAG(query: GraphRAGQuery): Promise<GraphRAGResult> {
+    return this.request('/graph/rag', {
+      method: 'POST',
+      body: JSON.stringify(query),
+    });
+  }
+
+  async agenticQuery(query: AgenticQuery): Promise<AgenticResult> {
+    return this.request('/graph/agentic-rag', {
+      method: 'POST',
+      body: JSON.stringify(query),
+    });
+  }
+
+  async agenticQueryStreamUrl(query: AgenticQuery): Promise<{ url: string; body: string; headers: Record<string, string> }> {
+    const baseUrl = await this.getBaseUrl();
+    return {
+      url: `${baseUrl}/graph/agentic-rag/stream`,
+      body: JSON.stringify(query),
+      headers: { 'Content-Type': 'application/json' },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
+  async getLifecycleState(
+    ref: string,
+  ): Promise<{
+    ref: string;
+    lifecycleState: LifecycleState;
+    version: string;
+    name: string;
+  }> {
+    return this.request(`/oci/lifecycle/${encodeURIComponent(ref)}`);
+  }
+
+  async promoteSkill(
+    ociRef: string,
+    targetState: LifecycleState,
+  ): Promise<{
+    success: boolean;
+    previousState: LifecycleState;
+    newState: LifecycleState;
+    newOciRef: string;
+  }> {
+    return this.request('/oci/promote', {
+      method: 'POST',
+      body: JSON.stringify({ ociRef, targetState }),
     });
   }
 
@@ -206,27 +217,6 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     return res;
   }
 
-  async saveSkill(body: Record<string, unknown>): Promise<unknown> {
-    return this.request('/builder?action=save', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  }
-
-  async buildGraph(): Promise<Response> {
-    const baseUrl = await this.getBaseUrl();
-    const res = await this.fetchApi.fetch(`${baseUrl}/graph/build`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) throw await ResponseError.fromResponse(res);
-    return res;
-  }
-
-  async syncRegistry(): Promise<SyncResult> {
-    return this.request('/sync', { method: 'POST' });
-  }
-
   async publishSkill(body: {
     skillName: string;
     version: string;
@@ -245,67 +235,11 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
   // Kagenti agents
   // ---------------------------------------------------------------------------
 
-  async listAgents(namespace?: string): Promise<KagentiAgent[]> {
-    const query = namespace
-      ? `?namespace=${encodeURIComponent(namespace)}`
-      : '';
-    const result = await this.request<{ items?: KagentiAgent[] }>(
-      `/kagenti/agents${query}`,
-    );
-    return result.items || (result as unknown as KagentiAgent[]) || [];
-  }
-
   async getAgentDetail(
     namespace: string,
     name: string,
   ): Promise<unknown> {
     return this.request(`/kagenti/agents/${namespace}/${name}`);
-  }
-
-  async deployAgent(request: AgentDeployRequest): Promise<unknown> {
-    return this.request('/kagenti/agents', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-  }
-
-  async deleteAgent(
-    namespace: string,
-    name: string,
-  ): Promise<unknown> {
-    return this.request(`/kagenti/agents/${namespace}/${name}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async getAgentSkills(
-    namespace: string,
-    name: string,
-  ): Promise<unknown> {
-    return this.request(`/kagenti/agents/${namespace}/${name}/skills`);
-  }
-
-  async assignSkill(
-    namespace: string,
-    agentName: string,
-    skillRef: string,
-    skillName: string,
-  ): Promise<unknown> {
-    return this.request(`/kagenti/agents/${namespace}/${agentName}/skills`, {
-      method: 'POST',
-      body: JSON.stringify({ skillRef, skillName }),
-    });
-  }
-
-  async removeSkill(
-    namespace: string,
-    agentName: string,
-    skillName: string,
-  ): Promise<unknown> {
-    return this.request(
-      `/kagenti/agents/${namespace}/${agentName}/skills/${skillName}`,
-      { method: 'DELETE' },
-    );
   }
 
   async getAgentLogs(
@@ -342,7 +276,7 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     });
   }
 
-  async streamAgent(
+  async streamWithAgent(
     message: string,
     sessionId?: string,
     namespace?: string,
@@ -356,5 +290,13 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     });
     if (!res.ok) throw await ResponseError.fromResponse(res);
     return res;
+  }
+
+  async listAgentNamespaces(): Promise<{ namespaces: string[] }> {
+    return this.request('/kagenti/namespaces');
+  }
+
+  async getHealth(): Promise<Record<string, unknown>> {
+    return this.request('/health');
   }
 }

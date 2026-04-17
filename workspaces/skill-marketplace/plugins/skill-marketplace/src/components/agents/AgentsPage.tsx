@@ -40,6 +40,8 @@ export default function AgentsPage() {
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [agentStatus, setAgentStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [agentNs, setAgentNs] = useState<string | undefined>();
+  const [agentName, setAgentName] = useState<string | undefined>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -49,7 +51,14 @@ export default function AgentsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    api.getAgentCard('team1', 'docsclaw').then(data => {
+    api.getHealth().then((health: { kagenti?: { namespace: string; agentName: string } }) => {
+      if (cancelled) return;
+      const ns = health.kagenti?.namespace;
+      const name = health.kagenti?.agentName;
+      setAgentNs(ns);
+      setAgentName(name);
+      return api.getAgentCard(ns, name);
+    }).then(data => {
       if (!cancelled) {
         setAgentStatus(data && typeof data === 'object' ? 'online' : 'offline');
       }
@@ -76,14 +85,13 @@ export default function AgentsPage() {
       const result = (await api.chatWithAgent(
         prompt,
         sessionId,
-        'team1',
-        'docsclaw',
+        agentNs,
+        agentName,
       )) as {
         session_id?: string;
         sessionId?: string;
-        response?: string;
         content?: string;
-        result?: { parts?: { text?: string }[] };
+        response?: string;
         message?: string;
       };
 
@@ -91,9 +99,8 @@ export default function AgentsPage() {
       if (sid) setSessionId(sid);
 
       const agentText =
-        result.response ??
         result.content ??
-        result.result?.parts?.map(p => p.text).join('\n') ??
+        result.response ??
         result.message ??
         JSON.stringify(result, null, 2);
 
@@ -116,7 +123,7 @@ export default function AgentsPage() {
     } finally {
       setSending(false);
     }
-  }, [api, input, selectedSkill, sending, sessionId]);
+  }, [api, input, selectedSkill, sending, sessionId, agentNs, agentName]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -159,8 +166,8 @@ export default function AgentsPage() {
           <div className="pg-agent-header">
             <span className={`pg-agent-dot${agentStatus === 'online' ? ' pg-pulse' : ''}`} style={{ backgroundColor: statusColor }} />
             <div>
-              <h3 className="pg-agent-name">DocsClaw Agent</h3>
-              <span className="pg-agent-ns">team1 &middot; {agentStatus}</span>
+              <h3 className="pg-agent-name">Skills Agent</h3>
+              <span className="pg-agent-ns">{agentNs || 'default'} &middot; {agentStatus}</span>
             </div>
           </div>
           <p className="pg-agent-desc">
@@ -209,7 +216,7 @@ export default function AgentsPage() {
           {messages.length === 0 && (
             <div className="pg-empty">
               <h3>Skill Playground</h3>
-              <p>Select a skill from the sidebar and send a message to test it with the live DocsClaw agent.</p>
+              <p>Select a skill from the sidebar and send a message to test it with the live agent.</p>
               <div className="pg-suggestions">
                 {[
                   { skill: 'url-summary', text: 'Summarize https://go.dev/blog/go1.24' },
@@ -231,7 +238,7 @@ export default function AgentsPage() {
           {messages.map((msg, i) => (
             <div key={i} className={`pg-msg pg-msg-${msg.role}${msg.isError ? ' pg-msg-error' : ''}`}>
               <div className="pg-msg-header">
-                <span className="pg-msg-role">{msg.role === 'user' ? 'You' : 'DocsClaw'}</span>
+                <span className="pg-msg-role">{msg.role === 'user' ? 'You' : 'Agent'}</span>
                 {msg.skill && <span className="pg-msg-skill">{msg.skill}</span>}
                 <span className="pg-msg-ts">{relativeTime(msg.timestamp)}</span>
               </div>
@@ -241,7 +248,7 @@ export default function AgentsPage() {
           {sending && (
             <div className="pg-msg pg-msg-agent">
               <div className="pg-msg-header">
-                <span className="pg-msg-role">DocsClaw</span>
+                <span className="pg-msg-role">Agent</span>
               </div>
               <div className="pg-msg-text pg-typing">Thinking...</div>
             </div>

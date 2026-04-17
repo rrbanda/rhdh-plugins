@@ -17,19 +17,28 @@ import fetch from 'node-fetch';
 import type { Response as NodeFetchResponse } from 'node-fetch';
 import { LoggerService } from '@backstage/backend-plugin-api';
 
+const DEFAULT_CONNECTION_TIMEOUT_MS = 30_000;
+const DEFAULT_STREAM_TIMEOUT_MS = 300_000;
+
 export class BuilderProxyService {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly logger: LoggerService;
+  private readonly connectionTimeoutMs: number;
+  private readonly streamTimeoutMs: number;
 
   constructor(options: {
     baseUrl: string;
     apiKey: string;
     logger: LoggerService;
+    timeoutMs?: number;
+    streamTimeoutMs?: number;
   }) {
     this.baseUrl = options.baseUrl;
     this.apiKey = options.apiKey;
     this.logger = options.logger;
+    this.connectionTimeoutMs = options.timeoutMs ?? DEFAULT_CONNECTION_TIMEOUT_MS;
+    this.streamTimeoutMs = options.streamTimeoutMs ?? DEFAULT_STREAM_TIMEOUT_MS;
   }
 
   private headers(): Record<string, string> {
@@ -40,12 +49,19 @@ export class BuilderProxyService {
     return h;
   }
 
+  private createSignal(ms?: number): AbortSignal {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms ?? this.connectionTimeoutMs);
+    return controller.signal;
+  }
+
   async generate(body: Record<string, unknown>): Promise<NodeFetchResponse> {
     this.logger.debug('Proxying generate request to builder agent');
     return fetch(`${this.baseUrl}/generate`, {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: this.createSignal(this.streamTimeoutMs),
     });
   }
 
@@ -55,6 +71,7 @@ export class BuilderProxyService {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: this.createSignal(this.streamTimeoutMs),
     });
   }
 
@@ -65,6 +82,7 @@ export class BuilderProxyService {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: this.createSignal(),
     });
     const text = await upstream.text();
     try {
@@ -82,6 +100,7 @@ export class BuilderProxyService {
     return fetch(`${this.baseUrl}/graph/build`, {
       method: 'POST',
       headers: this.headers(),
+      signal: this.createSignal(this.streamTimeoutMs),
     });
   }
 
@@ -92,6 +111,7 @@ export class BuilderProxyService {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(body),
+      signal: this.createSignal(),
     });
     const text = await upstream.text();
     try {

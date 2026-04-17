@@ -16,6 +16,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InteractiveNvlWrapper } from '@neo4j-nvl/react';
 import type { Node, Relationship, HitTargets, NVL } from '@neo4j-nvl/base';
+import { useApi } from '@backstage/core-plugin-api';
+import { skillMarketplaceApiRef } from '../../api';
 import { useGraphData } from '../../hooks';
 import type {
   NvlNode,
@@ -24,8 +26,18 @@ import type {
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
+import AgenticPanel from './AgenticPanel';
 
 type LayoutMode = 'forceDirected' | 'hierarchical';
+
+const GRAPH_DEFAULTS = {
+  AUTO_REFRESH_MS: 30_000,
+  SEARCH_DEBOUNCE_MS: 400,
+  NEIGHBORHOOD_DEPTH: 2,
+  NEIGHBORHOOD_LIMIT: 50,
+  INITIAL_GRAPH_LIMIT: 500,
+  MIN_SEARCH_LENGTH: 2,
+} as const;
 
 const REL_COLORS: Record<string, string> = {
   SAME_PLUGIN: '#06b6d4',
@@ -47,7 +59,8 @@ const HIDDEN_PROPS = new Set([
 ]);
 
 export default function GraphPage() {
-  const { data, loading, error, refetch } = useGraphData(500);
+  const api = useApi(skillMarketplaceApiRef);
+  const { data, loading, error, refetch } = useGraphData(GRAPH_DEFAULTS.INITIAL_GRAPH_LIMIT);
   const nvlRef = useRef<NVL | null>(null);
 
   const [layout, setLayout] = useState<LayoutMode>('forceDirected');
@@ -58,10 +71,64 @@ export default function GraphPage() {
   const [detailNode, setDetailNode] = useState<NvlNode | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [overlayNodes, setOverlayNodes] = useState<NvlNode[]>([]);
+  const [overlayRels, setOverlayRels] = useState<NvlRelationship[]>([]);
+  const labelsInitialized = useRef(false);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (data) {
+    const handle = setInterval(() => {
+      refetch();
+      setLastRefresh(new Date());
+    }, GRAPH_DEFAULTS.AUTO_REFRESH_MS);
+    return () => clearInterval(handle);
+  }, [refetch]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
+
+  const handleExploreNeighborhood = useCallback(async (nodeId: string) => {
+    try {
+      const result = await api.getNeighborhood(
+        nodeId,
+        GRAPH_DEFAULTS.NEIGHBORHOOD_DEPTH,
+        GRAPH_DEFAULTS.NEIGHBORHOOD_LIMIT,
+      );
+      if (result.nodes.length > 0) {
+        setOverlayNodes(prev => {
+          const existingIds = new Set([
+            ...(dataRef.current?.nodes.map(n => n.id) ?? []),
+            ...prev.map(n => n.id),
+          ]);
+          const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
+          return newNodes.length > 0 ? [...prev, ...newNodes] : prev;
+        });
+        setOverlayRels(prev => {
+          const existingIds = new Set([
+            ...(dataRef.current?.relationships.map(r => r.id) ?? []),
+            ...prev.map(r => r.id),
+          ]);
+          const newRels = result.relationships.filter(r => !existingIds.has(r.id));
+          return newRels.length > 0 ? [...prev, ...newRels] : prev;
+        });
+      }
+    } catch {
+      /* neighborhood expansion is best-effort */
+    }
+  }, [api]);
+
+  useEffect(() => {
+    if (data && !labelsInitialized.current) {
       setEnabledLabels(new Set(data.schema.labels.map(l => l.name)));
+      labelsInitialized.current = true;
     }
   }, [data]);
 
@@ -79,9 +146,11 @@ export default function GraphPage() {
   const { nodes, rels } = useMemo(() => {
     if (!data) return { nodes: [] as Node[], rels: [] as Relationship[] };
 
+    const allNodes = [...data.nodes, ...overlayNodes];
+    const allRelationships = [...data.relationships, ...overlayRels];
     const q = searchQuery.toLowerCase();
 
-    const filteredNodes = data.nodes.filter(n => {
+    const filteredNodes = allNodes.filter(n => {
       const hasEnabledLabel = n.labels.some(l => enabledLabels.has(l));
       if (!hasEnabledLabel) return false;
       if (
@@ -99,16 +168,24 @@ export default function GraphPage() {
 
     const nodeIds = new Set(filteredNodes.map(n => n.id));
 
-    const filteredRels = data.relationships.filter(
+    const filteredRels = allRelationships.filter(
       r => nodeIds.has(r.from) && nodeIds.has(r.to),
     );
+
+    const isHighlighted = (node: NvlNode) =>
+      highlightedNodes.has(node.caption) ||
+      highlightedNodes.has(String(node.properties.name));
 
     const nvlNodes: Node[] = filteredNodes.map(n => ({
       id: n.id,
       caption: n.caption,
-      color: n.id === selectedNodeId ? '#60a5fa' : n.color,
-      size: n.size,
-      selected: n.id === selectedNodeId,
+      color: n.id === selectedNodeId
+        ? '#60a5fa'
+        : isHighlighted(n)
+          ? '#8b5cf6'
+          : n.color,
+      size: isHighlighted(n) ? n.size * 1.3 : n.size,
+      selected: n.id === selectedNodeId || isHighlighted(n),
     }));
 
     const nvlRels: Relationship[] = filteredRels.map(r => ({
@@ -120,7 +197,7 @@ export default function GraphPage() {
     }));
 
     return { nodes: nvlNodes, rels: nvlRels };
-  }, [data, enabledLabels, enabledPlugins, searchQuery, selectedNodeId]);
+  }, [data, overlayNodes, overlayRels, enabledLabels, enabledPlugins, searchQuery, selectedNodeId, highlightedNodes]);
 
   const nvlOptions = useMemo(
     () => ({
@@ -180,6 +257,10 @@ export default function GraphPage() {
     setSelectedNodeId(null);
     setDetailNode(null);
     setEnabledPlugins(new Set());
+    setOverlayNodes([]);
+    setOverlayRels([]);
+    setHighlightedNodes(new Set());
+    setAiPanelOpen(false);
     if (data) setEnabledLabels(new Set(data.schema.labels.map(l => l.name)));
   }, [data]);
 
@@ -194,6 +275,31 @@ export default function GraphPage() {
       return next;
     });
   }, []);
+
+  const handleAiHighlight = useCallback((nodeNames: string[]) => {
+    setHighlightedNodes(new Set(nodeNames));
+    if (nvlRef.current && nodeNames.length > 0) {
+      const allNodes = [...(dataRef.current?.nodes ?? []), ...overlayNodes];
+      const matchIds = allNodes
+        .filter(n => nodeNames.includes(n.caption) || nodeNames.includes(String(n.properties.name)))
+        .map(n => n.id);
+      if (matchIds.length > 0) {
+        nvlRef.current.fit(matchIds);
+      }
+    }
+  }, [overlayNodes]);
+
+  const handleAiSelectNode = useCallback((nodeName: string) => {
+    const allNodes = [...(dataRef.current?.nodes ?? []), ...overlayNodes];
+    const match = allNodes.find(
+      n => n.caption === nodeName || String(n.properties.name) === nodeName,
+    );
+    if (match) {
+      setSelectedNodeId(match.id);
+      setDetailNode(match);
+      setAiPanelOpen(false);
+    }
+  }, [overlayNodes]);
 
   const togglePlugin = useCallback((plugin: string) => {
     setEnabledPlugins(prev => {
@@ -212,7 +318,7 @@ export default function GraphPage() {
         <ErrorMessage
           message={
             isConnectionError
-              ? 'Cannot reach the knowledge graph database. Ensure the Neo4j port-forward is running (oc port-forward svc/neo4j 7687:7687 -n skills-marketplace).'
+              ? 'Cannot reach the knowledge graph database. Please verify that the graph database service is running and accessible.'
               : error
           }
         />
@@ -248,17 +354,24 @@ export default function GraphPage() {
 
       {/* Header */}
       <div className="graph-header">
-        <h1 className="graph-title">Skill Graph</h1>
+        <h1 className="graph-title">Skill Knowledge Graph</h1>
         <span className="graph-stats">
           {data.schema.totalNodes} nodes &middot;{' '}
           {data.schema.totalRelationships} relationships
+          {data.schema.pluginGroups.length > 0 && (
+            <> &middot; {data.schema.pluginGroups.length} domains</>
+          )}
+        </span>
+        <span className="auto-sync-indicator">
+          <span className="auto-sync-dot" />
+          Auto-syncing &middot; last refresh {lastRefresh.toLocaleTimeString()}
         </span>
       </div>
 
       {/* Main content */}
       <div className="graph-body">
         {/* Graph area */}
-        <div className={`graph-main ${detailNode ? 'with-detail' : ''}`}>
+        <div className={`graph-main ${detailNode || aiPanelOpen ? 'with-detail' : ''}`}>
           {/* Controls bar */}
           <div className="graph-controls">
             {/* Layout switcher */}
@@ -387,14 +500,45 @@ export default function GraphPage() {
               </svg>
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search graph..."
+                aria-label="Search knowledge graph"
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                  if (val.length >= GRAPH_DEFAULTS.MIN_SEARCH_LENGTH) {
+                    searchTimeoutRef.current = setTimeout(async () => {
+                      try {
+                        const result = await api.searchGraph(val);
+                        if (result.nodes.length > 0) {
+                          setOverlayNodes(prev => {
+                            const existingIds = new Set([
+                              ...(dataRef.current?.nodes.map(n => n.id) ?? []),
+                              ...prev.map(n => n.id),
+                            ]);
+                            const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
+                            return newNodes.length > 0 ? [...prev, ...newNodes] : prev;
+                          });
+                        }
+                      } catch { /* fallback to client-side filter */ }
+                    }, GRAPH_DEFAULTS.SEARCH_DEBOUNCE_MS);
+                  }
+                }}
                 className="search-input"
               />
             </div>
 
             {/* Actions */}
+            <button
+              onClick={() => { setAiPanelOpen(v => !v); if (!aiPanelOpen) { setDetailNode(null); setSelectedNodeId(null); } }}
+              className={`action-btn ai-toggle-btn ${aiPanelOpen ? 'active' : ''}`}
+              title="Ask the Knowledge Graph"
+            >
+              <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+            </button>
             <button
               onClick={fitToScreen}
               className="action-btn"
@@ -453,16 +597,26 @@ export default function GraphPage() {
         </div>
 
         {/* Detail panel */}
-        {detailNode && (
+        {detailNode && !aiPanelOpen && (
           <DetailPanel
             node={detailNode}
-            relationships={data.relationships}
-            allNodes={data.nodes}
+            relationships={[...data.relationships, ...overlayRels]}
+            allNodes={[...data.nodes, ...overlayNodes]}
             labels={data.schema.labels}
             onClose={() => {
               setSelectedNodeId(null);
               setDetailNode(null);
             }}
+            onExplore={handleExploreNeighborhood}
+          />
+        )}
+
+        {/* AI panel */}
+        {aiPanelOpen && (
+          <AgenticPanel
+            onHighlightNodes={handleAiHighlight}
+            onSelectNode={handleAiSelectNode}
+            onClose={() => { setAiPanelOpen(false); setHighlightedNodes(new Set()); }}
           />
         )}
       </div>
@@ -476,6 +630,7 @@ interface DetailPanelProps {
   allNodes: NvlNode[];
   labels: { name: string; color: string; count: number }[];
   onClose: () => void;
+  onExplore: (nodeId: string) => void;
 }
 
 function DetailPanel({
@@ -484,6 +639,7 @@ function DetailPanel({
   allNodes,
   labels,
   onClose,
+  onExplore,
 }: DetailPanelProps) {
   const labelColorMap = new Map(labels.map(l => [l.name, l.color]));
   const connections = relationships.filter(
@@ -535,6 +691,41 @@ function DetailPanel({
             {String(node.properties.description).slice(0, 300)}
           </div>
         ) : null}
+
+        {/* Skill-specific metadata */}
+        {node.labels.includes('Skill') && (
+          <div className="detail-section">
+            {node.properties.category ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Domain</span>
+                <span className="skill-meta-value" style={{ color: (node.properties.pluginColor as string) || '#6b7280' }}>
+                  {String(node.properties.category)}
+                </span>
+              </div>
+            ) : null}
+            {node.properties.complexity ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Complexity</span>
+                <span className="skill-meta-value">{String(node.properties.complexity)}</span>
+              </div>
+            ) : null}
+            {node.properties.version ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Version</span>
+                <span className="skill-meta-value">{String(node.properties.version)}</span>
+              </div>
+            ) : null}
+            {node.properties.author ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Author</span>
+                <span className="skill-meta-value">{String(node.properties.author)}</span>
+              </div>
+            ) : null}
+            <button className="explore-btn" onClick={() => onExplore(node.id)}>
+              Explore Neighborhood
+            </button>
+          </div>
+        )}
 
         {/* Properties */}
         {displayProps.length > 0 && (
@@ -1087,5 +1278,80 @@ const graphPageStyles = `
   }
   .conn-target {
     word-break: break-word;
+  }
+
+  /* Auto-sync indicator */
+  .auto-sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+    font-size: 12px;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+  }
+  .auto-sync-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Skill metadata in detail panel */
+  .skill-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+  .skill-meta-label {
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    font-weight: 500;
+  }
+  .skill-meta-value {
+    font-weight: 600;
+  }
+
+  /* AI toggle button */
+  .ai-toggle-btn {
+    position: relative;
+  }
+  .ai-toggle-btn.active {
+    background: rgba(99,102,241,0.12);
+    color: var(--pf-t--global--color--brand--default, #0066cc);
+  }
+  .ai-toggle-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--pf-t--global--color--brand--default, #0066cc);
+  }
+
+  /* Explore button */
+  .explore-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--pf-t--global--color--brand--default, #0066cc);
+    background: rgba(0, 102, 204, 0.06);
+    color: var(--pf-t--global--color--brand--default, #0066cc);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .explore-btn:hover {
+    background: rgba(0, 102, 204, 0.12);
   }
 `;

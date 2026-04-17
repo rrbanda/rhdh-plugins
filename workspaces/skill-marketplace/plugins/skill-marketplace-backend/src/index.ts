@@ -21,5 +21,5 @@
  */
 
 export { skillMarketplacePlugin as default } from './plugin';
-export { RegistryService, Neo4jService, BuilderProxyService } from './services';
+export { Neo4jService, BuilderProxyService } from './services';
 export type { RouterOptions } from './router';

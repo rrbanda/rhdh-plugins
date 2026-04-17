@@ -31,6 +31,14 @@ const COMPLEXITY_STYLES: Record<string, { bg: string; fg: string }> = {
   Advanced: { bg: '#ef444418', fg: '#dc2626' },
 };
 
+const LIFECYCLE_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
+  draft: { bg: '#f59e0b18', fg: '#d97706', label: 'Draft' },
+  testing: { bg: '#3b82f618', fg: '#2563eb', label: 'Testing' },
+  published: { bg: '#10b98118', fg: '#059669', label: 'Published' },
+  deprecated: { bg: '#f9731618', fg: '#ea580c', label: 'Deprecated' },
+  archived: { bg: '#6b728018', fg: '#4b5563', label: 'Archived' },
+};
+
 export function SkillCard({ skill }: SkillCardProps) {
   const navigate = useNavigate();
   const complexity = getComplexity(skill.rawContent.split('\n').length);
@@ -48,13 +56,13 @@ export function SkillCard({ skill }: SkillCardProps) {
     <button
       type="button"
       className="sm-card"
-      onClick={() => navigate(`/skill-marketplace/skills/${skill.slug}`)}
+      onClick={() => navigate(skill.slug)}
     >
       {/* Left color bar */}
       <span className="sm-card-bar" style={{ backgroundColor: pluginColor }} />
 
       <div className="sm-card-inner">
-        {/* Top row: plugin badge + version */}
+        {/* Top row: plugin badge + lifecycle + version */}
         <div className="sm-card-top">
           <span
             className="sm-card-plugin"
@@ -62,6 +70,17 @@ export function SkillCard({ skill }: SkillCardProps) {
           >
             {skill.pluginName}
           </span>
+          {skill.lifecycleState && (() => {
+            const ls = LIFECYCLE_STYLES[skill.lifecycleState] ?? LIFECYCLE_STYLES.draft;
+            return (
+              <span
+                className="sm-card-lifecycle"
+                style={{ backgroundColor: ls.bg, color: ls.fg }}
+              >
+                {ls.label}
+              </span>
+            );
+          })()}
           {skill.version && (
             <span className="sm-card-version">v{skill.version}</span>
           )}
@@ -72,6 +91,23 @@ export function SkillCard({ skill }: SkillCardProps) {
 
         {/* Description */}
         <p className="sm-card-desc">{cleanDescription}</p>
+
+        {/* Tags */}
+        {skill.tags && skill.tags.length > 0 && (
+          <div className="sm-card-tags">
+            {skill.tags.slice(0, 4).map(t => (
+              <span key={t} className="sm-card-tag">{t}</span>
+            ))}
+            {skill.tags.length > 4 && (
+              <span className="sm-card-tag sm-card-tag-more">+{skill.tags.length - 4}</span>
+            )}
+          </div>
+        )}
+
+        {/* Authors */}
+        {skill.authors && (
+          <span className="sm-card-authors">{skill.authors}</span>
+        )}
 
         {/* Bottom row: complexity + meta + arrow */}
         <div className="sm-card-bottom">

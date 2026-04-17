@@ -15,7 +15,8 @@
  */
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useApi } from '@backstage/core-plugin-api';
+import { useApi, useRouteRef } from '@backstage/core-plugin-api';
+import { rootRouteRef } from '../../routes';
 import {
   PageSection,
   Title,
@@ -64,6 +65,7 @@ import ErrorMessage from '../shared/ErrorMessage';
 export default function SkillDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const basePath = useRouteRef(rootRouteRef)();
   const api = useApi(skillMarketplaceApiRef);
   const [skill, setSkill] = useState<SkillData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,16 +74,23 @@ export default function SkillDetailPage() {
 
   useEffect(() => {
     if (!slug) return;
+    let cancelled = false;
+    setLoading(true);
     api
       .getSkillBySlug(slug)
       .then(data => {
-        setSkill(data);
-        setLoading(false);
+        if (!cancelled) {
+          setSkill(data);
+          setLoading(false);
+        }
       })
       .catch(err => {
-        setError(err.message || 'Failed to load skill');
-        setLoading(false);
+        if (!cancelled) {
+          setError(err.message || 'Failed to load skill');
+          setLoading(false);
+        }
       });
+    return () => { cancelled = true; };
   }, [api, slug]);
 
   if (loading) return <LoadingSpinner message="Loading skill details..." />;
@@ -109,12 +118,12 @@ export default function SkillDetailPage() {
       <PageSection variant="default" className="sm-detail-header">
         <Breadcrumb style={{ marginBottom: 12 }}>
           <BreadcrumbItem>
-            <Button variant="link" isInline onClick={() => navigate('/skill-marketplace/skills')}>
+            <Button variant="link" isInline onClick={() => navigate('..')}>
               Skills
             </Button>
           </BreadcrumbItem>
           <BreadcrumbItem>
-            <Button variant="link" isInline onClick={() => navigate('/skill-marketplace/skills')}>
+            <Button variant="link" isInline onClick={() => navigate('..')}>
               {skill.pluginName}
             </Button>
           </BreadcrumbItem>
@@ -125,7 +134,7 @@ export default function SkillDetailPage() {
           <SplitItem>
             <Button
               variant="plain"
-              onClick={() => navigate('/skill-marketplace/skills')}
+              onClick={() => navigate('..')}
               aria-label="Back"
             >
               <ArrowLeftIcon />
@@ -152,6 +161,16 @@ export default function SkillDetailPage() {
               >
                 {skill.pluginName}
               </Label>
+              {skill.lifecycleState && (
+                <Label color={
+                  skill.lifecycleState === 'published' ? 'green' :
+                  skill.lifecycleState === 'testing' ? 'blue' :
+                  skill.lifecycleState === 'deprecated' ? 'orange' :
+                  skill.lifecycleState === 'archived' ? 'grey' : 'yellow'
+                }>
+                  {skill.lifecycleState.charAt(0).toUpperCase() + skill.lifecycleState.slice(1)}
+                </Label>
+              )}
               <Label color={complexityColor[complexity] ?? 'blue'}>
                 {complexity}
               </Label>
@@ -166,7 +185,17 @@ export default function SkillDetailPage() {
                   {skill.sections.workflow.length} steps
                 </Label>
               )}
+              {skill.authors && (
+                <Label color="grey">{skill.authors}</Label>
+              )}
             </LabelGroup>
+            {skill.tags && skill.tags.length > 0 && (
+              <LabelGroup style={{ marginTop: 8 }}>
+                {skill.tags.map(t => (
+                  <Label key={t} color="blue" variant="outline">{t}</Label>
+                ))}
+              </LabelGroup>
+            )}
           </SplitItem>
         </Split>
       </PageSection>
@@ -358,7 +387,7 @@ export default function SkillDetailPage() {
                               className="sm-related-skill-chip"
                               onClick={() => {
                                 const relSlug = rs.name.replace(':', '-');
-                                navigate(`/skill-marketplace/skills/${relSlug}`);
+                                navigate(`../${relSlug}`);
                               }}
                             >
                               {humanize(rs.name)}
@@ -478,11 +507,11 @@ export default function SkillDetailPage() {
                 </Title>
                 <Content component={ContentVariants.p} style={{ marginBottom: 16, color: 'var(--pf-t--global--text--color--subtle)' }}>
                   Open the Skill Playground with &ldquo;{humanize(skill.name)}&rdquo; pre-selected.
-                  The live DocsClaw agent will load this skill and you can test it interactively.
+                  The live agent will load this skill and you can test it interactively.
                 </Content>
                 <Button
                   variant="primary"
-                  onClick={() => navigate(`/skill-marketplace/agents?skill=${encodeURIComponent(skill.skillName)}`)}
+                  onClick={() => navigate(`${basePath}/agents?skill=${encodeURIComponent(skill.skillName)}`)}
                   icon={<RocketIcon />}
                 >
                   Open Playground

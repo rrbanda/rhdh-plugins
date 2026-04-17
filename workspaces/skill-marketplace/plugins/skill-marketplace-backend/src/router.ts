@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { LoggerService } from '@backstage/backend-plugin-api';
+import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
 import express from 'express';
 import Router from 'express-promise-router';
 import type { OciRegistryConfig } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
@@ -22,6 +22,8 @@ import type {
   BuilderProxyService,
   KagentiService,
   OciRegistryService,
+  SkillGraphSyncService,
+  AgenticRagService,
 } from './services';
 import {
   registerSkillsRoutes,
@@ -29,23 +31,35 @@ import {
   registerBuilderRoutes,
   registerKagentiRoutes,
   registerSyncRoutes,
+  registerRagRoutes,
+  registerAgenticRoutes,
+  registerLifecycleRoutes,
 } from './routes';
 
 /** @public */
 export interface RouterOptions {
   logger: LoggerService;
+  httpAuth?: HttpAuthService;
+  permissions?: PermissionsService;
   neo4j?: Neo4jService;
   builderProxy?: BuilderProxyService;
   kagenti?: KagentiService;
   ociRegistry?: OciRegistryService;
   publishRegistry?: OciRegistryConfig;
+  skillSearchDirs?: string[];
+  kagentiDefaults?: { namespace: string; agentName: string };
+  syncService?: SkillGraphSyncService;
+  ragConfig?: Record<string, number>;
+  agenticService?: AgenticRagService;
+  securityMode?: string;
+  builderStreamTimeoutMs?: number;
 }
 
 /** @public */
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, neo4j, builderProxy, kagenti, ociRegistry, publishRegistry } = options;
+  const { logger, httpAuth, permissions, neo4j, builderProxy, kagenti, ociRegistry, publishRegistry, skillSearchDirs, kagentiDefaults, syncService, ragConfig, agenticService, securityMode, builderStreamTimeoutMs } = options;
 
   const router = Router();
   router.use(express.json());
@@ -57,14 +71,23 @@ export async function createRouter(
       builderAgentConfigured: !!builderProxy,
       kagentiConfigured: !!kagenti,
       ociRegistryConfigured: !!ociRegistry,
+      kagenti: kagentiDefaults
+        ? { namespace: kagentiDefaults.namespace, agentName: kagentiDefaults.agentName }
+        : undefined,
+      builder: {
+        streamTimeoutMs: builderStreamTimeoutMs ?? 300_000,
+      },
     });
   });
 
-  registerSkillsRoutes(router, ociRegistry);
+  registerSkillsRoutes(router, ociRegistry, logger, skillSearchDirs);
   registerGraphRoutes(router, neo4j, builderProxy, logger);
-  registerBuilderRoutes(router, builderProxy, logger, ociRegistry, publishRegistry);
-  registerKagentiRoutes(router, kagenti, logger);
-  registerSyncRoutes(router, logger);
+  registerBuilderRoutes(router, builderProxy, logger, ociRegistry, publishRegistry, httpAuth, permissions, syncService, securityMode);
+  registerKagentiRoutes(router, kagenti, logger, httpAuth, permissions, securityMode);
+  registerSyncRoutes(router, logger, syncService, httpAuth, permissions, securityMode);
+  registerRagRoutes(router, logger, neo4j, syncService, httpAuth, permissions, ragConfig);
+  registerAgenticRoutes(router, logger, agenticService, httpAuth, permissions);
+  registerLifecycleRoutes(router, logger, ociRegistry, httpAuth, permissions, securityMode);
 
   router.use(
     (
@@ -75,17 +98,11 @@ export async function createRouter(
     ) => {
       if (err.code === 'ECONNREFUSED') {
         logger.error(`External service unavailable: ${err.message}`);
-        res.status(502).json({
-          error: 'External service is not reachable',
-          details: err.message,
-        });
+        res.status(502).json({ error: 'External service is not reachable' });
         return;
       }
       logger.error(`Request failed: ${err.message}`);
-      res.status(500).json({
-        error: 'Internal server error',
-        details: err.message,
-      });
+      res.status(500).json({ error: 'Internal server error' });
     },
   );
 

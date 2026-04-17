@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../api';
 import type { NvlGraphData } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
@@ -24,28 +24,36 @@ export function useGraphData(limit?: number) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const isInitialLoad = useRef(true);
 
   const refetch = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    setData(null);
     setTick(t => t + 1);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
+
+    if (isInitialLoad.current) {
+      setLoading(true);
+    }
+
     api
       .getGraphData(limit)
       .then(graphData => {
         if (!cancelled) {
           setData(graphData);
+          setError(null);
           setLoading(false);
+          isInitialLoad.current = false;
         }
       })
       .catch(err => {
         if (!cancelled) {
           setError(err.message || 'Failed to load graph data');
-          setLoading(false);
+          if (isInitialLoad.current) {
+            setLoading(false);
+          }
+          isInitialLoad.current = false;
         }
       });
     return () => {

@@ -136,7 +136,7 @@ export default function OverviewPage() {
             <FeaturedCard
               key={skill.slug}
               skill={skill}
-              onClick={() => navigate(`/skill-marketplace/skills/${skill.slug}`)}
+              onClick={() => navigate(`skills/${skill.slug}`)}
             />
           ))}
         </div>
@@ -148,8 +148,8 @@ export default function OverviewPage() {
           <h2 className="ov-h2">How It Works</h2>
           <div className="ov-how-steps">
             {[
-              { n: '1', t: 'Author', d: 'Create a skill.yaml SkillCard defining metadata, tools, and dependencies.', c: '#0066cc' },
-              { n: '2', t: 'Publish', d: 'Push to an OCI registry as a portable, versioned artifact using DocsClaw.', c: '#8b5cf6' },
+              { n: '1', t: 'Author', d: 'Create a skill.yaml SkillCard following the skillimage.io/v1alpha1 spec.', c: '#0066cc' },
+              { n: '2', t: 'Publish', d: 'Push to an OCI registry as a portable, versioned OCI image.', c: '#8b5cf6' },
               { n: '3', t: 'Deploy', d: 'Assign skills to agents via Kagenti and run them in production.', c: '#10b981' },
             ].map((s, i) => (
               <div key={s.n} className="ov-how-row">

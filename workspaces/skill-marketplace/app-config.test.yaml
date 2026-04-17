@@ -1,0 +1,29 @@
+app:
+  title: Skill Marketplace (Test)
+  baseUrl: http://localhost:3000
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+
+skillMarketplace:
+  neo4j:
+    uri: bolt://localhost:7687
+    user: neo4j
+    password: testpassword
+  builderAgent:
+    url: http://localhost:8001
+    apiKey: test-key
+    streamTimeoutMs: 10000
+  oci:
+    publishRegistry:
+      url: http://localhost:5050/test-skills
+    registries:
+      - url: http://localhost:5050/test-skills
+        name: test-registry
+  security:
+    mode: none

@@ -14,18 +14,41 @@
  * limitations under the License.
  */
 import { Router } from 'express';
-import type { LoggerService } from '@backstage/backend-plugin-api';
+import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
+import { skillMarketplaceAdminPermission } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import type { SkillGraphSyncService } from '../services';
+import { requirePermission } from './authUtils';
 
 export function registerSyncRoutes(
   router: Router,
   logger: LoggerService,
+  syncService?: SkillGraphSyncService,
+  httpAuth?: HttpAuthService,
+  permissions?: PermissionsService,
+  securityMode?: string,
 ) {
-  router.post('/sync', async (_req, res) => {
-    logger.info('Registry sync triggered via API');
+  router.post('/sync', async (req, res) => {
+    const allowed = await requirePermission(req, res, skillMarketplaceAdminPermission, {
+      httpAuth, permissions, securityMode,
+    });
+    if (!allowed) return;
+
+    if (!syncService) {
+      res.status(503).json({
+        error: 'Graph sync not available — configure Neo4j and OCI registries',
+      });
+      return;
+    }
+
+    logger.info('Graph sync triggered via API');
+    const result = await syncService.sync();
+    const status = result.ok === false ? 500 : 200;
+    res.status(status).json(result);
+  });
+
+  router.get('/sync/status', async (_req, res) => {
     res.json({
-      ok: true,
-      message:
-        'Sync endpoint placeholder. Configure Neo4j and use POST /api/skill-marketplace/graph/build for full GraphRAG pipeline.',
+      available: !!syncService,
     });
   });
 }

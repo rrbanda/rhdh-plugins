@@ -13,10 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export { RegistryService } from './RegistryService';
 export { Neo4jService } from './Neo4jService';
 export { BuilderProxyService } from './BuilderProxyService';
 export { KagentiService } from './KagentiService';
 export type { KagentiConfig } from './KagentiService';
 export { OciRegistryService } from './OciRegistryService';
 export type { OciRegistryServiceConfig } from './OciRegistryService';
+export { SkillGraphSyncService } from './SkillGraphSyncService';
+export type { GraphSyncConfig } from './SkillGraphSyncService';
+export { EmbeddingService } from './EmbeddingService';
+export { GraphSchemaManager } from './GraphSchemaManager';
+export { parseRelatedSkills } from './RelatedSkillsParser';
+export type { ParsedRelatedSkill } from './RelatedSkillsParser';
+export { LlmClient } from './LlmClient';
+export { AgenticRagService } from './AgenticRagService';
+export type { AgenticRagConfig } from './AgenticRagService';
+export { DefaultSkillSeeder } from './DefaultSkillSeeder';
+export type { SeedResult } from './DefaultSkillSeeder';
+export { validateSkillCard, validateTypedSkillCard } from './SkillCardValidator';
+export type { ValidationResult } from './SkillCardValidator';
+export { getToolRegistry, getToolByName } from './tools';
+export type { AgentTool, ToolContext } from './tools';

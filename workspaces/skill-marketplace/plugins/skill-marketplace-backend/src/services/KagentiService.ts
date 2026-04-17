@@ -25,6 +25,9 @@ export interface KagentiConfig {
   apiUrl: string;
   agentName: string;
   namespace: string;
+  requestTimeoutMs?: number;
+  tokenTimeoutMs?: number;
+  directA2AUrl?: string;
   keycloak: {
     tokenUrl: string;
     clientId: string;
@@ -32,6 +35,9 @@ export interface KagentiConfig {
     password: string;
   };
 }
+
+const KAGENTI_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const KAGENTI_DEFAULT_TOKEN_TIMEOUT_MS = 10_000;
 
 interface TokenCache {
   token: string;
@@ -42,10 +48,26 @@ export class KagentiService {
   private readonly config: KagentiConfig;
   private readonly logger: LoggerService;
   private tokenCache: TokenCache | null = null;
+  private readonly requestTimeoutMs: number;
+  private readonly tokenTimeoutMs: number;
 
   constructor(config: KagentiConfig, logger: LoggerService) {
+    if (!config.apiUrl) {
+      throw new Error('KagentiService: apiUrl is required');
+    }
+    if (!config.keycloak?.tokenUrl || !config.keycloak?.clientId || !config.keycloak?.username || !config.keycloak?.password) {
+      throw new Error('KagentiService: keycloak.tokenUrl, clientId, username, and password are all required');
+    }
     this.config = config;
     this.logger = logger;
+    this.requestTimeoutMs = config.requestTimeoutMs ?? KAGENTI_DEFAULT_REQUEST_TIMEOUT_MS;
+    this.tokenTimeoutMs = config.tokenTimeoutMs ?? KAGENTI_DEFAULT_TOKEN_TIMEOUT_MS;
+  }
+
+  private createSignal(ms?: number): AbortSignal {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms ?? this.requestTimeoutMs);
+    return controller.signal;
   }
 
   private async getToken(): Promise<string> {
@@ -66,6 +88,7 @@ export class KagentiService {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
+      signal: this.createSignal(this.tokenTimeoutMs),
     });
 
     if (!res.ok) {
@@ -116,10 +139,14 @@ export class KagentiService {
 
     this.logger.info(`Kagenti ${method} ${url}`);
     if (bodyStr) {
-      this.logger.info(`Kagenti request body: ${bodyStr}`);
+      const redacted = bodyStr.replace(
+        /"(LLM_API_KEY|password|token|secret|apiKey)"\s*:\s*"[^"]*"/gi,
+        '"$1":"[REDACTED]"',
+      );
+      this.logger.debug(`Kagenti request body: ${redacted}`);
     }
 
-    const res = await fetch(url, { method, headers, body: bodyStr });
+    const res = await fetch(url, { method, headers, body: bodyStr, signal: this.createSignal() });
 
     const text = await res.text();
     if (!res.ok) {
@@ -147,13 +174,26 @@ export class KagentiService {
     namespace?: string,
     agentName?: string,
   ): Promise<{ status: number; data: unknown }> {
-    const card = await this.getAgentCard(namespace, agentName);
-    if (card.status !== 200) {
-      throw new Error(`Agent card unavailable (${card.status})`);
+    let agentUrl: string;
+
+    if (this.config.directA2AUrl && !namespace && !agentName) {
+      agentUrl = this.config.directA2AUrl.replace(/\/a2a$/, '');
+      this.logger.info(`Using directA2AUrl: ${agentUrl}`);
+    } else {
+      const card = await this.getAgentCard(namespace, agentName);
+      if (card.status !== 200) {
+        throw new Error(`Agent card unavailable (${card.status})`);
+      }
+      agentUrl = (card.data as { url?: string }).url ?? '';
+      if (!agentUrl) {
+        throw new Error('Agent card has no URL');
+      }
     }
-    const agentUrl = (card.data as { url?: string }).url;
-    if (!agentUrl) {
-      throw new Error('Agent card has no URL');
+
+    try {
+      new URL(agentUrl);
+    } catch {
+      throw new Error(`Agent URL is not a valid URL: ${agentUrl}`);
     }
 
     const rpcPayload = {
@@ -175,10 +215,11 @@ export class KagentiService {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rpcPayload),
+      signal: this.createSignal(),
     });
 
     const text = await res.text();
-    this.logger.info(`Direct A2A response (${res.status}): ${text.slice(0, 500)}`);
+    this.logger.debug(`Direct A2A response (${res.status}): ${text.slice(0, 500)}`);
 
     try {
       const json = JSON.parse(text);
@@ -278,6 +319,7 @@ export class KagentiService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: this.createSignal(),
     });
   }
 
@@ -315,28 +357,42 @@ export class KagentiService {
   async deployAgent(
     request: AgentDeployRequest,
   ): Promise<{ status: number; data: unknown }> {
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: request.name,
       namespace: request.namespace,
-      description: request.description || `Agent '${request.name}' deployed from Skill Marketplace`,
-      image: request.image,
-      framework: 'Other',
-      protocol: 'a2a',
-      workloadType: 'deployment',
-      gitUrl: `https://github.com/redhat-et/docsclaw.git`,
-      env: [
-        { name: 'LLM_PROVIDER', value: request.llm.provider },
-        { name: 'LLM_MODEL', value: request.llm.model },
-        { name: 'LLM_BASE_URL', value: request.llm.baseUrl },
-        ...(request.llm.apiKey
-          ? [{ name: 'LLM_API_KEY', value: request.llm.apiKey }]
-          : [{ name: 'LLM_API_KEY', value: 'dummy-not-needed' }]),
-      ],
-      ports: [
-        { name: 'http', containerPort: 8000, protocol: 'TCP' },
-        { name: 'health', containerPort: 8100, protocol: 'TCP' },
-      ],
+      protocol: request.protocol ?? 'a2a',
+      framework: request.framework ?? 'Other',
+      workloadType: request.workloadType ?? 'deployment',
+      deploymentMethod: request.deploymentMethod ?? (request.containerImage ? 'image' : 'source'),
     };
+
+    if (request.containerImage) {
+      payload.containerImage = request.containerImage;
+    }
+    if (request.gitUrl) {
+      payload.gitUrl = request.gitUrl;
+    }
+    if (request.gitPath) {
+      payload.gitPath = request.gitPath;
+    }
+    if (request.gitBranch) {
+      payload.gitBranch = request.gitBranch;
+    }
+    if (request.imageTag) {
+      payload.imageTag = request.imageTag;
+    }
+    if (request.envVars && request.envVars.length > 0) {
+      payload.envVars = request.envVars;
+    }
+    if (request.servicePorts && request.servicePorts.length > 0) {
+      payload.servicePorts = request.servicePorts;
+    }
+    if (request.createHttpRoute !== undefined) {
+      payload.createHttpRoute = request.createHttpRoute;
+    }
+    if (request.authBridgeEnabled !== undefined) {
+      payload.authBridgeEnabled = request.authBridgeEnabled;
+    }
 
     return this.apiRequest(this.agentsUrl(), {
       method: 'POST',
@@ -369,57 +425,53 @@ export class KagentiService {
     const spec = agent.spec as Record<string, unknown> | undefined;
     const template = spec?.template as Record<string, unknown> | undefined;
     const podSpec = template?.spec as Record<string, unknown> | undefined;
+
+    const skills: Array<{ name: string; source: string }> = [];
+
     const volumes = (podSpec?.volumes as Array<Record<string, unknown>>) || [];
-
-    const skillVolumes = volumes.filter(v => {
-      const cm = (v.configMap ?? v.config_map) as Record<string, unknown> | undefined;
-      return cm && typeof cm.name === 'string' && (cm.name as string).includes('skill');
-    });
-
-    const skills = skillVolumes.map(v => {
-      const cm = ((v.configMap ?? v.config_map) as Record<string, string>);
-      return { name: v.name as string, configMap: cm.name };
-    });
+    for (const v of volumes) {
+      const cm = (v.config_map ?? v.configMap) as Record<string, unknown> | undefined;
+      if (cm && typeof cm.name === 'string' && (cm.name as string).toLowerCase().includes('skill')) {
+        skills.push({ name: v.name as string, source: `configMap:${cm.name}` });
+      }
+      const volName = v.name as string;
+      if (volName.toLowerCase().includes('skill')) {
+        const hasPvc = v.persistent_volume_claim || v.persistentVolumeClaim;
+        const hasEmptyDir = v.empty_dir || v.emptyDir;
+        if (hasPvc) {
+          const claimName = (hasPvc as Record<string, string>).claim_name ?? (hasPvc as Record<string, string>).claimName;
+          if (!skills.some(s => s.name === volName)) {
+            skills.push({ name: volName, source: `pvc:${claimName}` });
+          }
+        } else if (hasEmptyDir && !skills.some(s => s.name === volName)) {
+          skills.push({ name: volName, source: 'emptyDir (populated by init container)' });
+        }
+      }
+    }
 
     return { status: 200, data: { skills } };
   }
 
   async assignSkill(
-    namespace: string,
-    agentName: string,
-    skillRef: string,
-    skillName: string,
+    _namespace: string,
+    _agentName: string,
+    _skillRef: string,
+    _skillName: string,
   ): Promise<{ status: number; data: unknown }> {
-    this.logger.info(
-      `Assigning skill ${skillName} (${skillRef}) to agent ${agentName} in ${namespace}`,
-    );
     return {
-      status: 200,
-      data: {
-        message: `Skill ${skillName} queued for assignment to ${agentName}`,
-        skillRef,
-        agentName,
-        namespace,
-      },
+      status: 501,
+      data: { error: 'Skill assignment is not yet implemented' },
     };
   }
 
   async removeSkill(
-    namespace: string,
-    agentName: string,
-    skillName: string,
+    _namespace: string,
+    _agentName: string,
+    _skillName: string,
   ): Promise<{ status: number; data: unknown }> {
-    this.logger.info(
-      `Removing skill ${skillName} from agent ${agentName} in ${namespace}`,
-    );
     return {
-      status: 200,
-      data: {
-        message: `Skill ${skillName} queued for removal from ${agentName}`,
-        skillName,
-        agentName,
-        namespace,
-      },
+      status: 501,
+      data: { error: 'Skill removal is not yet implemented' },
     };
   }
 
@@ -438,6 +490,17 @@ export class KagentiService {
   }
 
   // -----------------------------------------------------------------------
+  // Namespaces
+  // -----------------------------------------------------------------------
+
+  async listNamespaces(
+    enabledOnly: boolean = true,
+  ): Promise<{ status: number; data: unknown }> {
+    const query = enabledOnly ? '?enabled_only=true' : '';
+    return this.apiRequest(`${this.config.apiUrl}/api/v1/namespaces${query}`);
+  }
+
+  // -----------------------------------------------------------------------
   // Helpers
   // -----------------------------------------------------------------------
 
@@ -452,19 +515,24 @@ export class KagentiService {
 
     return data.items.map(item => {
       const a = item as Record<string, unknown>;
-      const labels = (a.labels || {}) as Record<string, unknown>;
+      const meta = a.metadata as Record<string, unknown> | undefined;
+      const agentName = (a.name ?? meta?.name) as string;
+      const agentNs = (a.namespace ?? meta?.namespace) as string;
+      const agentLabels = (a.labels ?? meta?.labels ?? {}) as Record<string, unknown>;
+      const agentCreatedAt = (a.createdAt ?? meta?.creationTimestamp) as string;
+
       return {
-        name: a.name as string,
-        namespace: a.namespace as string,
+        name: agentName,
+        namespace: agentNs,
         description: (a.description as string) || '',
-        status: (a.status as KagentiAgent['status']) || 'Unknown',
+        status: (a.status ?? a.readyStatus ?? 'Unknown') as KagentiAgent['status'],
         labels: {
-          protocol: (labels.protocol as string[]) || [],
-          framework: (labels.framework as string) || '',
-          type: (labels.type as string) || '',
+          protocol: (agentLabels.protocol as string[]) || [],
+          framework: (agentLabels.framework as string) || (agentLabels['kagenti.io/framework'] as string) || '',
+          type: (agentLabels.type as string) || (agentLabels['kagenti.io/type'] as string) || '',
         },
         workloadType: (a.workloadType as string) || '',
-        createdAt: (a.createdAt as string) || '',
+        createdAt: agentCreatedAt || '',
       };
     });
   }

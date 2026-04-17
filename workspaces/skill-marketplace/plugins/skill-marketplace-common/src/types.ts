@@ -15,58 +15,78 @@
  */
 
 // ---------------------------------------------------------------------------
-// SkillCard — canonical skill metadata (maps to DocsClaw's skill.yaml)
+// SkillCard — canonical skill metadata (maps to skillimage.io/v1alpha1)
 // ---------------------------------------------------------------------------
+
+/** Lifecycle states matching upstream skillimage spec. @public */
+export type LifecycleState =
+  | 'draft'
+  | 'testing'
+  | 'published'
+  | 'deprecated'
+  | 'archived';
+
+/** Valid lifecycle transitions per the upstream spec. @public */
+export const LIFECYCLE_TRANSITIONS: Record<LifecycleState, LifecycleState[]> = {
+  draft: ['testing', 'archived'],
+  testing: ['draft', 'published', 'archived'],
+  published: ['deprecated'],
+  deprecated: ['archived', 'published'],
+  archived: [],
+};
+
+/** @public */
+export function isValidLifecycleTransition(
+  from: LifecycleState,
+  to: LifecycleState,
+): boolean {
+  return LIFECYCLE_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+/** @public */
+export interface Author {
+  name: string;
+  email?: string;
+}
 
 /** @public */
 export interface SkillCardMeta {
   name: string;
   namespace: string;
-  ref: string;
   version: string;
   description: string;
-  author: string;
+  'display-name'?: string;
   license?: string;
-  metadata?: Record<string, string>;
+  compatibility?: string;
+  tags?: string[];
+  authors?: Author[];
+  'allowed-tools'?: string;
 }
 
 /** @public */
-export interface ToolDeps {
-  required?: string[];
-  optional?: string[];
+export interface SkillExample {
+  input?: string;
+  output?: string;
 }
 
 /** @public */
-export interface ToolPackRef {
+export interface SkillDependency {
   name: string;
-  ref: string;
-}
-
-/** @public */
-export interface SkillDependencies {
-  skills?: string[];
-  toolPacks?: ToolPackRef[];
-}
-
-/** @public */
-export interface ResourceHints {
-  estimatedMemory?: string;
-  estimatedCPU?: string;
-}
-
-/** @public */
-export interface SkillCompatibility {
-  minAgentVersion?: string;
-  environment?: string;
+  version: string;
 }
 
 /** @public */
 export interface SkillCardSpec {
-  tools?: ToolDeps;
-  allowedTools?: string;
-  dependencies?: SkillDependencies;
-  resources?: ResourceHints;
-  compatibility?: SkillCompatibility;
+  prompt?: string;
+  examples?: SkillExample[];
+  dependencies?: SkillDependency[];
+}
+
+/** @public */
+export interface SkillProvenance {
+  source?: string;
+  commit?: string;
+  path?: string;
 }
 
 /** @public */
@@ -74,23 +94,27 @@ export interface SkillCard {
   apiVersion: string;
   kind: string;
   metadata: SkillCardMeta;
-  spec: SkillCardSpec;
+  provenance?: SkillProvenance;
+  spec?: SkillCardSpec;
 }
 
 // ---------------------------------------------------------------------------
 // Skill — runtime enriched skill object for the marketplace
 // ---------------------------------------------------------------------------
 
-/** @public */
+/** Standard OCI annotations aligned with upstream skillimage spec. @public */
 export interface OciAnnotations {
   created?: string;
   version?: string;
+  title?: string;
   description?: string;
   licenses?: string;
-  skillName?: string;
-  resourcesMemory?: string;
-  resourcesCPU?: string;
-  toolsRequired?: string;
+  authors?: string;
+  vendor?: string;
+  source?: string;
+  revision?: string;
+  /** io.skillimage.status — lifecycle state annotation */
+  lifecycleStatus?: string;
 }
 
 /** @public */
@@ -101,6 +125,7 @@ export interface Skill {
   ociAnnotations?: OciAnnotations;
   registryName?: string;
   tags?: string[];
+  lifecycleState?: LifecycleState;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,15 +175,19 @@ export interface KagentiAgent {
 export interface AgentDeployRequest {
   name: string;
   namespace: string;
-  description?: string;
-  image: string;
-  llm: {
-    provider: string;
-    model: string;
-    baseUrl: string;
-    apiKey?: string;
-  };
-  skills?: string[];
+  protocol?: string;
+  framework?: string;
+  workloadType?: string;
+  deploymentMethod?: 'source' | 'image';
+  containerImage?: string;
+  envVars?: Array<{ name: string; value: string }>;
+  servicePorts?: Array<{ name: string; port: number; targetPort: number; protocol?: string }>;
+  gitUrl?: string;
+  gitPath?: string;
+  gitBranch?: string;
+  imageTag?: string;
+  createHttpRoute?: boolean;
+  authBridgeEnabled?: boolean;
 }
 
 /** @public */
@@ -168,7 +197,7 @@ export interface AgentSkillAssignment {
 }
 
 // ---------------------------------------------------------------------------
-// Legacy types (kept for backward compatibility with existing components)
+// Marketplace data types
 // ---------------------------------------------------------------------------
 
 /** @public */
@@ -205,6 +234,10 @@ export interface SkillData {
   assets: SkillAssets;
   plugin: PluginEntry;
   gitPath: string;
+  lifecycleState?: LifecycleState;
+  tags?: string[];
+  authors?: string;
+  displayName?: string;
 }
 
 /** @public */
@@ -277,7 +310,7 @@ export function getPluginColor(pluginName: string): string {
 
 /** @public */
 export function slugify(name: string): string {
-  return name.replace(/:/g, '-').replace(/[^a-z0-9-]/g, '');
+  return name.toLowerCase().replace(/:/g, '-').replace(/[^a-z0-9-]/g, '');
 }
 
 /** @public */
@@ -288,6 +321,103 @@ export function humanize(name: string): string {
     .split('-')
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
+}
+
+// ---------------------------------------------------------------------------
+// Graph sync result
+// ---------------------------------------------------------------------------
+
+/** @public */
+export interface GraphSyncResult {
+  ok: boolean;
+  nodesUpserted: number;
+  relationshipsCreated: number;
+  nodesRemoved: number;
+  durationMs: number;
+  embeddingsGenerated: number;
+}
+
+// ---------------------------------------------------------------------------
+// GraphRAG retrieval types
+// ---------------------------------------------------------------------------
+
+/** @public */
+export interface GraphRAGQuery {
+  query: string;
+  context?: string;
+  maxResults?: number;
+  includeRelated?: boolean;
+  filters?: {
+    domain?: string;
+    tools?: string[];
+    minSimilarity?: number;
+  };
+}
+
+/** @public */
+export interface RagSkillHit {
+  name: string;
+  description: string;
+  category: string;
+  version: string;
+  author: string;
+  ociReference: string;
+}
+
+/** @public */
+export interface GraphRAGSkill {
+  skill: RagSkillHit;
+  score: number;
+  matchType: 'semantic' | 'fulltext' | 'graph';
+  reason: string;
+  related: RagSkillHit[];
+  tools: string[];
+  domain: string;
+}
+
+/** @public */
+export interface GraphRAGResult {
+  skills: GraphRAGSkill[];
+  graphContext: {
+    totalSkills: number;
+    domainsSearched: string[];
+    queryEmbeddingUsed: boolean;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Agentic GraphRAG types
+// ---------------------------------------------------------------------------
+
+/** @public */
+export interface AgenticQuery {
+  query: string;
+  context?: string;
+  sessionId?: string;
+  maxIterations?: number;
+}
+
+/** @public */
+export interface ReasoningStep {
+  tool: string;
+  input: Record<string, unknown>;
+  output: unknown;
+  durationMs: number;
+}
+
+/** @public */
+export interface AgenticResult {
+  answer: string;
+  steps: ReasoningStep[];
+  iterations: number;
+  sources: string[];
+  durationMs: number;
+}
+
+/** @public */
+export interface AgenticStreamEvent {
+  type: 'thinking' | 'tool_call' | 'tool_result' | 'answer' | 'error' | 'done';
+  data: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -351,11 +481,3 @@ export interface NvlGraphData {
   schema: GraphSchema;
 }
 
-/** @public */
-export interface SyncResult {
-  ok: boolean;
-  nodes: number;
-  edges: number;
-  cleaned: number;
-  durationMs: number;
-}

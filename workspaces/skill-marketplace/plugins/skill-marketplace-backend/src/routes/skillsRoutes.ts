@@ -16,6 +16,7 @@
 import { Router } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { OciRegistryService } from '../services';
 import type {
   SkillData,
@@ -35,9 +36,13 @@ const CATEGORY_KEYWORDS: [string, string[]][] = [
 ];
 
 function categoryOf(skill: Skill): string {
-  const explicit = skill.card.metadata.metadata?.category;
-  if (explicit) return explicit;
-
+  const tags = skill.card.metadata.tags;
+  if (tags && tags.length > 0) {
+    const tagStr = tags.join(' ').toLowerCase();
+    for (const [cat, keywords] of CATEGORY_KEYWORDS) {
+      if (keywords.some(kw => tagStr.includes(kw))) return cat;
+    }
+  }
   const haystack = `${skill.card.metadata.name} ${skill.card.metadata.description ?? ''}`.toLowerCase();
   for (const [cat, keywords] of CATEGORY_KEYWORDS) {
     if (keywords.some(kw => haystack.includes(kw))) return cat;
@@ -45,15 +50,19 @@ function categoryOf(skill: Skill): string {
   return 'general';
 }
 
-const SKILL_SEARCH_DIRS = [
-  '/tmp/docsclaw/examples/skills',
-  '/tmp/docsclaw/testdata/standalone/skills',
-  '/tmp/docsclaw/testdata/research-agent/skills',
+let SKILL_SEARCH_DIRS = [
+  '/tmp/skillimage/examples/skills',
+  '/tmp/skillimage/testdata/standalone/skills',
+  '/tmp/skillimage/testdata/research-agent/skills',
 ];
 
 function findSkillContent(skillName: string): string | null {
   for (const dir of SKILL_SEARCH_DIRS) {
-    const filePath = path.join(dir, skillName, 'SKILL.md');
+    const resolvedDir = path.resolve(dir);
+    const filePath = path.resolve(dir, skillName, 'SKILL.md');
+    if (!filePath.startsWith(resolvedDir + path.sep)) {
+      continue;
+    }
     try {
       if (fs.existsSync(filePath)) {
         return fs.readFileSync(filePath, 'utf-8');
@@ -100,22 +109,17 @@ function ociToSkillData(skill: Skill): SkillData {
   const m = skill.card.metadata;
   const cat = categoryOf(skill);
   const slug = `${cat}-${m.name}`;
-  const tools = skill.card.spec.tools?.required ?? [];
+  const toolsStr = m['allowed-tools'] || '';
+  const tools = toolsStr ? toolsStr.split(/\s+/).filter(Boolean) : [];
 
   const localContent = findSkillContent(m.name);
 
   const bodyParts = [
-    `# ${m.name}`,
+    `# ${m['display-name'] || m.name}`,
     '',
     m.description || '',
     '',
     tools.length > 0 ? `**Tools:** ${tools.join(', ')}` : '',
-    skill.card.spec.resources?.estimatedMemory
-      ? `**Memory:** ${skill.card.spec.resources.estimatedMemory}`
-      : '',
-    skill.card.spec.resources?.estimatedCPU
-      ? `**CPU:** ${skill.card.spec.resources.estimatedCPU}`
-      : '',
   ].filter(Boolean).join('\n');
 
   const body = localContent || skill.content || bodyParts;
@@ -140,6 +144,10 @@ function ociToSkillData(skill: Skill): SkillData {
     color: getPluginColor(cat),
   };
 
+  const authorsStr = m.authors
+    ?.map(a => (a.email ? `${a.name} <${a.email}>` : a.name))
+    .join(', ');
+
   return {
     slug,
     pluginName: cat,
@@ -153,6 +161,10 @@ function ociToSkillData(skill: Skill): SkillData {
     assets: { references: [], templates: [], examples: [] },
     plugin,
     gitPath: skill.ociReference,
+    lifecycleState: skill.lifecycleState,
+    tags: m.tags,
+    authors: authorsStr,
+    displayName: m['display-name'],
   };
 }
 
@@ -167,8 +179,8 @@ function buildMarketplace(skills: SkillData[]): MarketplaceData {
   return {
     name: 'skills-marketplace',
     owner: {
-      name: 'DocsClaw Skills',
-      email: 'docsclaw@redhat.com',
+      name: 'Skill Marketplace',
+      email: 'skill-marketplace@redhat.com',
     },
     metadata: {
       description: 'Enterprise Agent Skills Marketplace — OCI Registry',
@@ -180,11 +192,16 @@ function buildMarketplace(skills: SkillData[]): MarketplaceData {
 
 export function registerSkillsRoutes(
   router: Router,
-  ociRegistry?: OciRegistryService,
+  ociRegistry: OciRegistryService | undefined,
+  logger: LoggerService,
+  skillSearchDirs?: string[],
 ) {
+  if (skillSearchDirs && skillSearchDirs.length > 0) {
+    SKILL_SEARCH_DIRS = skillSearchDirs;
+  }
   router.get('/skills', async (_req, res) => {
     if (!ociRegistry) {
-      res.json({ skills: [], marketplace: buildMarketplace([]) });
+      res.status(503).json({ error: 'OCI registry not configured' });
       return;
     }
     try {
@@ -192,14 +209,14 @@ export function registerSkillsRoutes(
       const skills = ociSkills.map(ociToSkillData);
       res.json({ skills, marketplace: buildMarketplace(skills) });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(502).json({ error: `OCI registry error: ${message}` });
+      logger.error(`GET /skills failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to fetch skills from OCI registry' });
     }
   });
 
   router.get('/skills/:slug', async (req, res) => {
     if (!ociRegistry) {
-      res.status(404).json({ error: 'Skill not found' });
+      res.status(503).json({ error: 'OCI registry not configured' });
       return;
     }
     try {
@@ -217,8 +234,8 @@ export function registerSkillsRoutes(
       }
       res.json(match);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(502).json({ error: `OCI registry error: ${message}` });
+      logger.error(`GET /skills/:slug failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to fetch skill from OCI registry' });
     }
   });
 
@@ -230,10 +247,11 @@ export function registerSkillsRoutes(
     try {
       const registryUrl = req.query.registry as string | undefined;
       const skills = await ociRegistry.listSkills(registryUrl);
-      res.json({ skills, registries: ociRegistry.getRegistries() });
+      const registries = ociRegistry.getRegistries().map(({ auth: _auth, ...r }) => r);
+      res.json({ skills, registries });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(502).json({ error: `OCI registry error: ${message}` });
+      logger.error(`GET /oci/skills failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to fetch skills from OCI registry' });
     }
   });
 
@@ -255,8 +273,8 @@ export function registerSkillsRoutes(
       }
       res.json({ content });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(502).json({ error: `OCI registry error: ${message}` });
+      logger.error(`GET /oci/skill-content failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to fetch skill content from OCI registry' });
     }
   });
 
@@ -278,8 +296,8 @@ export function registerSkillsRoutes(
       }
       res.json(skill);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(502).json({ error: `OCI registry error: ${message}` });
+      logger.error(`GET /oci/skill failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to fetch skill from OCI registry' });
     }
   });
 
@@ -297,8 +315,8 @@ export function registerSkillsRoutes(
       const skills = await ociRegistry.searchSkills(query);
       res.json({ skills });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res.status(502).json({ error: `OCI registry error: ${message}` });
+      logger.error(`GET /oci/search failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to search OCI registry' });
     }
   });
 
@@ -307,6 +325,7 @@ export function registerSkillsRoutes(
       res.status(503).json({ error: 'OCI registry not configured' });
       return;
     }
-    res.json({ registries: ociRegistry.getRegistries() });
+    const registries = ociRegistry.getRegistries().map(({ auth: _auth, ...r }) => r);
+    res.json({ registries });
   });
 }

@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { useRouteRef } from '@backstage/core-plugin-api';
+import { rootRouteRef } from '../../routes';
 
 import '@patternfly/patternfly/patternfly.min.css';
 import '@patternfly/patternfly/patternfly-addons.css';
@@ -28,12 +30,13 @@ import GraphPage from '../graph/GraphPage';
 import BuilderPage from '../builder/BuilderPage';
 import AgentsPage from '../agents/AgentsPage';
 import AgentDetailPage from '../agents/AgentDetailPage';
-import { useSkills } from '../../hooks';
+import { useSkills, SkillsProvider } from '../../hooks';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
-export const SkillMarketplacePage = () => {
+const SkillMarketplacePageInner = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const basePath = useRouteRef(rootRouteRef)();
   const { skills, marketplace, loading } = useSkills();
   const [showIntro, setShowIntro] = useState(() => !localStorage.getItem(INTRO_KEY));
 
@@ -48,7 +51,6 @@ export const SkillMarketplacePage = () => {
     return () => window.removeEventListener('sm-replay-intro', handler);
   }, []);
 
-  const basePath = '/skill-marketplace';
   const currentPath = location.pathname.replace(basePath, '') || '/';
 
   const navItems = [
@@ -66,6 +68,12 @@ export const SkillMarketplacePage = () => {
 
   const plugins = marketplace?.plugins ?? [];
 
+  useEffect(() => {
+    if (showIntro && !loading && plugins.length === 0) {
+      dismissIntro();
+    }
+  }, [showIntro, loading, plugins.length, dismissIntro]);
+
   if (showIntro) {
     if (loading) {
       return (
@@ -76,9 +84,6 @@ export const SkillMarketplacePage = () => {
           </div>
         </div>
       );
-    }
-    if (plugins.length === 0) {
-      dismissIntro();
     }
     return plugins.length > 0 ? (
       <div className="sm-root">
@@ -99,11 +104,13 @@ export const SkillMarketplacePage = () => {
   return (
     <div className="sm-root">
       <style>{layoutStyles}</style>
-      <nav className="sm-topnav">
-        <div className="sm-tabs">
+      <nav className="sm-topnav" aria-label="Skill Marketplace navigation">
+        <div className="sm-tabs" role="tablist">
           {navItems.map(item => (
             <button
               key={item.path}
+              role="tab"
+              aria-selected={isActive(item.path)}
               className={`sm-tab ${isActive(item.path) ? 'sm-tab-active' : ''}`}
               onClick={() => navigate(item.path || '.')}
             >
@@ -113,19 +120,61 @@ export const SkillMarketplacePage = () => {
         </div>
       </nav>
       <div className="sm-content">
-        <Routes>
-          <Route index element={<OverviewPage />} />
-          <Route path="skills" element={<SkillsPage />} />
-          <Route path="skills/:slug" element={<SkillDetailPage />} />
-          <Route path="agents" element={<AgentsPage />} />
-          <Route path="agents/:namespace/:name" element={<AgentDetailPage />} />
-          <Route path="graph" element={<GraphPage />} />
-          <Route path="builder" element={<BuilderPage />} />
-        </Routes>
+        <PluginErrorBoundary>
+          <Routes>
+            <Route index element={<OverviewPage />} />
+            <Route path="skills" element={<SkillsPage />} />
+            <Route path="skills/:slug" element={<SkillDetailPage />} />
+            <Route path="agents" element={<AgentsPage />} />
+            <Route path="agents/:namespace/:name" element={<AgentDetailPage />} />
+            <Route path="graph" element={<GraphPage />} />
+            <Route path="builder" element={<BuilderPage />} />
+          </Routes>
+        </PluginErrorBoundary>
       </div>
     </div>
   );
 };
+
+export const SkillMarketplacePage = () => (
+  <SkillsProvider>
+    <SkillMarketplacePageInner />
+  </SkillsProvider>
+);
+
+class PluginErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // eslint-disable-next-line no-console
+    console.error('SkillMarketplace uncaught error:', error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 32, textAlign: 'center' }}>
+          <h3>Something went wrong</h3>
+          <p style={{ color: '#6a6e73' }}>{this.state.error.message}</p>
+          <button
+            onClick={() => this.setState({ error: null })}
+            style={{ marginTop: 12, padding: '8px 16px', cursor: 'pointer' }}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const layoutStyles = `
   .sm-root {

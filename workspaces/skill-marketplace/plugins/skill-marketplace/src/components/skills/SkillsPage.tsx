@@ -416,6 +416,43 @@ const skillsPageStyles = `
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
     opacity: 0.7;
   }
+  .sm-card-lifecycle {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .sm-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .sm-card-tag {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: var(--pf-t--global--background--color--secondary--default, #f0f0f0);
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+  }
+  .sm-card-tag-more {
+    font-style: italic;
+    opacity: 0.7;
+  }
+  .sm-card-authors {
+    display: block;
+    font-size: 11px;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    margin-bottom: 4px;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .sm-card-title {
     font-size: 16px;

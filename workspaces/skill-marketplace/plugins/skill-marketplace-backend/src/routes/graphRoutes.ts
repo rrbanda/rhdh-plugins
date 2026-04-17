@@ -16,6 +16,7 @@
 import { Router } from 'express';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Neo4jService, BuilderProxyService } from '../services';
+import { parseIntParam } from './authUtils';
 
 export function registerGraphRoutes(
   router: Router,
@@ -30,14 +31,13 @@ export function registerGraphRoutes(
     }
     try {
       const limit = req.query.limit
-        ? parseInt(req.query.limit as string, 10)
+        ? parseIntParam(req.query.limit, 500, 10000)
         : undefined;
       const data = await neo4j.fetchFullGraph(limit);
       res.json(data);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      logger.error(`GET /graph failed: ${msg}`);
-      res.status(500).json({ error: msg });
+      logger.error(`GET /graph failed: ${err instanceof Error ? err.message : err}`);
+      res.status(500).json({ error: 'Failed to fetch graph data' });
     }
   });
 
@@ -50,9 +50,8 @@ export function registerGraphRoutes(
       const schema = await neo4j.discoverSchema();
       res.json(schema);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      logger.error(`GET /graph/schema failed: ${msg}`);
-      res.status(500).json({ error: msg });
+      logger.error(`GET /graph/schema failed: ${err instanceof Error ? err.message : err}`);
+      res.status(500).json({ error: 'Failed to fetch graph schema' });
     }
   });
 
@@ -61,18 +60,17 @@ export function registerGraphRoutes(
       res.status(503).json({ error: 'Neo4j not configured' });
       return;
     }
-    const { query } = req.body;
-    if (!query) {
-      res.status(400).json({ error: 'query is required' });
+    const { query } = req.body ?? {};
+    if (typeof query !== 'string' || !query.trim()) {
+      res.status(400).json({ error: 'query is required and must be a string' });
       return;
     }
     try {
       const data = await neo4j.searchGraph(query);
       res.json(data);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      logger.error(`POST /graph/search failed: ${msg}`);
-      res.status(500).json({ error: msg });
+      logger.error(`POST /graph/search failed: ${err instanceof Error ? err.message : err}`);
+      res.status(500).json({ error: 'Graph search failed' });
     }
   });
 
@@ -81,22 +79,27 @@ export function registerGraphRoutes(
       res.status(503).json({ error: 'Neo4j not configured' });
       return;
     }
-    const { nodeId, depth, limit } = req.body;
-    if (!nodeId) {
-      res.status(400).json({ error: 'nodeId is required' });
+    const { nodeId, depth: rawDepth, limit: rawLimit } = req.body ?? {};
+    if (typeof nodeId !== 'string' || !nodeId.trim()) {
+      res.status(400).json({ error: 'nodeId is required and must be a string' });
       return;
     }
+    const depth = typeof rawDepth === 'number' && Number.isInteger(rawDepth) && rawDepth > 0
+      ? rawDepth
+      : 2;
+    const limit = typeof rawLimit === 'number' && Number.isInteger(rawLimit) && rawLimit > 0
+      ? rawLimit
+      : undefined;
     try {
       const data = await neo4j.fetchNeighborhood(nodeId, depth, limit);
       res.json(data);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      logger.error(`POST /graph/neighborhood failed: ${msg}`);
-      res.status(500).json({ error: msg });
+      logger.error(`POST /graph/neighborhood failed: ${err instanceof Error ? err.message : err}`);
+      res.status(500).json({ error: 'Failed to fetch neighborhood data' });
     }
   });
 
-  router.post('/graph/build', async (_req, res) => {
+  router.post('/graph/build', async (req, res) => {
     if (!builderProxy) {
       res.status(503).json({ error: 'Builder agent not configured' });
       return;
@@ -105,7 +108,8 @@ export function registerGraphRoutes(
       const upstream = await builderProxy.graphBuild();
       if (!upstream.ok) {
         const text = await upstream.text();
-        res.status(upstream.status).send(text);
+        logger.error(`Graph build upstream error (${upstream.status}): ${text}`);
+        res.status(upstream.status).json({ error: 'Graph build request failed' });
         return;
       }
       if (!upstream.body) {
@@ -121,11 +125,10 @@ export function registerGraphRoutes(
         logger.error(`Graph build SSE error: ${err.message}`);
         res.end();
       });
+      req.on('close', () => { (upstream.body as unknown as { destroy?: () => void })?.destroy?.(); });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res
-        .status(502)
-        .json({ error: `Failed to reach builder agent: ${message}` });
+      logger.error(`POST /graph/build failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to reach builder agent' });
     }
   });
 

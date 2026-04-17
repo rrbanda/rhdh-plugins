@@ -23,6 +23,7 @@ export type BuilderEvent =
       args: Record<string, unknown>;
       ts: number;
     }
+  | { type: 'tool_result'; agent: string; tool: string; result: string; ts: number }
   | { type: 'agent_output'; agent: string; text: string; ts: number }
   | {
       type: 'complete';
@@ -30,6 +31,7 @@ export type BuilderEvent =
       validation: string;
       ts: number;
     }
+  | { type: 'stream_end'; ts: number }
   | { type: 'error'; error: string; ts: number };
 
 export interface ChatMessage {

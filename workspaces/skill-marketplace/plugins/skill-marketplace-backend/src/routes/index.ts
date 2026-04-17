@@ -18,3 +18,7 @@ export { registerGraphRoutes } from './graphRoutes';
 export { registerBuilderRoutes } from './builderRoutes';
 export { registerKagentiRoutes } from './kagentiRoutes';
 export { registerSyncRoutes } from './syncRoutes';
+export { registerRagRoutes } from './ragRoutes';
+export { registerAgenticRoutes } from './agenticRoutes';
+export { registerLifecycleRoutes } from './lifecycleRoutes';
+export { requirePermission, parseIntParam } from './authUtils';

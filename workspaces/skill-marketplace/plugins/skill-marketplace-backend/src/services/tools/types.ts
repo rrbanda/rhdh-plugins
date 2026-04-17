@@ -13,16 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { LlmToolFunction } from '../LlmClient';
+import type { Neo4jService } from '../Neo4jService';
+import type { OciRegistryService } from '../OciRegistryService';
+import type { EmbeddingService } from '../EmbeddingService';
+import type { LoggerService } from '@backstage/backend-plugin-api';
 
-export interface Config {
-  /**
-   * Configuration for the Skills Marketplace frontend plugin
-   */
-  skillMarketplace?: {
-    /**
-     * Enable debug logging in the browser console
-     * @visibility frontend
-     */
-    debug?: boolean;
-  };
+export interface ToolContext {
+  neo4j: Neo4jService;
+  ociRegistry?: OciRegistryService;
+  embedding?: EmbeddingService;
+  logger: LoggerService;
+}
+
+export interface AgentTool {
+  definition: LlmToolFunction;
+  execute: (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
 }

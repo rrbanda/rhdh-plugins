@@ -22,15 +22,19 @@ import ErrorMessage from '../shared/ErrorMessage';
 
 interface AgentDetail {
   metadata?: { name: string; namespace: string; labels: Record<string, string> };
-  status?: string;
+  status?: Record<string, unknown> | string;
   readyStatus?: string;
   spec?: {
     template?: {
       spec?: {
         containers?: Array<{
+          name?: string;
           image?: string;
-          env?: Array<{ name: string; value?: string }>;
+          image_pull_policy?: string;
+          env?: Array<{ name: string; value?: string; value_from?: unknown }>;
+          env_from?: Array<{ config_map_ref?: { name: string }; secret_ref?: { name: string } }>;
           args?: string[];
+          ports?: Array<{ container_port?: number; name?: string }>;
         }>;
       };
     };
@@ -63,16 +67,23 @@ export default function AgentDetailPage() {
 
   useEffect(() => {
     if (!namespace || !name) return;
+    let cancelled = false;
+    setLoading(true);
     api
       .getAgentDetail(namespace, name)
       .then(data => {
-        setAgent(data as AgentDetail);
-        setLoading(false);
+        if (!cancelled) {
+          setAgent(data as AgentDetail);
+          setLoading(false);
+        }
       })
       .catch(err => {
-        setError(err.message || 'Failed to load agent');
-        setLoading(false);
+        if (!cancelled) {
+          setError(err.message || 'Failed to load agent');
+          setLoading(false);
+        }
       });
+    return () => { cancelled = true; };
   }, [api, namespace, name]);
 
   const sendChat = useCallback(async () => {
@@ -87,14 +98,15 @@ export default function AgentDetailPage() {
 
     try {
       const result = await api.chatWithAgent(msg, sessionId, namespace, name);
-      const data = result as { content?: string; session_id?: string; sessionId?: string };
+      const data = result as { content?: string; response?: string; message?: string; session_id?: string; sessionId?: string };
       const sid = data.session_id ?? data.sessionId;
       if (sid) setSessionId(sid);
+      const agentContent = data.content ?? data.response ?? data.message ?? JSON.stringify(data);
       setChatMessages(prev => [
         ...prev,
         {
           role: 'agent',
-          content: data.content || JSON.stringify(data),
+          content: agentContent,
           timestamp: new Date(),
         },
       ]);
@@ -140,17 +152,18 @@ export default function AgentDetailPage() {
   if (error) return <ErrorMessage message={error} />;
   if (!agent) return <ErrorMessage message="Agent not found" />;
 
-  const container = agent.spec?.template?.spec?.containers?.[0];
-  const envVars = container?.env || [];
-  const llmProvider = envVars.find(e => e.name === 'LLM_PROVIDER')?.value || 'N/A';
-  const llmModel = envVars.find(e => e.name === 'LLM_MODEL')?.value || 'N/A';
+  const containers = agent.spec?.template?.spec?.containers ?? [];
+  const allEnvVars = containers.flatMap(c => (c.env ?? []).filter(e => e.value != null));
+  const primaryContainer = containers[0];
+  const llmProvider = allEnvVars.find(e => e.name === 'LLM_PROVIDER')?.value || 'N/A';
+  const llmModel = allEnvVars.find(e => e.name === 'LLM_MODEL')?.value || 'N/A';
 
   return (
     <div className="ad-page">
       <style>{detailStyles}</style>
 
       <div className="ad-back-row">
-        <button className="ad-back-btn" onClick={() => navigate('/skill-marketplace/agents')}>
+        <button className="ad-back-btn" onClick={() => navigate('..')}>
           &larr; Back to Agents
         </button>
       </div>
@@ -188,7 +201,7 @@ export default function AgentDetailPage() {
           <div className="ad-info-grid">
             <div className="ad-info-card">
               <h4>Container Image</h4>
-              <code>{container?.image || 'N/A'}</code>
+              <code>{primaryContainer?.image || 'N/A'}</code>
             </div>
             <div className="ad-info-card">
               <h4>LLM Provider</h4>
@@ -199,17 +212,17 @@ export default function AgentDetailPage() {
               <span>{llmModel}</span>
             </div>
             <div className="ad-info-card">
-              <h4>Command Args</h4>
-              <code>{container?.args?.join(' ') || 'default'}</code>
+              <h4>Containers</h4>
+              <span>{containers.map(c => c.name).filter(Boolean).join(', ') || 'N/A'}</span>
             </div>
           </div>
 
-          {envVars.length > 0 && (
+          {allEnvVars.length > 0 && (
             <div className="ad-env-section">
               <h3>Environment Variables</h3>
               <div className="ad-env-table">
-                {envVars
-                  .filter(e => !e.name.includes('KEY') && !e.name.includes('PASSWORD'))
+                {allEnvVars
+                  .filter(e => !/KEY|PASSWORD|TOKEN|SECRET|BEARER|CREDENTIAL/i.test(e.name))
                   .map(e => (
                     <div key={e.name} className="ad-env-row">
                       <code className="ad-env-name">{e.name}</code>

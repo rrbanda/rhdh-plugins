@@ -20,10 +20,10 @@ export interface Config {
    */
   skillMarketplace?: {
     /**
-     * Path to the skill registry directory containing SKILL.md files
+     * Directories to search for local SKILL.md files
      * @visibility backend
      */
-    registryDir?: string;
+    skillSearchDirs?: string[];
 
     /**
      * Neo4j graph database configuration
@@ -49,6 +49,14 @@ export interface Config {
       url?: string;
       /** @visibility secret */
       apiKey?: string;
+      /** Connection timeout in milliseconds for builder agent HTTP calls (default: 30000)
+       * @visibility backend
+       */
+      timeoutMs?: number;
+      /** Maximum duration in milliseconds for SSE streaming pipelines (default: 300000). Set to 0 to disable.
+       * @visibility backend
+       */
+      streamTimeoutMs?: number;
     };
 
     /**
@@ -56,6 +64,20 @@ export interface Config {
      * @visibility backend
      */
     oci?: {
+      /**
+       * OCI registry used for publishing new skills
+       * @visibility backend
+       */
+      publishRegistry?: {
+        /** @visibility backend */
+        url?: string;
+        /** @visibility secret */
+        username?: string;
+        /** @visibility secret */
+        password?: string;
+        /** @visibility secret */
+        token?: string;
+      };
       /**
        * List of OCI registries to scan for skills
        */
@@ -76,6 +98,14 @@ export interface Config {
        * @visibility backend
        */
       cacheTimeout?: number;
+      /** HTTP request timeout in milliseconds for OCI registry calls (default: 30000)
+       * @visibility backend
+       */
+      requestTimeoutMs?: number;
+      /** Maximum number of OCI cache entries before LRU eviction (default: 1000)
+       * @visibility backend
+       */
+      maxCacheEntries?: number;
     };
 
     /**
@@ -89,6 +119,21 @@ export interface Config {
       agentName?: string;
       /** @visibility backend */
       namespace?: string;
+      /** HTTP request timeout in milliseconds for Kagenti API calls (default: 30000)
+       * @visibility backend
+       */
+      requestTimeoutMs?: number;
+      /** Timeout in milliseconds for Keycloak token requests (default: 10000)
+       * @visibility backend
+       */
+      tokenTimeoutMs?: number;
+      /** Direct A2A URL to bypass Kagenti chat proxy.
+       * When set, the plugin calls the agent directly using the A2A protocol
+       * instead of routing through Kagenti's chat proxy.
+       * Example: http://builder-agent.skills-marketplace.svc.cluster.local:8000
+       * @visibility backend
+       */
+      directA2AUrl?: string;
       /**
        * Keycloak authentication for Kagenti API
        * @visibility backend
@@ -106,12 +151,141 @@ export interface Config {
     };
 
     /**
+     * Skill Knowledge Graph configuration
+     * @visibility backend
+     */
+    graph?: {
+      /** Sync OCI skills to Neo4j on plugin startup (default: true)
+       * @visibility backend
+       */
+      syncOnStartup?: boolean;
+      /** Periodic sync interval in seconds (default: 30, 0 = disabled)
+       * @visibility backend
+       */
+      syncIntervalSeconds?: number;
+      /** OpenAI-compatible embedding API URL
+       * @visibility backend
+       */
+      embeddingApiUrl?: string;
+      /** Embedding model name (default: text-embedding-3-small)
+       * @visibility backend
+       */
+      embeddingModel?: string;
+      /** @visibility secret */
+      embeddingApiKey?: string;
+      /** Embedding vector dimensions (default: 1536, must match embedding model output)
+       * @visibility backend
+       */
+      embeddingDimensions?: number;
+      /** Timeout in milliseconds for embedding API calls (default: 30000)
+       * @visibility backend
+       */
+      embeddingTimeoutMs?: number;
+      /** Minimum cosine similarity for SIMILAR_TO relationships (default: 0.75)
+       * @visibility backend
+       */
+      similarityThreshold?: number;
+      /** Maximum number of similar skills per node for kNN similarity computation (default: 10)
+       * @visibility backend
+       */
+      similarityTopK?: number;
+      /**
+       * Custom category keyword mappings for skill classification.
+       * Keys are category names, values are arrays of keywords.
+       * @visibility backend
+       */
+      categoryKeywords?: Record<string, string[]>;
+      /**
+       * Agentic GraphRAG configuration
+       * @visibility backend
+       */
+      agent?: {
+        /** LLM model for agentic reasoning (default: gpt-4o). Must support function calling.
+         * @visibility backend
+         */
+        model?: string;
+        /** Override LLM API URL (default: derived from embeddingApiUrl by replacing /embeddings with /chat/completions)
+         * @visibility backend
+         */
+        llmApiUrl?: string;
+        /** Override API key for LLM calls (default: reuses embeddingApiKey)
+         * @visibility secret
+         */
+        llmApiKey?: string;
+        /** Maximum agent loop iterations per query (default: 5, max: 10)
+         * @visibility backend
+         */
+        maxIterations?: number;
+        /** Timeout per LLM call in milliseconds (default: 60000)
+         * @visibility backend
+         */
+        timeoutMs?: number;
+        /** Cache TTL for graph schema used in system prompt, in seconds (default: 300)
+         * @visibility backend
+         */
+        schemaCacheTtlSeconds?: number;
+      };
+      /**
+       * RAG (Retrieval-Augmented Generation) tuning parameters
+       * @visibility backend
+       */
+      rag?: {
+        /** Minimum fulltext search score to include (default: 0.3)
+         * @visibility backend
+         */
+        fulltextScoreFloor?: number;
+        /** Maximum fulltext results to return (default: 20)
+         * @visibility backend
+         */
+        fulltextLimit?: number;
+        /** Divisor for normalizing fulltext scores (default: 10)
+         * @visibility backend
+         */
+        scoreNormalizationDivisor?: number;
+        /** Score propagation factor for graph-expanded results (default: 0.7)
+         * @visibility backend
+         */
+        graphPropagationFactor?: number;
+        /** Fallback score for substring matches (default: 0.5)
+         * @visibility backend
+         */
+        fallbackScore?: number;
+        /** Multiplier for vector search topK relative to maxResults (default: 2)
+         * @visibility backend
+         */
+        vectorTopKMultiplier?: number;
+        /** Maximum number of graph expansion results (default: 100)
+         * @visibility backend
+         */
+        expansionLimit?: number;
+      };
+    };
+
+    /**
+     * Seed bundled default skills into the OCI publish registry on first startup.
+     * Only runs when publishRegistry is configured and the registry is empty.
+     * Default: true
+     * @visibility backend
+     */
+    seedDefaults?: boolean;
+
+    /**
+     * Force re-seed even if skills already exist in the publish registry.
+     * Existing skills are never overwritten -- only missing ones are added.
+     * Default: false
+     * @visibility backend
+     */
+    forceReseed?: boolean;
+
+    /**
      * Security configuration
      * @visibility backend
      */
     security?: {
       /**
-       * Security mode: 'none' for dev, 'plugin-only' for production
+       * Security mode: 'plugin-only' (default, requires user-cookie auth)
+       * or 'none' (DEVELOPMENT ONLY - disables all authentication).
+       * WARNING: Never use 'none' in production.
        * @visibility backend
        */
       mode?: 'none' | 'plugin-only';

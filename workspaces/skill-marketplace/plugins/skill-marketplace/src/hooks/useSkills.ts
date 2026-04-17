@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../api';
 import type {
@@ -21,7 +21,26 @@ import type {
   MarketplaceData,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
-export function useSkills() {
+interface SkillsState {
+  skills: SkillData[];
+  marketplace: MarketplaceData | null;
+  loading: boolean;
+  error: string | null;
+}
+
+const SkillsContext = createContext<SkillsState>({
+  skills: [],
+  marketplace: null,
+  loading: true,
+  error: null,
+});
+
+/**
+ * Provider that fetches skills once and shares state with all descendant
+ * components via React context. Wrap the plugin's top-level page in this
+ * to avoid duplicate GET /skills requests from nested pages.
+ */
+export function SkillsProvider({ children }: { children: React.ReactNode }) {
   const api = useApi(skillMarketplaceApiRef);
   const [skills, setSkills] = useState<SkillData[]>([]);
   const [marketplace, setMarketplace] = useState<MarketplaceData | null>(null);
@@ -50,5 +69,18 @@ export function useSkills() {
     };
   }, [api]);
 
-  return { skills, marketplace, loading, error };
+  const value = useMemo(
+    () => ({ skills, marketplace, loading, error }),
+    [skills, marketplace, loading, error],
+  );
+
+  return React.createElement(SkillsContext.Provider, { value }, children);
+}
+
+/**
+ * Returns the shared skills state from `SkillsProvider`.
+ * Must be used within a `SkillsProvider`.
+ */
+export function useSkills(): SkillsState {
+  return useContext(SkillsContext);
 }

@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 import { Router } from 'express';
-import type { LoggerService } from '@backstage/backend-plugin-api';
+import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
 import type { OciRegistryConfig } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import type { BuilderProxyService, OciRegistryService } from '../services';
+import {
+  skillMarketplaceAdminPermission,
+  skillMarketplaceAccessPermission,
+} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import type { BuilderProxyService, OciRegistryService, SkillGraphSyncService } from '../services';
+import { validateTypedSkillCard } from '../services/SkillCardValidator';
+import { requirePermission } from './authUtils';
 
 export function registerBuilderRoutes(
   router: Router,
@@ -24,8 +30,17 @@ export function registerBuilderRoutes(
   logger: LoggerService,
   ociRegistry?: OciRegistryService,
   publishRegistry?: OciRegistryConfig,
+  httpAuth?: HttpAuthService,
+  permissions?: PermissionsService,
+  syncService?: SkillGraphSyncService,
+  securityMode?: string,
 ) {
   router.post('/builder/publish', async (req, res) => {
+    const allowed = await requirePermission(req, res, skillMarketplaceAdminPermission, {
+      httpAuth, permissions, securityMode,
+    });
+    if (!allowed) return;
+
     if (!ociRegistry) {
       res.status(503).json({ error: 'OCI registry not configured' });
       return;
@@ -35,19 +50,14 @@ export function registerBuilderRoutes(
       return;
     }
 
-    const { skillName, version, description, author, content } =
-      req.body as {
-        skillName: string;
-        version: string;
-        description: string;
-        author: string;
-        content: string;
-      };
+    const { skillName, version, description, author, content } = req.body ?? {};
 
-    if (!skillName || !content) {
-      res
-        .status(400)
-        .json({ error: 'skillName and content are required' });
+    if (typeof skillName !== 'string' || !skillName.trim()) {
+      res.status(400).json({ error: 'skillName is required and must be a string' });
+      return;
+    }
+    if (typeof content !== 'string' || !content.trim()) {
+      res.status(400).json({ error: 'content is required and must be a string' });
       return;
     }
 
@@ -58,20 +68,26 @@ export function registerBuilderRoutes(
       .replace(/^-|-$/g, '');
 
     const skillCard = {
-      apiVersion: 'docsclaw.io/v1alpha1',
-      kind: 'SkillCard',
+      apiVersion: 'skillimage.io/v1alpha1' as const,
+      kind: 'SkillCard' as const,
       metadata: {
         name: safeName,
         namespace: 'default',
-        ref: '',
         version: version || '0.1.0',
         description: description || '',
-        author: author || 'skill-marketplace',
-      },
-      spec: {
-        tools: { required: ['exec', 'read_file', 'write_file', 'web_fetch'] },
+        authors: [{ name: author || 'skill-marketplace' }],
+        'allowed-tools': 'exec read_file write_file web_fetch',
       },
     };
+
+    const validation = validateTypedSkillCard(skillCard);
+    if (!validation.valid) {
+      res.status(400).json({
+        error: 'Constructed SkillCard fails upstream schema validation',
+        details: validation.errors,
+      });
+      return;
+    }
 
     try {
       const ociReference = await ociRegistry.pushSkill(
@@ -81,11 +97,15 @@ export function registerBuilderRoutes(
         version || undefined,
       );
 
-      skillCard.metadata.ref = ociReference;
-
       logger.info(
         `Published skill ${safeName} to ${ociReference}`,
       );
+
+      if (syncService) {
+        syncService.sync().catch(syncErr =>
+          logger.warn(`Post-publish sync failed: ${(syncErr as Error).message}`),
+        );
+      }
 
       res.json({
         success: true,
@@ -93,14 +113,16 @@ export function registerBuilderRoutes(
         skillCard,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      logger.error(`Failed to publish skill to OCI: ${message}`);
-      res.status(502).json({
-        error: `Failed to publish skill to OCI registry: ${message}`,
-      });
+      logger.error(`Failed to publish skill to OCI: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to publish skill to OCI registry' });
     }
   });
   router.post('/builder', async (req, res) => {
+    const accessAllowed = await requirePermission(req, res, skillMarketplaceAccessPermission, {
+      httpAuth, permissions, securityMode,
+    });
+    if (!accessAllowed) return;
+
     if (!builderProxy) {
       res.status(503).json({ error: 'Builder agent not configured' });
       return;
@@ -119,10 +141,8 @@ export function registerBuilderRoutes(
         const result = await builderProxy.save(req.body);
         res.status(result.status).json(result.data);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        res
-          .status(502)
-          .json({ error: `Failed to reach builder agent: ${message}` });
+        logger.error(`Builder save failed: ${err instanceof Error ? err.message : err}`);
+        res.status(502).json({ error: 'Failed to reach builder agent' });
       }
       return;
     }
@@ -135,12 +155,13 @@ export function registerBuilderRoutes(
 
       if (!upstream.ok) {
         const text = await upstream.text();
-        res.status(upstream.status).send(text);
+        logger.error(`Builder ${action} upstream error (${upstream.status}): ${text}`);
+        res.status(upstream.status).json({ error: `Builder ${action} request failed` });
         return;
       }
 
       if (!upstream.body) {
-        res.status(502).send('No stream body');
+        res.status(502).json({ error: 'No stream body' });
         return;
       }
 
@@ -149,16 +170,39 @@ export function registerBuilderRoutes(
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
 
-      upstream.body.pipe(res);
+      const keepaliveInterval = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(':\n\n');
+        }
+      }, 15_000);
+
+      const cleanup = () => {
+        clearInterval(keepaliveInterval);
+      };
+
+      upstream.body.on('end', () => {
+        cleanup();
+        if (!res.writableEnded) {
+          res.write('event: stream_end\ndata: {}\n\n');
+          res.end();
+        }
+      });
+      upstream.body.pipe(res, { end: false });
       upstream.body.on('error', err => {
+        cleanup();
         logger.error(`Builder SSE stream error: ${err.message}`);
-        res.end();
+        if (!res.writableEnded) {
+          res.write(`event: error\ndata: ${JSON.stringify({ error: 'Stream interrupted' })}\n\n`);
+          res.end();
+        }
+      });
+      req.on('close', () => {
+        cleanup();
+        (upstream.body as unknown as { destroy?: () => void })?.destroy?.();
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      res
-        .status(502)
-        .json({ error: `Failed to reach builder agent: ${message}` });
+      logger.error(`Builder stream failed: ${err instanceof Error ? err.message : err}`);
+      res.status(502).json({ error: 'Failed to reach builder agent' });
     }
   });
 }

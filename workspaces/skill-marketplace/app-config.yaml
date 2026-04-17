@@ -33,8 +33,6 @@ catalog:
 
 # Skills Marketplace plugin configuration
 skillMarketplace:
-  registryDir: ${SKILL_REGISTRY_DIR:-../../../registry}
-
   neo4j:
     uri: ${NEO4J_URI:-bolt://localhost:7687}
     user: ${NEO4J_USER:-neo4j}
@@ -49,36 +47,32 @@ skillMarketplace:
     apiUrl: ${KAGENTI_API_URL:-https://kagenti-api.your-cluster.example.com}
     agentName: ${KAGENTI_AGENT_NAME:-builder-agent}
     namespace: ${KAGENTI_AGENT_NS:-skills-marketplace}
+    # Optional: bypass Kagenti chat proxy and call the agent directly via A2A.
+    # Useful when Backstage runs inside the cluster and can reach the agent's internal URL.
+    # directA2AUrl: ${KAGENTI_DIRECT_A2A_URL:-}
     keycloak:
       tokenUrl: ${KEYCLOAK_TOKEN_URL:-https://keycloak.your-cluster.example.com/realms/kagenti/protocol/openid-connect/token}
       clientId: ${KEYCLOAK_CLIENT_ID:-kagenti}
       username: ${KEYCLOAK_USERNAME:-admin}
       password: ${KEYCLOAK_PASSWORD:-changeme}
 
+  # Seed 100 curated default skills into the OCI registry on first startup.
+  # Only runs when publishRegistry is configured and the registry is empty.
+  seedDefaults: ${SEED_DEFAULTS:-true}
+  # forceReseed: false  # Set to true to re-seed missing skills even if registry has some
+
   oci:
     cacheTimeout: 300
     publishRegistry:
       url: ${OCI_PUBLISH_REGISTRY_URL:-https://registry.your-cluster.example.com/your-namespace}
       token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
+    # Single namespace URL -- all skill-* repos are discovered via _catalog.
+    # Falls back to direct tag listing if _catalog is unavailable.
     registries:
-      - url: https://registry.your-cluster.example.com/your-namespace/skill-resume-screener
-        name: resume-screener
-        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
-      - url: https://registry.your-cluster.example.com/your-namespace/skill-policy-comparator
-        name: policy-comparator
-        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
-      - url: https://registry.your-cluster.example.com/your-namespace/skill-checklist-auditor
-        name: checklist-auditor
-        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
-      - url: https://registry.your-cluster.example.com/your-namespace/skill-code-review
-        name: code-review
-        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
-      - url: https://registry.your-cluster.example.com/your-namespace/skill-url-summary
-        name: url-summary
-        token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
-      - url: https://registry.your-cluster.example.com/your-namespace/skill-pdf-summary
-        name: pdf-summary
+      - url: ${OCI_REGISTRY_URL:-https://registry.your-cluster.example.com/your-namespace}
+        name: skills-registry
         token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
 
+  # WARNING: Set to 'none' ONLY for local development. Use 'plugin-only' in production.
   security:
-    mode: 'none'
+    mode: ${SKILL_MARKETPLACE_SECURITY_MODE:-plugin-only}
