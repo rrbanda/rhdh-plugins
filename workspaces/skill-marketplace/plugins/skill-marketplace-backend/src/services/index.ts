@@ -32,5 +32,6 @@ export { DefaultSkillSeeder } from './DefaultSkillSeeder';
 export type { SeedResult } from './DefaultSkillSeeder';
 export { validateSkillCard, validateTypedSkillCard } from './SkillCardValidator';
 export type { ValidationResult } from './SkillCardValidator';
+export { SkillContextBuilder } from './SkillContextBuilder';
 export { getToolRegistry, getToolByName } from './tools';
 export type { AgentTool, ToolContext } from './tools';

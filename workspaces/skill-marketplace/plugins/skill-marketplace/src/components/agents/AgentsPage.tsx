@@ -72,10 +72,6 @@ export default function AgentsPage() {
     const text = input.trim();
     if (!text || sending) return;
 
-    const prompt = selectedSkill
-      ? `[Using skill: ${selectedSkill}] First load_skill("${selectedSkill}"), then: ${text}`
-      : text;
-
     setMessages(prev => [...prev, { role: 'user', text, skill: selectedSkill || undefined, timestamp: Date.now() }]);
     setInput('');
     setSending(true);
@@ -83,10 +79,11 @@ export default function AgentsPage() {
 
     try {
       const result = (await api.chatWithAgent(
-        prompt,
+        text,
         sessionId,
         agentNs,
         agentName,
+        selectedSkill || undefined,
       )) as {
         session_id?: string;
         sessionId?: string;
@@ -189,7 +186,7 @@ export default function AgentsPage() {
           </select>
           {selectedSkill && (
             <span className="pg-skill-hint">
-              Agent will load &ldquo;{selectedSkill}&rdquo; before responding
+              Skill &ldquo;{selectedSkill}&rdquo; context will be provided to the agent
             </span>
           )}
           {selectedSkillData && (
@@ -198,9 +195,9 @@ export default function AgentsPage() {
         </div>
 
         <div className="pg-tools">
-          <label className="pg-label">Agent Tools</label>
+          <label className="pg-label">Agent Capabilities</label>
           <div className="pg-tool-list">
-            {['load_skill', 'exec', 'web_fetch', 'read_file', 'write_file'].map(t => (
+            {['skill_context', 'exec', 'web_fetch', 'read_file', 'write_file'].map(t => (
               <span key={t} className="pg-tool-badge">{t}</span>
             ))}
           </div>

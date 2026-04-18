@@ -15,7 +15,7 @@
  */
 import { Router } from 'express';
 import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
-import type { KagentiService } from '../services';
+import type { KagentiService, SkillContextBuilder } from '../services';
 import { skillMarketplaceAdminPermission } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { AgentDeployRequest } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import { requirePermission, parseIntParam } from './authUtils';
@@ -27,6 +27,7 @@ export function registerKagentiRoutes(
   httpAuth?: HttpAuthService,
   permissions?: PermissionsService,
   securityMode?: string,
+  skillContextBuilder?: SkillContextBuilder,
 ) {
   router.get('/kagenti/agents', async (req, res) => {
     if (!kagenti) {
@@ -217,11 +218,15 @@ export function registerKagentiRoutes(
       res.status(503).json({ error: 'Kagenti not configured' });
       return;
     }
-    const { message, sessionId, namespace, agentName } = req.body ?? {};
+    const { message, sessionId, namespace, agentName, activeSkill } = req.body ?? {};
     if (typeof message !== 'string' || !message.trim()) {
       res.status(400).json({ error: 'message is required and must be a string' });
       return;
     }
+
+    const enrichedMessage = skillContextBuilder
+      ? await skillContextBuilder.enrichMessage(message, typeof activeSkill === 'string' ? activeSkill : undefined)
+      : message;
 
     const normalizeResponse = (data: Record<string, unknown>) => ({
       content:
@@ -235,7 +240,7 @@ export function registerKagentiRoutes(
 
     try {
       const result = await kagenti.sendA2AMessage(
-        message,
+        enrichedMessage,
         sessionId,
         namespace,
         agentName,
@@ -250,7 +255,7 @@ export function registerKagentiRoutes(
       );
       try {
         const result = await kagenti.sendMessage(
-          message,
+          enrichedMessage,
           sessionId,
           namespace,
           agentName,
@@ -274,14 +279,19 @@ export function registerKagentiRoutes(
       res.status(503).json({ error: 'Kagenti not configured' });
       return;
     }
-    const { message, sessionId, namespace, agentName } = req.body ?? {};
+    const { message, sessionId, namespace, agentName, activeSkill } = req.body ?? {};
     if (typeof message !== 'string' || !message.trim()) {
       res.status(400).json({ error: 'message is required and must be a string' });
       return;
     }
+
+    const enrichedMessage = skillContextBuilder
+      ? await skillContextBuilder.enrichMessage(message, typeof activeSkill === 'string' ? activeSkill : undefined)
+      : message;
+
     try {
       const upstream = await kagenti.streamMessage(
-        message,
+        enrichedMessage,
         sessionId,
         namespace,
         agentName,

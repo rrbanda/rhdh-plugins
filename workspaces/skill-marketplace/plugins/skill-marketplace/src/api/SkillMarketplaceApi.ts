@@ -54,8 +54,8 @@ export interface SkillMarketplaceApi {
   getAgentDetail(namespace: string, name: string): Promise<unknown>;
   getAgentLogs(namespace: string, name: string, tail?: number): Promise<unknown>;
   getAgentCard(namespace?: string, agentName?: string): Promise<unknown>;
-  chatWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string): Promise<unknown>;
-  streamWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string): Promise<Response>;
+  chatWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string, activeSkill?: string): Promise<unknown>;
+  streamWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string, activeSkill?: string): Promise<Response>;
   listAgentNamespaces(): Promise<{ namespaces: string[] }>;
   getHealth(): Promise<Record<string, unknown>>;
 }
@@ -269,10 +269,11 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     sessionId?: string,
     namespace?: string,
     agentName?: string,
+    activeSkill?: string,
   ): Promise<unknown> {
     return this.request('/kagenti/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, sessionId, namespace, agentName }),
+      body: JSON.stringify({ message, sessionId, namespace, agentName, activeSkill }),
     });
   }
 
@@ -281,12 +282,13 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     sessionId?: string,
     namespace?: string,
     agentName?: string,
+    activeSkill?: string,
   ): Promise<Response> {
     const baseUrl = await this.getBaseUrl();
     const res = await this.fetchApi.fetch(`${baseUrl}/kagenti/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, sessionId, namespace, agentName }),
+      body: JSON.stringify({ message, sessionId, namespace, agentName, activeSkill }),
     });
     if (!res.ok) throw await ResponseError.fromResponse(res);
     return res;

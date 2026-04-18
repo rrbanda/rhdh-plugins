@@ -25,6 +25,7 @@ import type {
   SkillGraphSyncService,
   AgenticRagService,
 } from './services';
+import { SkillContextBuilder } from './services';
 import {
   registerSkillsRoutes,
   registerGraphRoutes,
@@ -80,10 +81,14 @@ export async function createRouter(
     });
   });
 
+  const skillContextBuilder = ociRegistry
+    ? new SkillContextBuilder({ ociRegistry, logger })
+    : undefined;
+
   registerSkillsRoutes(router, ociRegistry, logger, skillSearchDirs);
   registerGraphRoutes(router, neo4j, builderProxy, logger);
   registerBuilderRoutes(router, builderProxy, logger, ociRegistry, publishRegistry, httpAuth, permissions, syncService, securityMode);
-  registerKagentiRoutes(router, kagenti, logger, httpAuth, permissions, securityMode);
+  registerKagentiRoutes(router, kagenti, logger, httpAuth, permissions, securityMode, skillContextBuilder);
   registerSyncRoutes(router, logger, syncService, httpAuth, permissions, securityMode);
   registerRagRoutes(router, logger, neo4j, syncService, httpAuth, permissions, ragConfig);
   registerAgenticRoutes(router, logger, agenticService, httpAuth, permissions);
