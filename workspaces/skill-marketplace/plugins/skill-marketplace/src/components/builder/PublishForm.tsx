@@ -108,28 +108,32 @@ export function PublishForm({ onPublish, prefill }: PublishFormProps) {
         className="sb-publish-toggle"
         onClick={() => setShow(prev => !prev)}
         type="button"
+        aria-expanded={show}
+        aria-controls="sb-publish-panel"
       >
         {show ? '\u25BC' : '\u25B6'} Publish to OCI Registry
       </button>
       {show && (
-        <div className="sb-publish-form">
+        <div className="sb-publish-form" id="sb-publish-panel" role="region" aria-label="Publish skill form">
           {error && (
-            <div style={{ fontSize: 13, color: '#c9190b', marginBottom: 4 }}>
-              {error}
-            </div>
+            <div className="sb-publish-error" role="alert">{error}</div>
           )}
           <div className="sb-field">
-            <label className="sb-field-label">Skill Name *</label>
+            <label className="sb-field-label" htmlFor="sb-skill-name">Skill Name *</label>
             <input
+              id="sb-skill-name"
               className="sb-field-input"
               value={skillName}
               onChange={e => setSkillName(e.target.value)}
               placeholder="e.g. my-new-skill"
+              required
+              aria-required="true"
             />
           </div>
           <div className="sb-field">
-            <label className="sb-field-label">Version</label>
+            <label className="sb-field-label" htmlFor="sb-version">Version</label>
             <input
+              id="sb-version"
               className="sb-field-input"
               value={version}
               onChange={e => setVersion(e.target.value)}
@@ -137,8 +141,9 @@ export function PublishForm({ onPublish, prefill }: PublishFormProps) {
             />
           </div>
           <div className="sb-field">
-            <label className="sb-field-label">Author</label>
+            <label className="sb-field-label" htmlFor="sb-author">Author</label>
             <input
+              id="sb-author"
               className="sb-field-input"
               value={author}
               onChange={e => setAuthor(e.target.value)}
@@ -150,6 +155,7 @@ export function PublishForm({ onPublish, prefill }: PublishFormProps) {
             onClick={handlePublish}
             disabled={publishing || !skillName.trim()}
             type="button"
+            aria-busy={publishing}
           >
             {publishing ? 'Publishing...' : 'Publish'}
           </button>

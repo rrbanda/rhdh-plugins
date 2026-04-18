@@ -431,21 +431,45 @@ export default function BuilderPage() {
           <div className="sb-messages">
             {messages.length === 0 && !generating && (
               <div className="sb-empty">
-                <h3>Skill Builder</h3>
-                <p>
-                  Describe the skill you want to create in natural language. The
-                  AI pipeline will analyze requirements, research examples,
-                  generate, and validate your skill.
-                </p>
+                <div className="sb-hero">
+                  <div className="sb-hero-icon">{'\u2728'}</div>
+                  <h2>Skill Builder</h2>
+                  <p>
+                    Describe the skill you want to create in natural language.
+                    An AI pipeline will analyze requirements, research examples,
+                    generate, and validate your skill.
+                  </p>
+                </div>
                 <div className="sb-suggestions">
                   {[
-                    { icon: '\u{1F50D}', text: 'Create a skill that reviews code for security vulnerabilities' },
-                    { icon: '\u{1F4C4}', text: 'Build a skill that summarizes PDF documents into key bullet points' },
-                    { icon: '\u{1F310}', text: 'Create a URL summary skill that extracts and structures web page content' },
+                    {
+                      icon: '\u{1F6E1}',
+                      iconClass: 'sb-sug-icon--security',
+                      title: 'Security Code Review',
+                      desc: 'Scan code for vulnerabilities and suggest fixes',
+                      prompt: 'Create a skill that reviews code for security vulnerabilities',
+                    },
+                    {
+                      icon: '\u{1F4C4}',
+                      iconClass: 'sb-sug-icon--docs',
+                      title: 'PDF Summarizer',
+                      desc: 'Extract key bullet points from PDF documents',
+                      prompt: 'Build a skill that summarizes PDF documents into key bullet points',
+                    },
+                    {
+                      icon: '\u{1F310}',
+                      iconClass: 'sb-sug-icon--web',
+                      title: 'URL Content Extractor',
+                      desc: 'Structure and summarize web page content',
+                      prompt: 'Create a URL summary skill that extracts and structures web page content',
+                    },
                   ].map((s, i) => (
-                    <button key={i} className="sb-suggestion" onClick={() => sendMessage(s.text)}>
-                      <span className="sb-sug-icon">{s.icon}</span>
-                      <span>{s.text}</span>
+                    <button key={i} className="sb-suggestion" onClick={() => sendMessage(s.prompt)}>
+                      <span className={`sb-sug-icon ${s.iconClass}`}>{s.icon}</span>
+                      <span className="sb-sug-text">
+                        <span className="sb-sug-title">{s.title}</span>
+                        <span className="sb-sug-desc">{s.desc}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -456,6 +480,7 @@ export default function BuilderPage() {
               <div key={msg.id}>
                 <div className={`sb-msg sb-msg--${msg.role}${msg.isError ? ' sb-msg--error' : ''}`}>
                   <div className="sb-msg-header">
+                    <span className="sb-msg-avatar">{msg.role === 'user' ? 'U' : '\u2728'}</span>
                     <span className="sb-msg-role">{msg.role === 'user' ? 'You' : 'Skill Builder'}</span>
                     <span className="sb-msg-ts">{timeAgo(msg.timestamp)}</span>
                   </div>
@@ -523,7 +548,7 @@ export default function BuilderPage() {
           </div>
 
           <div className="sb-input-bar">
-            <div className="sb-input-wrap">
+            <div className="sb-composer">
               <textarea
                 ref={textareaRef}
                 className="sb-input"
@@ -533,22 +558,40 @@ export default function BuilderPage() {
                 placeholder={generatedContent ? 'Describe changes to refine the skill...' : 'Describe the skill you want to create...'}
                 rows={2}
                 disabled={generating}
+                aria-label={generatedContent ? 'Refine skill description' : 'Skill description'}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="sb-kbd-hint">
-                  Enter to send &middot; Shift+Enter for new line
+              <div className="sb-composer-footer">
+                <div className="sb-composer-left">
+                  <span className="sb-kbd-hint">
+                    {'\u21B5'} Send {'\u00B7'} Shift+{'\u21B5'} New line
+                  </span>
                   {!generatedContent && (
-                    <>
-                      {' \u00B7 '}
-                      <button className="sb-advanced-toggle" onClick={() => setShowAdvanced(v => !v)} type="button">
-                        {showAdvanced ? 'Hide options' : 'Advanced options'}
-                      </button>
-                    </>
+                    <button className="sb-advanced-toggle" onClick={() => setShowAdvanced(v => !v)} type="button">
+                      {showAdvanced ? 'Hide options' : 'Options'}
+                    </button>
                   )}
-                </span>
-                {messages.length > 0 && (
-                  <button className="sb-clear-btn" onClick={clearChat} type="button">Clear conversation</button>
-                )}
+                  {messages.length > 0 && (
+                    <button className="sb-clear-btn" onClick={clearChat} type="button" aria-label="Clear conversation">
+                      {'\u{1F5D1}'} Clear
+                    </button>
+                  )}
+                </div>
+                <div className="sb-composer-actions">
+                  {generating ? (
+                    <button className="sb-stop-btn" onClick={abortStream} type="button">
+                      {'\u25A0'} Stop
+                    </button>
+                  ) : (
+                    <button
+                      className="sb-send-btn"
+                      onClick={() => sendMessage()}
+                      disabled={!input.trim()}
+                      type="button"
+                    >
+                      {generatedContent ? 'Refine' : 'Generate'} {'\u2192'}
+                    </button>
+                  )}
+                </div>
               </div>
               {showAdvanced && !generatedContent && (
                 <div className="sb-advanced-fields">
@@ -593,9 +636,6 @@ export default function BuilderPage() {
                 </div>
               )}
             </div>
-            <button className="sb-send-btn" onClick={() => sendMessage()} disabled={!input.trim() || generating}>
-              {generating ? '...' : generatedContent ? 'Refine' : 'Generate'}
-            </button>
           </div>
         </div>
 
@@ -603,7 +643,7 @@ export default function BuilderPage() {
         <div className="sb-artifact">
           {!generatedContent && !generating ? (
             <div className="sb-artifact-empty">
-              <div className="sb-artifact-empty-icon">{'\u{1F4DD}'}</div>
+              <div className="sb-artifact-empty-icon">{'\u{1F4C4}'}</div>
               <h4>SKILL.md Preview</h4>
               <p>Your generated skill will appear here as the agent builds it in real time.</p>
             </div>
@@ -612,10 +652,11 @@ export default function BuilderPage() {
               <div className="sb-preview">
                 <div className="sb-preview-toolbar">
                   <div className="sb-preview-status">
-                    {generating && (
-                      <span className="sb-preview-dot" style={{ backgroundColor: 'var(--pf-t--global--color--brand--default, #0066cc)' }} />
+                    {generating && <span className="sb-preview-dot" />}
+                    <span>{generating ? 'Generating...' : 'SKILL.md'}</span>
+                    {!generating && generatedContent && (
+                      <span className="sb-preview-badge">{lineCount} lines</span>
                     )}
-                    <span>{generating ? 'Generating SKILL.md...' : `SKILL.md \u00B7 ${lineCount} lines`}</span>
                   </div>
                   <div className="sb-preview-actions">
                     {!generating && generatedContent && (
