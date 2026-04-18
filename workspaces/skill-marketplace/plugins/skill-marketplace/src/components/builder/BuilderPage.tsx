@@ -42,103 +42,229 @@ function timeAgo(ts: number): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-function EventItem({
-  evt,
-  eventKey,
+interface AgentGroup {
+  agent: string;
+  label: string;
+  events: BuilderEvent[];
+  isActive: boolean;
+  isDone: boolean;
+}
+
+function groupEventsByAgent(events: BuilderEvent[], currentAgent: string): AgentGroup[] {
+  const groups: AgentGroup[] = [];
+  let current: AgentGroup | null = null;
+
+  for (const evt of events) {
+    if (evt.type === 'agent_start') {
+      if (current) current.isDone = true;
+      current = {
+        agent: evt.agent,
+        label: stageLabel(evt.agent),
+        events: [evt],
+        isActive: evt.agent === currentAgent,
+        isDone: false,
+      };
+      groups.push(current);
+    } else if (current) {
+      current.events.push(evt);
+      if (evt.type === 'complete' || evt.type === 'error') {
+        current.isDone = true;
+      }
+    }
+  }
+  return groups;
+}
+
+function ToolCallCard({
+  toolCall,
+  toolResult,
+  expanded,
+  onToggle,
+}: {
+  toolCall: Extract<BuilderEvent, { type: 'tool_call' }>;
+  toolResult?: Extract<BuilderEvent, { type: 'tool_result' }>;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  const done = !!toolResult;
+
+  useEffect(() => {
+    if (done) {
+      setElapsed(Math.round((toolResult.ts - toolCall.ts) / 1000));
+      return;
+    }
+    const start = toolCall.ts;
+    const timer = setInterval(() => setElapsed(Math.round((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [done, toolCall.ts, toolResult?.ts]);
+
+  return (
+    <div className={`sb-tool-card ${done ? 'sb-tool-card--done' : 'sb-tool-card--pending'}`}>
+      <div className="sb-tc-header" onClick={onToggle} role="button" tabIndex={0} aria-expanded={expanded}>
+        <div className={`sb-tc-icon ${done ? 'sb-tc-icon--done' : 'sb-tc-icon--pending'}`}>
+          {done ? '\u2713' : '\u2699'}
+        </div>
+        <span className="sb-tc-name">{toolCall.tool}</span>
+        <span className="sb-tc-timer">
+          {done ? <span className="sb-tc-check">{'\u2713'}</span> : <span className="sb-tc-spinner" />}
+          {elapsed}s
+        </span>
+        <span className={`sb-tc-expand ${expanded ? 'sb-tc-expand--open' : ''}`}>{'\u25B6'}</span>
+      </div>
+      {expanded && (
+        <div className="sb-tc-body">
+          <div className="sb-tc-section-label">Arguments</div>
+          <div className="sb-tc-json">{JSON.stringify(toolCall.args, null, 2)}</div>
+          {toolResult && (
+            <>
+              <div className="sb-tc-section-label">Result</div>
+              <div className="sb-tc-json">
+                {toolResult.result.length > 2000 ? `${toolResult.result.slice(0, 2000)}...` : toolResult.result}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveTimeline({
+  events,
+  currentAgent,
   expandedTools,
   toggleTool,
 }: {
-  evt: BuilderEvent;
-  eventKey: string;
+  events: BuilderEvent[];
+  currentAgent: string;
   expandedTools: Set<string>;
   toggleTool: (k: string) => void;
 }) {
-  switch (evt.type) {
-    case 'agent_start':
-      return (
-        <div className="sb-evt">
-          <div className="sb-evt-icon sb-evt-icon--agent">{'\u25B6'}</div>
-          <span className="sb-evt-text">
-            <strong>{stageLabel(evt.agent)}</strong>
-          </span>
-        </div>
-      );
+  const groups = groupEventsByAgent(events, currentAgent);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-    case 'tool_call':
-      return (
-        <div>
-          <div className="sb-evt">
-            <div className="sb-evt-icon sb-evt-icon--tool">{'\u2699'}</div>
-            <button
-              className="sb-tool-chip"
-              onClick={() => toggleTool(eventKey)}
-              type="button"
-            >
-              {'\u{1F527}'} {evt.tool}
-            </button>
-          </div>
-          {expandedTools.has(eventKey) && (
-            <div className="sb-tool-args">
-              {JSON.stringify(evt.args, null, 2)}
-            </div>
-          )}
-        </div>
-      );
+  useEffect(() => {
+    if (groups.length > 1) {
+      setCollapsed(prev => {
+        const next = new Set(prev);
+        for (let i = 0; i < groups.length - 1; i++) {
+          if (groups[i].isDone) next.add(groups[i].agent);
+        }
+        const last = groups[groups.length - 1];
+        next.delete(last.agent);
+        return next;
+      });
+    }
+  }, [groups.length]);
 
-    case 'agent_output':
-      return (
-        <div className="sb-evt">
-          <div className="sb-evt-icon sb-evt-icon--output">{'\u{1F4AC}'}</div>
-          <span className="sb-evt-text sb-evt-text--output">
-            {evt.text.length > 200 ? `${evt.text.slice(0, 200)}...` : evt.text}
-          </span>
-        </div>
-      );
-
-    case 'tool_result':
-      return (
-        <div>
-          <div className="sb-evt">
-            <div className="sb-evt-icon sb-evt-icon--result">{'\u2714'}</div>
-            <button
-              className="sb-tool-chip sb-tool-chip--result"
-              onClick={() => toggleTool(eventKey)}
-              type="button"
-              aria-expanded={expandedTools.has(eventKey)}
-              aria-label={`Toggle result for ${evt.tool}`}
-            >
-              {'\u2705'} {evt.tool} result
-            </button>
-          </div>
-          {expandedTools.has(eventKey) && (
-            <div className="sb-tool-args">
-              {evt.result.length > 2000 ? `${evt.result.slice(0, 2000)}...` : evt.result}
-            </div>
-          )}
-        </div>
-      );
-
-    case 'complete':
-      return (
-        <div className="sb-evt">
-          <div className="sb-evt-icon sb-evt-icon--complete">{'\u2713'}</div>
-          <span className="sb-evt-text">
-            <strong>Pipeline Complete</strong>
-          </span>
-        </div>
-      );
-
-    case 'error':
-      return (
-        <div className="sb-evt">
-          <div className="sb-evt-icon sb-evt-icon--error">{'\u2717'}</div>
-          <span className="sb-evt-text">{evt.error}</span>
-        </div>
-      );
-
-    default:
-      return null;
+  const toolResults = new Map<string, Extract<BuilderEvent, { type: 'tool_result' }>>();
+  for (const evt of events) {
+    if (evt.type === 'tool_result') {
+      toolResults.set(`${evt.agent}:${evt.tool}`, evt);
+    }
   }
+
+  if (groups.length === 0) return null;
+
+  return (
+    <div className="sb-timeline">
+      <div className="sb-timeline-label">Agent Activity</div>
+      {groups.map(group => {
+        const isOpen = !collapsed.has(group.agent);
+        const innerEvents = group.events.filter(e => e.type !== 'agent_start');
+
+        return (
+          <div key={group.agent} className="sb-agent-section">
+            <div
+              className="sb-agent-header"
+              onClick={() => setCollapsed(prev => {
+                const next = new Set(prev);
+                if (next.has(group.agent)) next.delete(group.agent);
+                else next.add(group.agent);
+                return next;
+              })}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isOpen}
+            >
+              <span className={`sb-agent-dot ${group.isDone ? 'sb-agent-dot--done' : 'sb-agent-dot--active'}`} />
+              <span className="sb-agent-name">{group.label}</span>
+              <span className={`sb-agent-chevron ${isOpen ? 'sb-agent-chevron--open' : ''}`}>{'\u25B6'}</span>
+            </div>
+
+            {isOpen && innerEvents.length > 0 && (
+              <div className="sb-agent-events">
+                {innerEvents.map((evt, idx) => {
+                  const key = `${group.agent}-${idx}`;
+
+                  if (evt.type === 'tool_call') {
+                    const result = toolResults.get(`${evt.agent}:${evt.tool}`);
+                    return (
+                      <div key={key} className="sb-tl-evt sb-tl-evt--tool">
+                        <ToolCallCard
+                          toolCall={evt}
+                          toolResult={result}
+                          expanded={expandedTools.has(key)}
+                          onToggle={() => toggleTool(key)}
+                        />
+                      </div>
+                    );
+                  }
+
+                  if (evt.type === 'tool_result') return null;
+
+                  if (evt.type === 'agent_output') {
+                    return (
+                      <div key={key} className="sb-tl-evt sb-tl-evt--output">
+                        <span className="sb-tl-output">
+                          {evt.text.length > 150 ? `${evt.text.slice(0, 150)}...` : evt.text}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (evt.type === 'complete') {
+                    return (
+                      <div key={key} className="sb-tl-evt">
+                        <span className="sb-tl-complete">{'\u2713'} Pipeline Complete</span>
+                      </div>
+                    );
+                  }
+
+                  if (evt.type === 'error') {
+                    return (
+                      <div key={key} className="sb-tl-evt">
+                        <span className="sb-tl-error">{'\u2717'} {evt.error}</span>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ThinkingIndicator({ agentName }: { agentName: string }) {
+  return (
+    <div className="sb-thinking">
+      <span className="sb-thinking-pulse" />
+      <span className="sb-thinking-text">
+        {agentName ? stageLabel(agentName) : 'Starting pipeline'}
+        <span className="sb-thinking-dots">
+          <span />
+          <span />
+          <span />
+        </span>
+      </span>
+    </div>
+  );
 }
 
 export function computeLineDiff(oldText: string, newText: string): Array<{ type: 'same' | 'added' | 'removed'; text: string }> {
@@ -494,15 +620,12 @@ export default function BuilderPage() {
                 </div>
 
                 {msg.events && msg.events.length > 0 && (
-                  <div className="sb-activity">
-                    <div className="sb-activity-body">
-                      <div className="sb-activity-events">
-                        {msg.events.map((evt, idx) => (
-                          <EventItem key={`${msg.id}-${idx}`} evt={evt} eventKey={`${msg.id}-${idx}`} expandedTools={expandedTools} toggleTool={toggleTool} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <LiveTimeline
+                    events={msg.events}
+                    currentAgent=""
+                    expandedTools={expandedTools}
+                    toggleTool={toggleTool}
+                  />
                 )}
 
                 {msg.validation && (
@@ -522,25 +645,15 @@ export default function BuilderPage() {
             {generating && (
               <>
                 <PipelineProgress currentAgent={currentAgent} completed={pipelineCompleted} hasError={hasError} events={liveEvents} />
-                {liveEvents.length > 0 && (
-                  <div className="sb-activity">
-                    <div className="sb-activity-header">
-                      <span className="sb-activity-label">Agent Activity</span>
-                    </div>
-                    <div className="sb-activity-body">
-                      <div className="sb-activity-events">
-                        {liveEvents.map((evt, idx) => (
-                          <EventItem key={`live-${idx}`} evt={evt} eventKey={`live-${idx}`} expandedTools={expandedTools} toggleTool={toggleTool} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {liveEvents.length === 0 && (
-                  <div className="sb-msg sb-msg--agent">
-                    <div className="sb-msg-header"><span className="sb-msg-role">Skill Builder</span></div>
-                    <div className="sb-msg-text sb-typing">Starting pipeline...</div>
-                  </div>
+                {liveEvents.length > 0 ? (
+                  <LiveTimeline
+                    events={liveEvents}
+                    currentAgent={currentAgent}
+                    expandedTools={expandedTools}
+                    toggleTool={toggleTool}
+                  />
+                ) : (
+                  <ThinkingIndicator agentName={currentAgent} />
                 )}
               </>
             )}

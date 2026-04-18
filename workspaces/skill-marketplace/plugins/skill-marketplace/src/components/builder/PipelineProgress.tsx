@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { PIPELINE_STAGES } from './types';
 import type { PipelineStage, StageStatus, BuilderEvent } from './types';
 
@@ -68,6 +68,28 @@ export function getStageStatuses(
   });
 }
 
+function StageElapsed({ events, agentKey }: { events?: BuilderEvent[]; agentKey: string }) {
+  const startTs = useMemo(() => {
+    if (!events) return 0;
+    const start = events.find(
+      (e): e is Extract<BuilderEvent, { type: 'agent_start' }> =>
+        e.type === 'agent_start' && e.agent === agentKey,
+    );
+    return start?.ts ?? 0;
+  }, [events, agentKey]);
+
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!startTs) return;
+    const timer = setInterval(() => setElapsed(Math.round((Date.now() - startTs) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [startTs]);
+
+  if (!startTs) return null;
+  return <span className="bld-stage-elapsed">{elapsed}s</span>;
+}
+
 export function PipelineProgress({
   currentAgent,
   completed,
@@ -104,6 +126,9 @@ export function PipelineProgress({
                 : i + 1}
           </div>
           <span className="bld-stage-label">{stage.label}</span>
+          {statuses[i] === 'active' && (
+            <StageElapsed events={events} agentKey={stage.key} />
+          )}
         </div>
       ))}
     </div>
