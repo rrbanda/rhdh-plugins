@@ -405,26 +405,49 @@ export default function BuilderPage() {
     if (advancedOpts.category) extras.category = advancedOpts.category;
     if (advancedOpts.tools.trim()) extras.tools = advancedOpts.tools.trim();
 
-    try {
-      if (isRefine) {
-        const response = await api.refineSkill({
-          feedback: text,
-          context_id: contextId,
-          ...extras,
-        });
-        await readSSEStream(response);
-      } else {
-        const cid = contextId || `builder-${Date.now()}`;
-        if (!contextId) setContextId(cid);
-        const response = await api.generateSkill({
-          description: text,
-          context_id: cid,
-          ...extras,
-        });
-        await readSSEStream(response);
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      errorMsg = null;
+      try {
+        if (isRefine) {
+          const response = await api.refineSkill({
+            feedback: text,
+            context_id: contextId,
+            ...extras,
+          });
+          await readSSEStream(response);
+        } else {
+          const cid = contextId || `builder-${Date.now()}`;
+          if (!contextId) setContextId(cid);
+          const response = await api.generateSkill({
+            description: text,
+            context_id: cid,
+            ...extras,
+          });
+          await readSSEStream(response);
+        }
+        break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Generation failed';
+        const isNetworkError = msg.toLowerCase().includes('network') ||
+          msg.toLowerCase().includes('fetch') ||
+          msg.toLowerCase().includes('failed to fetch') ||
+          msg.toLowerCase().includes('aborted');
+
+        if (isNetworkError && attempt < MAX_RETRIES) {
+          setLiveEvents(prev => [
+            ...prev,
+            { type: 'error', error: `Connection lost — retrying (${attempt + 1}/${MAX_RETRIES})...`, ts: Date.now() },
+          ]);
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          setLiveEvents([]);
+          setCurrentAgent('');
+          continue;
+        }
+        errorMsg = isNetworkError
+          ? `Network error — could not reach the builder agent. Check that the backend is running and the builder agent URL is configured in app-config.yaml (skillMarketplace.builderAgent.url). Original error: ${msg}`
+          : msg;
       }
-    } catch (err) {
-      errorMsg = err instanceof Error ? err.message : 'Generation failed';
     }
 
     setGenerating(false);

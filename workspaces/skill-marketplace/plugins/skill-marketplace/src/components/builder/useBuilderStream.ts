@@ -71,7 +71,19 @@ export function useBuilderStream(
 
       try {
         while (!controller.signal.aborted) {
-          const { done, value } = await reader.read();
+          let readResult: ReadableStreamReadResult<Uint8Array>;
+          try {
+            readResult = await reader.read();
+          } catch (readErr) {
+            if (!controller.signal.aborted) {
+              setLiveEvents(prev => [
+                ...prev,
+                { type: 'error', error: `Connection lost: ${readErr instanceof Error ? readErr.message : 'stream interrupted'}`, ts: Date.now() },
+              ]);
+            }
+            break;
+          }
+          const { done, value } = readResult;
           if (done) break;
           resetIdleTimer();
           buffer += decoder.decode(value, { stream: true });
