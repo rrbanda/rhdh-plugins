@@ -22,7 +22,7 @@ import { PipelineProgress } from './PipelineProgress';
 import { PublishForm, extractSkillMetadata } from './PublishForm';
 import { SkillPreview } from './SkillPreview';
 import { useBuilderStream } from './useBuilderStream';
-import './builder.css';
+import { builderStyles } from './builder-styles';
 
 let msgIdCounter = 0;
 function nextMsgId(): string {
@@ -425,6 +425,7 @@ export default function BuilderPage() {
 
   return (
     <>
+      <style>{builderStyles}</style>
       <div className="sb-page">
         {/* ---- Left: Chat panel ---- */}
         <div className="sb-chat">
