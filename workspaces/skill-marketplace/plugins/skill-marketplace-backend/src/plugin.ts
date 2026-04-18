@@ -405,7 +405,7 @@ export const skillMarketplacePlugin = createBackendPlugin({
           '/oci/skill-content',
           '/oci/search',
           '/oci/registries',
-          '/oci/lifecycle/:ref(*)',
+          '/oci/lifecycle/:ref',
           '/oci/promote',
           '/kagenti/agents',
           '/kagenti/agents/:namespace/:name',

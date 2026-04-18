@@ -45,7 +45,7 @@ export function registerLifecycleRoutes(
   permissions?: PermissionsService,
   securityMode?: string,
 ) {
-  router.get('/oci/lifecycle/:ref(*)', async (req, res) => {
+  router.get('/oci/lifecycle/:ref', async (req, res) => {
     if (!ociRegistry) {
       res.status(503).json({ error: 'OCI registry not configured' });
       return;
