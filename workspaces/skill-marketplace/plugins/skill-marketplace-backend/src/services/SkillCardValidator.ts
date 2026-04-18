@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import Ajv from 'ajv';
+import Ajv2020 from 'ajv/dist/2020';
 import type { SkillCard } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 /**
@@ -141,7 +141,7 @@ export interface ValidationResult {
   errors?: string[];
 }
 
-const ajv = new Ajv({ allErrors: true });
+const ajv = new Ajv2020({ allErrors: true });
 const validate = ajv.compile(SKILLCARD_SCHEMA);
 
 /**
