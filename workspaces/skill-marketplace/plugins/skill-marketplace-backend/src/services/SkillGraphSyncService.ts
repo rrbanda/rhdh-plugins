@@ -175,19 +175,41 @@ export class SkillGraphSyncService {
       const skillNames = new Set<string>();
       const allDomains = new Map<string, string>();
 
+      const CONTENT_CONCURRENCY = 25;
+      const contentMap = new Map<string, string | undefined>();
+
+      this.logger.info(`Fetching skill content (concurrency=${CONTENT_CONCURRENCY})...`);
+      let contentIdx = 0;
+      const fetchContent = async () => {
+        while (contentIdx < skills.length) {
+          const i = contentIdx++;
+          const skill = skills[i];
+          try {
+            const c = await this.ociRegistry.getSkillContent(skill.ociReference);
+            if (c) contentMap.set(skill.ociReference, c);
+          } catch { /* content optional */ }
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(CONTENT_CONCURRENCY, skills.length) }, () => fetchContent()),
+      );
+      this.logger.info(`Content fetched for ${contentMap.size}/${skills.length} skills`);
+
+      interface SkillBatchItem {
+        skill: Skill;
+        hash: string;
+        category: string;
+        complexity: string;
+        tools: string[];
+        deps: Array<{ name: string; version: string }>;
+        relatedSkills: { name: string; description?: string }[];
+      }
+
+      const batchItems: SkillBatchItem[] = [];
       for (const skill of skills) {
         const name = skill.card.metadata.name;
         skillNames.add(name);
-
-        let content: string | undefined;
-        try {
-          content =
-            (await this.ociRegistry.getSkillContent(skill.ociReference)) ??
-            undefined;
-        } catch {
-          /* content optional */
-        }
-
+        const content = contentMap.get(skill.ociReference);
         const hash = contentHash(skill, content);
         const category = categoryOf(skill, this.categoryKeywords);
         const complexity = content
@@ -198,25 +220,40 @@ export class SkillGraphSyncService {
           ? allowedToolsStr.split(/\s+/).filter(Boolean)
           : [];
         const deps = skill.card.spec?.dependencies ?? [];
-
         if (!allDomains.has(category)) {
           allDomains.set(category, getPluginColor(category));
         }
+        batchItems.push({
+          skill, hash, category, complexity, tools, deps,
+          relatedSkills: content ? parseRelatedSkills(content) : [],
+        });
+      }
 
-        const upserted = await this.upsertSkill(skill, hash, category, complexity);
-        if (upserted) nodesUpserted++;
-
-        relationshipsCreated += await this.syncRelationshipsBatched(
-          name,
-          tools,
-          category,
-          allDomains.get(category)!,
-          deps,
-          content ? parseRelatedSkills(content) : [],
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < batchItems.length; i += BATCH_SIZE) {
+        const batch = batchItems.slice(i, i + BATCH_SIZE);
+        const upsertResults = await Promise.all(
+          batch.map(item => this.upsertSkill(item.skill, item.hash, item.category, item.complexity)),
         );
+        nodesUpserted += upsertResults.filter(Boolean).length;
+
+        const relResults = await Promise.all(
+          batch.map(item =>
+            this.syncRelationshipsBatched(
+              item.skill.card.metadata.name,
+              item.tools,
+              item.category,
+              allDomains.get(item.category)!,
+              item.deps,
+              item.relatedSkills,
+            ),
+          ),
+        );
+        relationshipsCreated += relResults.reduce((sum, r) => sum + r, 0);
       }
 
       nodesRemoved = await this.cleanStaleNodes(skillNames);
+      await this.cleanOrphanedNodes();
 
       if (this.kagenti) {
         try {
@@ -236,6 +273,8 @@ export class SkillGraphSyncService {
           await this.computeSimilarityRelationships();
         }
       }
+
+      this.neo4j.invalidateCache();
 
       const durationMs = Date.now() - start;
       this.logger.info(
@@ -457,6 +496,20 @@ export class SkillGraphSyncService {
         `MATCH (t:Tool) WHERE NOT (t)<-[:USES_TOOL]-() DETACH DELETE t`,
       );
       return removed;
+    } finally {
+      await session.close();
+    }
+  }
+
+  private async cleanOrphanedNodes(): Promise<void> {
+    const session = await this.neo4j.getHealthySession();
+    try {
+      await session.run(
+        `MATCH (t:Tool) WHERE NOT (t)<-[:USES_TOOL]-() DETACH DELETE t`,
+      );
+      await session.run(
+        `MATCH (d:Domain) WHERE NOT (d)<-[:BELONGS_TO]-() DETACH DELETE d`,
+      );
     } finally {
       await session.close();
     }

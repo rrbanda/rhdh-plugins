@@ -18,6 +18,13 @@ import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../api';
 import type { NvlGraphData } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
+function computeFingerprint(d: NvlGraphData): string {
+  const schemaPart = `${d.schema.totalNodes}:${d.schema.totalRelationships}:${d.schema.labels.length}`;
+  const nodeIds = d.nodes.map(n => n.id).join(',');
+  const relIds = d.relationships.map(r => r.id).join(',');
+  return `${schemaPart}|${nodeIds}|${relIds}`;
+}
+
 export function useGraphData(limit?: number) {
   const api = useApi(skillMarketplaceApiRef);
   const [data, setData] = useState<NvlGraphData | null>(null);
@@ -25,6 +32,7 @@ export function useGraphData(limit?: number) {
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const isInitialLoad = useRef(true);
+  const prevFingerprintRef = useRef<string>('');
 
   const refetch = useCallback(() => {
     setTick(t => t + 1);
@@ -41,7 +49,11 @@ export function useGraphData(limit?: number) {
       .getGraphData(limit)
       .then(graphData => {
         if (!cancelled) {
-          setData(graphData);
+          const fp = computeFingerprint(graphData);
+          if (fp !== prevFingerprintRef.current) {
+            prevFingerprintRef.current = fp;
+            setData(graphData);
+          }
           setError(null);
           setLoading(false);
           isInitialLoad.current = false;

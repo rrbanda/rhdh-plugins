@@ -483,7 +483,7 @@ export class OciRegistryService {
         if (!res.ok) {
           if (allRepositories.length === 0) {
             this.logger.warn(`Catalog listing failed (${res.status}), falling back to direct tag listing`);
-            return [];
+            break;
           }
           break;
         }
@@ -499,14 +499,123 @@ export class OciRegistryService {
             .map(r => r.slice(ns.length + 1))
         : allRepositories;
 
-      const repos = stripped.filter(r => r.startsWith('skill-'));
+      let repos = stripped.filter(r => r.startsWith('skill-'));
 
-      this.setCache(cacheKey, repos);
+      if (repos.length === 0 && ns) {
+        repos = await this.probeSkillRepos(registry, ns, headers);
+      }
+
+      if (repos.length > 0) {
+        this.setCache(cacheKey, repos);
+      }
       return repos;
     } catch (err) {
       this.logger.warn(`Error listing catalog: ${(err as Error).message}`);
       return [];
     }
+  }
+
+  /**
+   * When _catalog returns empty (e.g. OpenShift internal registry with
+   * restricted permissions), try discovering skill repos via the Kubernetes
+   * ImageStream API. Falls back to returning empty if not running in-cluster.
+   */
+  private async probeSkillRepos(
+    _registry: OciRegistryConfig,
+    namespace: string,
+    _ociHeaders: Record<string, string>,
+  ): Promise<string[]> {
+    try {
+      const k8sHost = process.env.KUBERNETES_SERVICE_HOST;
+      const k8sPort = process.env.KUBERNETES_SERVICE_PORT || '443';
+      if (!k8sHost) {
+        this.logger.info('Not running in-cluster, skipping ImageStream probe');
+        return [];
+      }
+
+      let token: string | undefined;
+      try {
+        const fs = await import('fs');
+        token = fs.readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/token', 'utf-8').trim();
+      } catch {
+        this.logger.warn('Cannot read in-cluster SA token for ImageStream probe');
+        return [];
+      }
+
+      const apiUrl = `https://${k8sHost}:${k8sPort}/apis/image.openshift.io/v1/namespaces/${namespace}/imagestreams`;
+      this.logger.info(`Probing OpenShift ImageStreams in namespace ${namespace}`);
+
+      const res = await fetch(apiUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+        signal: this.createSignal(),
+        // @ts-ignore - Node fetch TLS option
+        ...(process.env.NODE_EXTRA_CA_CERTS ? {} : { }),
+      });
+
+      if (!res.ok) {
+        this.logger.warn(`ImageStream probe failed (${res.status}), will use direct tag listing`);
+        return [];
+      }
+
+      const data = (await res.json()) as {
+        items?: Array<{ metadata: { name: string } }>;
+      };
+
+      const repos = (data.items || [])
+        .map(item => item.metadata.name)
+        .filter(name => name.startsWith('skill-'));
+
+      this.logger.info(`ImageStream probe found ${repos.length} skill repos in ${namespace}`);
+      return repos;
+    } catch (err) {
+      this.logger.warn(`ImageStream probe error: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  private async runParallel<T, R>(
+    items: T[],
+    fn: (item: T) => Promise<R | null>,
+    concurrency = 25,
+  ): Promise<R[]> {
+    const results: R[] = [];
+    let idx = 0;
+
+    async function worker() {
+      while (idx < items.length) {
+        const i = idx++;
+        const result = await fn(items[i]);
+        if (result !== null) results.push(result);
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+    return results;
+  }
+
+  private async fetchSkillFromRepo(
+    registry: OciRegistryConfig,
+    repo: string,
+  ): Promise<Skill[]> {
+    const skills: Skill[] = [];
+    try {
+      const repoRegistry = { ...registry, url: `${registry.url}/${repo}` };
+      const tags = await this.listTags(registry, repo);
+      for (const tag of tags) {
+        const manifest = await this.getManifest(repoRegistry, tag);
+        if (!manifest) continue;
+        const card = await this.extractSkillCard(repoRegistry, manifest);
+        const skill = this.skillFromManifest(repoRegistry, tag, manifest, card);
+        skill.ociReference = `${registry.url}/${repo}:${tag}`;
+        skills.push(skill);
+      }
+    } catch (err) {
+      this.logger.warn(`Error fetching repo ${repo}: ${(err as Error).message}`);
+    }
+    return skills;
   }
 
   async listSkills(registryUrl?: string): Promise<Skill[]> {
@@ -525,19 +634,13 @@ export class OciRegistryService {
         const repos = await this.listRepos(registry);
 
         if (repos.length > 0) {
-          for (const repo of repos) {
-            const tags = await this.listTags(registry, repo);
-            for (const tag of tags) {
-              const repoRegistry = { ...registry, url: `${registry.url}/${repo}` };
-              const manifest = await this.getManifest(repoRegistry, tag);
-              if (!manifest) continue;
-
-              const card = await this.extractSkillCard(repoRegistry, manifest);
-              const skill = this.skillFromManifest(repoRegistry, tag, manifest, card);
-              skill.ociReference = `${registry.url}/${repo}:${tag}`;
-              allSkills.push(skill);
-            }
-          }
+          this.logger.info(`Scanning ${repos.length} repos in ${registry.name} (parallel, concurrency=25)`);
+          const batchResults = await this.runParallel(
+            repos,
+            repo => this.fetchSkillFromRepo(registry, repo).then(s => s.length > 0 ? s : null),
+            25,
+          );
+          for (const batch of batchResults) allSkills.push(...batch);
         } else {
           const tags = await this.listTags(registry);
           for (const tag of tags) {
@@ -554,6 +657,7 @@ export class OciRegistryService {
       }
     }
 
+    this.logger.info(`Listed ${allSkills.length} skills from ${registries.length} registries`);
     this.setCache(cacheKey, allSkills);
     return allSkills;
   }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InteractiveNvlWrapper } from '@neo4j-nvl/react';
 import type { Node, Relationship, HitTargets, NVL } from '@neo4j-nvl/base';
 import { useApi } from '@backstage/core-plugin-api';
@@ -65,29 +65,36 @@ export default function GraphPage() {
 
   const [layout, setLayout] = useState<LayoutMode>('forceDirected');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [enabledLabels, setEnabledLabels] = useState<Set<string>>(new Set());
   const [enabledPlugins, setEnabledPlugins] = useState<Set<string>>(new Set());
   const [detailNode, setDetailNode] = useState<NvlNode | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [overlayNodes, setOverlayNodes] = useState<NvlNode[]>([]);
   const [overlayRels, setOverlayRels] = useState<NvlRelationship[]>([]);
   const labelsInitialized = useRef(false);
   const dataRef = useRef(data);
   dataRef.current = data;
+  const overlayNodesRef = useRef(overlayNodes);
+  overlayNodesRef.current = overlayNodes;
+  const nodesRef = useRef<Node[]>([]);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const handle = setInterval(() => {
-      refetch();
-      setLastRefresh(new Date());
-    }, GRAPH_DEFAULTS.AUTO_REFRESH_MS);
+    const handle = setInterval(refetch, GRAPH_DEFAULTS.AUTO_REFRESH_MS);
     return () => clearInterval(handle);
   }, [refetch]);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchQuery]);
 
   useEffect(() => {
     return () => {
@@ -148,7 +155,7 @@ export default function GraphPage() {
 
     const allNodes = [...data.nodes, ...overlayNodes];
     const allRelationships = [...data.relationships, ...overlayRels];
-    const q = searchQuery.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
 
     const filteredNodes = allNodes.filter(n => {
       const hasEnabledLabel = n.labels.some(l => enabledLabels.has(l));
@@ -197,12 +204,12 @@ export default function GraphPage() {
     }));
 
     return { nodes: nvlNodes, rels: nvlRels };
-  }, [data, overlayNodes, overlayRels, enabledLabels, enabledPlugins, searchQuery, selectedNodeId, highlightedNodes]);
+  }, [data, overlayNodes, overlayRels, enabledLabels, enabledPlugins, debouncedSearch, selectedNodeId, highlightedNodes]);
 
   const nvlOptions = useMemo(
     () => ({
       disableTelemetry: true,
-      disableWebWorkers: true,
+      disableWebWorkers: false,
       renderer: 'canvas' as const,
       layout,
       minZoom: 0.1,
@@ -225,7 +232,11 @@ export default function GraphPage() {
         _hitTargets: HitTargets,
         _evt: MouseEvent,
       ) => {
-        const sourceNode = data?.nodes.find(n => n.id === clickedNode.id);
+        const allSourceNodes = [
+          ...(dataRef.current?.nodes ?? []),
+          ...overlayNodesRef.current,
+        ];
+        const sourceNode = allSourceNodes.find(n => n.id === clickedNode.id);
         if (sourceNode) {
           setSelectedNodeId(clickedNode.id);
           setDetailNode(sourceNode);
@@ -245,12 +256,13 @@ export default function GraphPage() {
       onPan: true,
       onDrag: true,
     }),
-    [data?.nodes],
+    [],
   );
 
+  nodesRef.current = nodes;
   const fitToScreen = useCallback(() => {
-    nvlRef.current?.fit(nodes.map(n => n.id));
-  }, [nodes]);
+    nvlRef.current?.fit(nodesRef.current.map(n => n.id));
+  }, []);
 
   const resetView = useCallback(() => {
     setSearchQuery('');
@@ -310,6 +322,15 @@ export default function GraphPage() {
     });
   }, []);
 
+  const mergedRels = useMemo(
+    () => [...(data?.relationships ?? []), ...overlayRels],
+    [data?.relationships, overlayRels],
+  );
+  const mergedNodes = useMemo(
+    () => [...(data?.nodes ?? []), ...overlayNodes],
+    [data?.nodes, overlayNodes],
+  );
+
   if (loading) return <LoadingSpinner message="Loading knowledge graph..." />;
   if (error) {
     const isConnectionError = /connect|ECONNREFUSED|listening on the correct/i.test(error);
@@ -362,10 +383,7 @@ export default function GraphPage() {
             <> &middot; {data.schema.pluginGroups.length} domains</>
           )}
         </span>
-        <span className="auto-sync-indicator">
-          <span className="auto-sync-dot" />
-          Auto-syncing &middot; last refresh {lastRefresh.toLocaleTimeString()}
-        </span>
+        <AutoSyncIndicator intervalMs={GRAPH_DEFAULTS.AUTO_REFRESH_MS} />
       </div>
 
       {/* Main content */}
@@ -600,8 +618,8 @@ export default function GraphPage() {
         {detailNode && !aiPanelOpen && (
           <DetailPanel
             node={detailNode}
-            relationships={[...data.relationships, ...overlayRels]}
-            allNodes={[...data.nodes, ...overlayNodes]}
+            relationships={mergedRels}
+            allNodes={mergedNodes}
             labels={data.schema.labels}
             onClose={() => {
               setSelectedNodeId(null);
@@ -623,6 +641,25 @@ export default function GraphPage() {
     </div>
   );
 }
+
+const AutoSyncIndicator = React.memo(function AutoSyncIndicator({
+  intervalMs,
+}: {
+  intervalMs: number;
+}) {
+  const [display, setDisplay] = useState(() => new Date().toLocaleTimeString());
+  useEffect(() => {
+    const id = setInterval(() => setDisplay(new Date().toLocaleTimeString()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+
+  return (
+    <span className="auto-sync-indicator">
+      <span className="auto-sync-dot" />
+      Auto-syncing &middot; last refresh {display}
+    </span>
+  );
+});
 
 interface DetailPanelProps {
   node: NvlNode;

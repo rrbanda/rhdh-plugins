@@ -79,6 +79,13 @@ function serializeProps(props: Record<string, unknown>): Record<string, unknown>
   return sharedSerializeProps(props, { stripKeys: new Set() });
 }
 
+interface CachedResult<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const CACHE_TTL_MS = 30_000;
+
 export class Neo4jService {
   private driver: Driver | null = null;
   private readonly uri: string;
@@ -86,6 +93,8 @@ export class Neo4jService {
   private readonly password: string;
   private readonly database: string;
   private readonly logger: LoggerService;
+  private schemaCache: CachedResult<GraphSchema> | null = null;
+  private graphCache = new Map<number, CachedResult<NvlGraphData>>();
 
   constructor(options: {
     uri: string;
@@ -99,6 +108,11 @@ export class Neo4jService {
     this.password = options.password;
     this.database = options.database;
     this.logger = options.logger;
+  }
+
+  invalidateCache(): void {
+    this.schemaCache = null;
+    this.graphCache.clear();
   }
 
   private getDriver(): Driver {
@@ -135,6 +149,9 @@ export class Neo4jService {
   }
 
   async discoverSchema(): Promise<GraphSchema> {
+    if (this.schemaCache && Date.now() < this.schemaCache.expiresAt) {
+      return this.schemaCache.data;
+    }
     const session = await this.getHealthySession();
     try {
       const labelsResult = await session.run(
@@ -166,28 +183,35 @@ export class Neo4jService {
         count: toNumber(rec.get('count')),
       }));
 
-      return {
+      const schema: GraphSchema = {
         labels,
         relationshipTypes,
         pluginGroups,
         totalNodes: toNumber(totalNodesResult.records[0]?.get('c')),
         totalRelationships: toNumber(totalRelsResult.records[0]?.get('c')),
       };
+      this.schemaCache = { data: schema, expiresAt: Date.now() + CACHE_TTL_MS };
+      return schema;
     } finally {
       await session.close();
     }
   }
 
   async fetchFullGraph(limit?: number): Promise<NvlGraphData> {
+    const nodeLimit = limit ?? 500;
+    const cached = this.graphCache.get(nodeLimit);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.data;
+    }
+
     const schema = await this.discoverSchema();
     const labelColorMap = new Map(schema.labels.map(l => [l.name, l.color]));
 
     const session = await this.getHealthySession();
+    const tx = session.beginTransaction();
     try {
-      const nodeLimit = limit ?? 500;
-
-      const nodesResult = await session.run(
-        'MATCH (n) RETURN n, labels(n) AS lbls, elementId(n) AS eid LIMIT $limit',
+      const nodesResult = await tx.run(
+        'MATCH (n) RETURN n, labels(n) AS lbls, elementId(n) AS eid ORDER BY labels(n)[0], n.name LIMIT $limit',
         { limit: neo4j.int(nodeLimit) },
       );
 
@@ -214,13 +238,15 @@ export class Neo4jService {
 
       const nodeIds = new Set(nodes.map(n => n.id));
 
-      const relsResult = await session.run(
+      const relsResult = await tx.run(
         `MATCH (a)-[r]->(b)
          WHERE elementId(a) IN $eids AND elementId(b) IN $eids
          RETURN elementId(a) AS fromEid, elementId(b) AS toEid,
                 type(r) AS rType, properties(r) AS rProps, elementId(r) AS rEid`,
         { eids: Array.from(nodeElementIdMap.keys()) },
       );
+
+      await tx.commit();
 
       const relationships: NvlRelationship[] = [];
       const seenRelIds = new Set<string>();
@@ -251,7 +277,14 @@ export class Neo4jService {
         });
       }
 
-      return { nodes, relationships, schema };
+      const graphData: NvlGraphData = { nodes, relationships, schema };
+      this.graphCache.set(nodeLimit, { data: graphData, expiresAt: Date.now() + CACHE_TTL_MS });
+      return graphData;
+    } catch (err) {
+      try { await tx.rollback(); } catch (rollbackErr) {
+        this.logger.warn(`Transaction rollback failed: ${rollbackErr}`);
+      }
+      throw err;
     } finally {
       await session.close();
     }
