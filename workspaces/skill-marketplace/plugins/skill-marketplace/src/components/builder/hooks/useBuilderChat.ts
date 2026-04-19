@@ -90,16 +90,18 @@ export function useBuilderChat(): UseBuilderChatReturn {
 
       let errorMsg: string | null = null;
       let finalEvents: BuilderEvent[] = [];
+      let finalContent = '';
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         errorMsg = null;
         try {
+          let result;
           if (isRefine) {
             const response = await api.refineSkill({
               feedback: trimmed,
               context_id: contextId,
             });
-            await sse.startStream(response);
+            result = await sse.startStream(response);
           } else {
             const cid = contextId || `builder-${Date.now()}`;
             if (!contextId) setContextId(cid);
@@ -107,8 +109,10 @@ export function useBuilderChat(): UseBuilderChatReturn {
               description: trimmed,
               context_id: cid,
             });
-            await sse.startStream(response);
+            result = await sse.startStream(response);
           }
+          finalEvents = result.events;
+          finalContent = result.content;
           break;
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Generation failed';
@@ -130,10 +134,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
       }
 
       setIsGenerating(false);
-
-      // Capture final state from sse -- events are preserved
-      finalEvents = sse.events;
-      if (sse.content) setGeneratedContent(sse.content);
+      if (finalContent) setGeneratedContent(finalContent);
 
       const hasCompletion = finalEvents.some(e => e.type === 'complete');
       const streamError = finalEvents.find(
@@ -181,7 +182,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
         ]);
       } else {
         const streamEnded = finalEvents.some(e => e.type === 'stream_end');
-        const hasContent = !!sse.content;
+        const hasContent = !!finalContent;
         const message = streamEnded && !hasContent
           ? 'The agent ended unexpectedly without producing output. Please try again.'
           : streamEnded

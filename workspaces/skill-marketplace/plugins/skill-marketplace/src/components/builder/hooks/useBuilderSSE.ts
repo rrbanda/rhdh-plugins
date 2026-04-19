@@ -23,13 +23,18 @@ export interface UseBuilderSSEOptions {
   idleTimeoutMs?: number;
 }
 
+export interface StreamResult {
+  events: BuilderEvent[];
+  content: string;
+}
+
 export interface UseBuilderSSEReturn {
   events: BuilderEvent[];
   content: string;
   currentAgent: string;
   isStreaming: boolean;
   error: string | null;
-  startStream: (response: Response) => Promise<void>;
+  startStream: (response: Response) => Promise<StreamResult>;
   abort: () => void;
   resetEvents: () => void;
 }
@@ -69,9 +74,10 @@ export function useBuilderSSE(
   }, []);
 
   const startStream = useCallback(
-    async (response: Response) => {
+    async (response: Response): Promise<StreamResult> => {
+      const empty: StreamResult = { events: [], content: '' };
       const reader = response.body?.getReader();
-      if (!reader) return;
+      if (!reader) return empty;
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -91,7 +97,7 @@ export function useBuilderSSE(
           const mins = Math.round(idleTimeoutMs / 60_000);
           const msg = `Stream timed out \u2014 no data received for ${mins} minute${mins !== 1 ? 's' : ''}`;
           setError(msg);
-          setEvents(prev => [...prev, { type: 'error', error: msg, ts: Date.now() }]);
+          pushEvent({ type: 'error', error: msg, ts: Date.now() });
         }, idleTimeoutMs);
       };
       resetIdleTimer();
@@ -101,6 +107,11 @@ export function useBuilderSSE(
       let streamContent = '';
       let lastEventType = '';
       let consecutiveParseErrors = 0;
+      const collected: BuilderEvent[] = [];
+      const pushEvent = (evt: BuilderEvent) => {
+        collected.push(evt);
+        setEvents(prev => [...prev, evt]);
+      };
 
       try {
         while (!controller.signal.aborted) {
@@ -111,7 +122,7 @@ export function useBuilderSSE(
             if (!controller.signal.aborted) {
               const msg = `Connection lost: ${readErr instanceof Error ? readErr.message : 'stream interrupted'}`;
               setError(msg);
-              setEvents(prev => [...prev, { type: 'error', error: msg, ts: Date.now() }]);
+              pushEvent({ type: 'error', error: msg, ts: Date.now() });
             }
             break;
           }
@@ -136,48 +147,39 @@ export function useBuilderSSE(
                   case 'agent_start':
                     if (payload.agent) {
                       setCurrentAgent(payload.agent);
-                      setEvents(prev => [...prev, { type: 'agent_start', agent: payload.agent, ts }]);
+                      pushEvent({ type: 'agent_start', agent: payload.agent, ts });
                     }
                     break;
 
                   case 'tool_call':
-                    setEvents(prev => [
-                      ...prev,
-                      {
-                        type: 'tool_call',
-                        agent: payload.agent || '',
-                        tool: payload.tool || 'unknown',
-                        args: payload.args || {},
-                        ts,
-                      },
-                    ]);
+                    pushEvent({
+                      type: 'tool_call',
+                      agent: payload.agent || '',
+                      tool: payload.tool || 'unknown',
+                      args: payload.args || {},
+                      ts,
+                    });
                     break;
 
                   case 'agent_output':
                     if (payload.text) {
                       streamContent += payload.text;
                       setContent(streamContent);
-                      setEvents(prev => [
-                        ...prev,
-                        { type: 'agent_output', agent: payload.agent || '', text: payload.text, ts },
-                      ]);
+                      pushEvent({ type: 'agent_output', agent: payload.agent || '', text: payload.text, ts });
                     }
                     break;
 
                   case 'tool_result':
-                    setEvents(prev => [
-                      ...prev,
-                      {
-                        type: 'tool_result',
-                        agent: payload.agent || '',
-                        tool: payload.tool || 'unknown',
-                        result:
-                          typeof payload.result === 'string'
-                            ? payload.result
-                            : JSON.stringify(payload.result ?? payload.output ?? '', null, 2),
-                        ts,
-                      },
-                    ]);
+                    pushEvent({
+                      type: 'tool_result',
+                      agent: payload.agent || '',
+                      tool: payload.tool || 'unknown',
+                      result:
+                        typeof payload.result === 'string'
+                          ? payload.result
+                          : JSON.stringify(payload.result ?? payload.output ?? '', null, 2),
+                      ts,
+                    });
                     break;
 
                   case 'complete':
@@ -185,25 +187,22 @@ export function useBuilderSSE(
                       streamContent = payload.skill_content;
                       setContent(streamContent);
                     }
-                    setEvents(prev => [
-                      ...prev,
-                      {
-                        type: 'complete',
-                        skillContent: payload.skill_content || '',
-                        validation: payload.validation || '',
-                        ts,
-                      },
-                    ]);
+                    pushEvent({
+                      type: 'complete',
+                      skillContent: payload.skill_content || '',
+                      validation: payload.validation || '',
+                      ts,
+                    });
                     break;
 
                   case 'stream_end':
-                    setEvents(prev => [...prev, { type: 'stream_end', ts }]);
+                    pushEvent({ type: 'stream_end', ts });
                     break;
 
                   case 'error':
                     if (payload.error) {
                       setError(payload.error);
-                      setEvents(prev => [...prev, { type: 'error', error: payload.error, ts }]);
+                      pushEvent({ type: 'error', error: payload.error, ts });
                     }
                     break;
 
@@ -226,7 +225,7 @@ export function useBuilderSSE(
                   controller.abort();
                   const msg = 'Stream corrupted \u2014 too many malformed chunks';
                   setError(msg);
-                  setEvents(prev => [...prev, { type: 'error', error: msg, ts: Date.now() }]);
+                  pushEvent({ type: 'error', error: msg, ts: Date.now() });
                 }
               }
             }
@@ -241,6 +240,7 @@ export function useBuilderSSE(
       }
 
       if (streamContent) setContent(streamContent);
+      return { events: collected, content: streamContent };
     },
     [idleTimeoutMs],
   );
