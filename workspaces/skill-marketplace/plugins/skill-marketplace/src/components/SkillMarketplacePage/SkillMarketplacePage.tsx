@@ -27,7 +27,7 @@ import { SkillIntro, INTRO_KEY } from '../home/SkillIntro';
 import SkillsPage from '../skills/SkillsPage';
 import SkillDetailPage from '../skills/SkillDetailPage';
 import GraphPage from '../graph/GraphPage';
-import BuilderPage from '../builder/BuilderPage';
+import BuilderStudio from '../builder/BuilderStudio';
 import AgentsPage from '../agents/AgentsPage';
 import AgentDetailPage from '../agents/AgentDetailPage';
 import { useSkills, SkillsProvider } from '../../hooks';
@@ -128,7 +128,7 @@ const SkillMarketplacePageInner = () => {
             <Route path="agents" element={<AgentsPage />} />
             <Route path="agents/:namespace/:name" element={<AgentDetailPage />} />
             <Route path="graph" element={<GraphPage />} />
-            <Route path="builder" element={<BuilderPage />} />
+            <Route path="builder" element={<BuilderStudio />} />
           </Routes>
         </PluginErrorBoundary>
       </div>

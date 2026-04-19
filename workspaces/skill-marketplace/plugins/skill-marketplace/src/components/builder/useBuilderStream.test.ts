@@ -19,7 +19,7 @@ import type { BuilderEvent } from './types';
 import {
   createSSEStream,
   sseEvent,
-  FULL_PIPELINE_EVENTS,
+  FULL_STREAM_EVENTS,
   ERROR_STREAM_EVENTS,
   MALFORMED_EVENTS,
   KEEPALIVE_EVENT,
@@ -50,12 +50,12 @@ describe('useBuilderStream', () => {
     liveEvents = [];
   });
 
-  it('parses a full pipeline SSE stream correctly', async () => {
+  it('parses a full SSE stream correctly', async () => {
     const { result } = renderHook(() =>
       useBuilderStream(setCurrentAgent, setGeneratedContent, setLiveEvents),
     );
 
-    const response = createMockResponse(FULL_PIPELINE_EVENTS);
+    const response = createMockResponse(FULL_STREAM_EVENTS);
     await act(async () => {
       await result.current.readSSEStream(response);
     });
@@ -289,15 +289,15 @@ describe('useBuilderStream', () => {
       useBuilderStream(setCurrentAgent, setGeneratedContent, setLiveEvents),
     );
 
-    let resolveChunk: ((v: ReadableStreamReadResult<Uint8Array>) => void) | null = null;
+    let resolveChunk: (() => void) | null = null;
     const slowStream = new ReadableStream<Uint8Array>({
       start(controller) {
         const encoder = new TextEncoder();
         controller.enqueue(encoder.encode(sseEvent('agent_start', { agent: 'SlowAgent' })));
       },
       pull() {
-        return new Promise(resolve => {
-          resolveChunk = resolve as (v: ReadableStreamReadResult<Uint8Array>) => void;
+        return new Promise<void>(resolve => {
+          resolveChunk = resolve;
         });
       },
     });

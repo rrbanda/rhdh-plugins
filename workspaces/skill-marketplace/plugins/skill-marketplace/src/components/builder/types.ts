@@ -44,33 +44,3 @@ export interface ChatMessage {
   validation?: string;
 }
 
-export interface PipelineStage {
-  key: string;
-  label: string;
-  description: string;
-}
-
-export const PIPELINE_STAGES: PipelineStage[] = [
-  {
-    key: 'RequirementsAnalyzerAgent',
-    label: 'Analyzing Requirements',
-    description: 'Breaking down your description into structured requirements',
-  },
-  {
-    key: 'SkillResearcherAgent',
-    label: 'Researching Examples',
-    description: 'Searching the knowledge graph for similar skills',
-  },
-  {
-    key: 'SkillGeneratorAgent',
-    label: 'Generating Skill',
-    description: 'Writing the SKILL.md based on requirements and examples',
-  },
-  {
-    key: 'SkillValidatorAgent',
-    label: 'Validating',
-    description: 'Checking skill structure, completeness, and quality',
-  },
-];
-
-export type StageStatus = 'pending' | 'active' | 'completed' | 'error';

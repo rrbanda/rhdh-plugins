@@ -39,7 +39,7 @@ export function sseEvent(eventType: string, data: Record<string, unknown>): stri
   return `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export const FULL_PIPELINE_EVENTS = [
+export const FULL_STREAM_EVENTS = [
   sseEvent('agent_start', { agent: 'RequirementsAnalyzerAgent' }),
   sseEvent('tool_call', { agent: 'RequirementsAnalyzerAgent', tool: 'analyze', args: { input: 'test' } }),
   sseEvent('tool_result', { agent: 'RequirementsAnalyzerAgent', tool: 'analyze', result: 'analyzed successfully' }),
