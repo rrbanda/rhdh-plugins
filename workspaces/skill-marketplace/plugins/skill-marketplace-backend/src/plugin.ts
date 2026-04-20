@@ -28,7 +28,6 @@ import {
   LlmClient,
   AgenticRagService,
   EmbeddingService,
-  DefaultSkillSeeder,
 } from './services';
 import type { KagentiConfig, OciRegistryServiceConfig, GraphSyncConfig } from './services';
 
@@ -218,25 +217,6 @@ export const skillMarketplacePlugin = createBackendPlugin({
             }
           : undefined;
 
-        const seedDefaults = config.getOptionalBoolean('skillMarketplace.seedDefaults') ?? true;
-        let seedPromise: Promise<void> | undefined;
-        if (seedDefaults && ociRegistry && publishRegistry) {
-          const seeder = new DefaultSkillSeeder({
-            logger,
-            ociRegistry,
-            publishRegistry,
-            forceReseed: config.getOptionalBoolean('skillMarketplace.forceReseed') ?? false,
-          });
-          seedPromise = seeder.seed().then(result => {
-            logger.info(
-              `Default skill seeding: ${result.seeded} seeded, ${result.skipped} skipped, ${result.errors} errors (${result.durationMs}ms)`,
-            );
-          }).catch(err => {
-            logger.warn(`Default skill seeding failed: ${(err as Error).message}`);
-          });
-          logger.info(`Default skill seeding started (${seeder.totalBundled} bundled skills)`);
-        }
-
         let syncService: SkillGraphSyncService | undefined;
         if (neo4j && ociRegistry) {
           const graphSyncConfig: GraphSyncConfig = {
@@ -269,19 +249,14 @@ export const skillMarketplacePlugin = createBackendPlugin({
 
           const syncOnStartup = config.getOptionalBoolean('skillMarketplace.graph.syncOnStartup') ?? true;
           if (syncOnStartup) {
-            const runSync = async () => {
-              if (seedPromise) {
-                await seedPromise;
-              }
-              const result = await syncService!.sync();
+            syncService.sync().then(result => {
               logger.info(`Startup graph sync completed: ${result.nodesUpserted} nodes, ${result.relationshipsCreated} rels`);
-            };
-            runSync().catch(err => {
+            }).catch(err => {
               logger.warn(`Startup graph sync failed: ${(err as Error).message}`);
             });
           }
 
-          const syncIntervalSeconds = config.getOptionalNumber('skillMarketplace.graph.syncIntervalSeconds') ?? 30;
+          const syncIntervalSeconds = config.getOptionalNumber('skillMarketplace.graph.syncIntervalSeconds') ?? 300;
           if (syncIntervalSeconds > 0) {
             const intervalMs = syncIntervalSeconds * 1000;
             const intervalHandle = setInterval(() => {
@@ -385,6 +360,7 @@ export const skillMarketplacePlugin = createBackendPlugin({
           securityMode === 'none' ? 'unauthenticated' : 'user-cookie';
 
         const protectedPaths = [
+          '/skills/ready',
           '/skills',
           '/skills/:slug',
           '/graph',
@@ -419,6 +395,13 @@ export const skillMarketplacePlugin = createBackendPlugin({
 
         for (const p of protectedPaths) {
           httpRouter.addAuthPolicy({ path: p, allow: authPolicy });
+        }
+
+        if (ociRegistry) {
+          ociRegistry.listSkills().catch(err => {
+            logger.warn(`Background cache warm-up failed: ${(err as Error).message}`);
+          });
+          logger.info('Background OCI cache warm-up started');
         }
 
         logger.info(

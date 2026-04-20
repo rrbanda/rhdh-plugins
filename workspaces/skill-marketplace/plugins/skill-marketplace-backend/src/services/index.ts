@@ -28,8 +28,6 @@ export type { ParsedRelatedSkill } from './RelatedSkillsParser';
 export { LlmClient } from './LlmClient';
 export { AgenticRagService } from './AgenticRagService';
 export type { AgenticRagConfig } from './AgenticRagService';
-export { DefaultSkillSeeder } from './DefaultSkillSeeder';
-export type { SeedResult } from './DefaultSkillSeeder';
 export { validateSkillCard, validateTypedSkillCard } from './SkillCardValidator';
 export type { ValidationResult } from './SkillCardValidator';
 export { SkillContextBuilder } from './SkillContextBuilder';

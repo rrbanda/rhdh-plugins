@@ -262,22 +262,6 @@ export interface Config {
     };
 
     /**
-     * Seed bundled default skills into the OCI publish registry on first startup.
-     * Only runs when publishRegistry is configured and the registry is empty.
-     * Default: true
-     * @visibility backend
-     */
-    seedDefaults?: boolean;
-
-    /**
-     * Force re-seed even if skills already exist in the publish registry.
-     * Existing skills are never overwritten -- only missing ones are added.
-     * Default: false
-     * @visibility backend
-     */
-    forceReseed?: boolean;
-
-    /**
      * Security configuration
      * @visibility backend
      */

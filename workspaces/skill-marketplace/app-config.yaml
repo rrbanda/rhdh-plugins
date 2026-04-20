@@ -56,11 +56,6 @@ skillMarketplace:
       username: ${KEYCLOAK_USERNAME:-admin}
       password: ${KEYCLOAK_PASSWORD:-changeme}
 
-  # Seed 100 curated default skills into the OCI registry on first startup.
-  # Only runs when publishRegistry is configured and the registry is empty.
-  seedDefaults: ${SEED_DEFAULTS:-true}
-  # forceReseed: false  # Set to true to re-seed missing skills even if registry has some
-
   oci:
     cacheTimeout: 300
     publishRegistry:

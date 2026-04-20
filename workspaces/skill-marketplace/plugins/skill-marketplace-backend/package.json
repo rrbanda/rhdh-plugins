@@ -41,7 +41,8 @@
     "postpack": "backstage-cli package postpack",
     "start": "backstage-cli package start",
     "test": "backstage-cli package test",
-    "generate:default-skills": "npx tsx scripts/generate-default-skills.ts"
+    "generate:default-skills": "npx tsx scripts/generate-default-skills.ts",
+    "seed:registry": "npx tsx scripts/seed-registry.ts"
   },
   "dependencies": {
     "@backstage/backend-defaults": "^0.17.0",

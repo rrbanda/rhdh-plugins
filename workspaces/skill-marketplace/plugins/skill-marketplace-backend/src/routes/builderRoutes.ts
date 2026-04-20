@@ -24,6 +24,7 @@ import type { BuilderProxyService, OciRegistryService, SkillGraphSyncService } f
 import type { BuilderSSEEvent } from '../services/BuilderProxyService';
 import { validateTypedSkillCard } from '../services/SkillCardValidator';
 import { requirePermission } from './authUtils';
+import { invalidateCatalogCache } from './skillsRoutes';
 
 function writeSSEEvent(res: { write: (chunk: string) => boolean; writableEnded: boolean }, evt: BuilderSSEEvent): void {
   if (res.writableEnded) return;
@@ -106,6 +107,8 @@ export function registerBuilderRoutes(
       logger.info(
         `Published skill ${safeName} to ${ociReference}`,
       );
+
+      invalidateCatalogCache();
 
       if (syncService) {
         syncService.sync().catch(syncErr =>

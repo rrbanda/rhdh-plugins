@@ -742,7 +742,7 @@ export class OciRegistryService {
       return;
     }
     for (const key of this.cache.keys()) {
-      if (key.includes(registryUrl) || key.startsWith('skills:')) {
+      if (key.includes(registryUrl)) {
         this.cache.delete(key);
       }
     }

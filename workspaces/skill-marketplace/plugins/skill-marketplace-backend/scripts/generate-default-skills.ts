@@ -18,7 +18,11 @@
 /**
  * Build-time script: reads skills from agent-skills-hub (cloned locally),
  * filters + categorizes them, converts YAML frontmatter to SkillCard objects,
- * and writes a generated TypeScript module that the DefaultSkillSeeder imports.
+ * and writes a generated TypeScript module for inspection or offline use.
+ *
+ * NOTE: This is a development/CI tool only. The plugin does NOT bundle skills
+ * at runtime. Use scripts/seed-registry.ts to push skills to an OCI registry,
+ * then point the plugin at that registry as a read-only consumer.
  *
  * Usage:
  *   npx tsx scripts/generate-default-skills.ts [path-to-skills-hub]

@@ -28,6 +28,7 @@ import type {
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { OciRegistryService } from '../services';
 import { requirePermission } from './authUtils';
+import { invalidateCatalogCache } from './skillsRoutes';
 
 const VALID_STATES: LifecycleState[] = [
   'draft',
@@ -152,6 +153,8 @@ export function registerLifecycleRoutes(
       logger.info(
         `Promoted skill ${skill.card.metadata.name}: ${currentState} → ${targetState} (${newRef})`,
       );
+
+      invalidateCatalogCache();
 
       res.json({
         success: true,
