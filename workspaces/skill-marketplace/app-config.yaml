@@ -39,14 +39,10 @@ skillMarketplace:
     password: ${NEO4J_PASSWORD:-changeme}
     database: ${NEO4J_DATABASE:-neo4j}
 
-  builderAgent:
-    url: ${BUILDER_AGENT_URL:-http://localhost:8001}
-    apiKey: ${BUILDER_API_KEY:-changeme}
-
   kagenti:
     apiUrl: ${KAGENTI_API_URL:-https://kagenti-api.your-cluster.example.com}
-    agentName: ${KAGENTI_AGENT_NAME:-builder-agent}
-    namespace: ${KAGENTI_AGENT_NS:-skills-marketplace}
+    agentName: ${KAGENTI_AGENT_NAME:-skill-builder}
+    namespace: ${KAGENTI_AGENT_NS:-team1}
     # Optional: bypass Kagenti chat proxy and call the agent directly via A2A.
     # Useful when Backstage runs inside the cluster and can reach the agent's internal URL.
     # directA2AUrl: ${KAGENTI_DIRECT_A2A_URL:-}

@@ -41,18 +41,10 @@ export interface Config {
     };
 
     /**
-     * Builder agent (Python ADK service) configuration
+     * Builder agent SSE streaming configuration
      * @visibility backend
      */
     builderAgent?: {
-      /** @visibility backend */
-      url?: string;
-      /** @visibility secret */
-      apiKey?: string;
-      /** Connection timeout in milliseconds for builder agent HTTP calls (default: 30000)
-       * @visibility backend
-       */
-      timeoutMs?: number;
       /** Maximum duration in milliseconds for SSE streaming pipelines (default: 300000). Set to 0 to disable.
        * @visibility backend
        */

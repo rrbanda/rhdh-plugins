@@ -145,15 +145,13 @@ export const skillMarketplacePlugin = createBackendPlugin({
         const kagentiApiUrl = config.getOptionalString(
           'skillMarketplace.kagenti.apiUrl',
         );
+        const kagentiNs = config.getOptionalString('skillMarketplace.kagenti.namespace') || 'team1';
+        const kagentiAgent = config.getOptionalString('skillMarketplace.kagenti.agentName') || 'skill-builder';
         if (kagentiApiUrl) {
           const kagentiConfig: KagentiConfig = {
             apiUrl: kagentiApiUrl,
-            agentName:
-              config.getOptionalString('skillMarketplace.kagenti.agentName') ||
-              'builder-agent',
-            namespace:
-              config.getOptionalString('skillMarketplace.kagenti.namespace') ||
-              'skills-marketplace',
+            agentName: kagentiAgent,
+            namespace: kagentiNs,
             requestTimeoutMs:
               config.getOptionalNumber('skillMarketplace.kagenti.requestTimeoutMs'),
             tokenTimeoutMs:
@@ -188,15 +186,13 @@ export const skillMarketplacePlugin = createBackendPlugin({
         }
 
         if (kagenti) {
-          const builderNs = config.getOptionalString('skillMarketplace.kagenti.namespace') || 'team1';
-          const builderAgent = config.getOptionalString('skillMarketplace.kagenti.agentName') || 'skill-builder';
           builderProxy = new BuilderProxyService({
             kagenti,
             logger,
-            namespace: builderNs,
-            agentName: builderAgent,
+            namespace: kagentiNs,
+            agentName: kagentiAgent,
           });
-          logger.info(`Builder proxy configured via Kagenti: ${builderNs}/${builderAgent}`);
+          logger.info(`Builder proxy configured via Kagenti: ${kagentiNs}/${kagentiAgent}`);
         } else {
           logger.info('Builder proxy not available -- Kagenti not configured');
         }
@@ -205,11 +201,8 @@ export const skillMarketplacePlugin = createBackendPlugin({
           'skillMarketplace.skillSearchDirs',
         );
 
-        const kagentiDefaults = kagentiApiUrl
-          ? {
-              namespace: config.getOptionalString('skillMarketplace.kagenti.namespace') || 'skills-marketplace',
-              agentName: config.getOptionalString('skillMarketplace.kagenti.agentName') || 'builder-agent',
-            }
+        const kagentiDefaults = kagenti
+          ? { namespace: kagentiNs, agentName: kagentiAgent }
           : undefined;
 
         let syncService: SkillGraphSyncService | undefined;
