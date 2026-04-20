@@ -18,7 +18,8 @@
       "@red-hat-developer-hub/backstage-plugin-skill-marketplace",
       "@red-hat-developer-hub/backstage-plugin-skill-marketplace-backend",
       "@red-hat-developer-hub/backstage-plugin-skill-marketplace-common"
-    ]
+    ],
+    "supported-versions": "1.45.0"
   },
   "repository": {
     "type": "git",

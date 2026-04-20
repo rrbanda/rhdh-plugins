@@ -46,7 +46,7 @@ export const FULL_STREAM_EVENTS = [
   sseEvent('agent_start', { agent: 'SkillGeneratorAgent' }),
   sseEvent('agent_output', { agent: 'SkillGeneratorAgent', text: '# Test Skill\n' }),
   sseEvent('agent_output', { agent: 'SkillGeneratorAgent', text: '## Description\nA test skill.' }),
-  sseEvent('complete', { skill_content: '# Test Skill\n## Description\nA test skill.', validation: 'All checks passed' }),
+  sseEvent('complete', { skill_content: '# Test Skill\n## Description\nA test skill.', full_output: '# Test Skill\n## Description\nA test skill.', validation: 'All checks passed' }),
   sseEvent('stream_end', {}),
 ];
 

@@ -28,6 +28,7 @@ export type BuilderEvent =
   | {
       type: 'complete';
       skillContent: string;
+      fullOutput: string;
       validation: string;
       ts: number;
     }

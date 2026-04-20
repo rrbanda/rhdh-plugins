@@ -184,6 +184,7 @@ export default function BuilderStudio() {
           <div className="bld-studio-artifact">
             <ArtifactPanel
               generatedContent={chat.generatedContent}
+              publishContent={chat.publishContent}
               previousContent={chat.previousContent}
               isGenerating={chat.isGenerating}
             />

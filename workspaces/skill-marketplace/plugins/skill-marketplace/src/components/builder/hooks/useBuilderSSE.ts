@@ -26,6 +26,7 @@ export interface UseBuilderSSEOptions {
 export interface StreamResult {
   events: BuilderEvent[];
   content: string;
+  publishContent: string;
 }
 
 export interface UseBuilderSSEReturn {
@@ -83,7 +84,7 @@ export function useBuilderSSE(
         };
         setEvents(prev => [...prev, errEvt]);
         setError(errEvt.error);
-        return { events: [errEvt], content: '' };
+        return { events: [errEvt], content: '', publishContent: '' };
       }
       const reader = response.body.getReader();
 
@@ -113,6 +114,7 @@ export function useBuilderSSE(
       const decoder = new TextDecoder();
       let buffer = '';
       let streamContent = '';
+      let extractedSkillContent = '';
       let lastEventType = '';
       let consecutiveParseErrors = 0;
       const collected: BuilderEvent[] = [];
@@ -191,13 +193,18 @@ export function useBuilderSSE(
                     break;
 
                   case 'complete':
-                    if (payload.skill_content) {
-                      streamContent = payload.skill_content;
+                    if (payload.full_output) {
+                      streamContent = payload.full_output as string;
+                      setContent(streamContent);
+                    } else if (payload.skill_content) {
+                      streamContent = payload.skill_content as string;
                       setContent(streamContent);
                     }
+                    extractedSkillContent = (payload.skill_content as string) || streamContent;
                     pushEvent({
                       type: 'complete',
-                      skillContent: payload.skill_content || '',
+                      skillContent: (payload.skill_content as string) || '',
+                      fullOutput: (payload.full_output as string) || '',
                       validation: payload.validation || '',
                       ts,
                     });
@@ -248,7 +255,7 @@ export function useBuilderSSE(
       }
 
       if (streamContent) setContent(streamContent);
-      return { events: collected, content: streamContent };
+      return { events: collected, content: streamContent, publishContent: extractedSkillContent || streamContent };
     },
     [idleTimeoutMs],
   );

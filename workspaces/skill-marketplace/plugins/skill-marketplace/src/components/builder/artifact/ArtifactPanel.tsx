@@ -184,21 +184,23 @@ type PreviewMode = 'rendered' | 'raw' | 'diff';
 
 interface ArtifactPanelProps {
   generatedContent: string;
+  publishContent: string;
   previousContent: string;
   isGenerating: boolean;
 }
 
-export function ArtifactPanel({ generatedContent, previousContent, isGenerating }: ArtifactPanelProps) {
+export function ArtifactPanel({ generatedContent, publishContent, previousContent, isGenerating }: ArtifactPanelProps) {
   const api = useApi(skillMarketplaceApiRef);
   const [previewMode, setPreviewMode] = useState<PreviewMode>('rendered');
   const [copied, setCopied] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
+  const effectivePublish = publishContent || generatedContent;
   const lineCount = generatedContent ? generatedContent.split('\n').length : 0;
   const prefill = useMemo(
-    () => (generatedContent ? extractSkillMetadata(generatedContent) : undefined),
-    [generatedContent],
+    () => (effectivePublish ? extractSkillMetadata(effectivePublish) : undefined),
+    [effectivePublish],
   );
 
   useEffect(() => {
@@ -220,11 +222,11 @@ export function ArtifactPanel({ generatedContent, previousContent, isGenerating 
         version: params.version,
         description: params.description,
         author: params.author,
-        content: generatedContent,
+        content: effectivePublish,
       })) as { ociReference: string };
       return result;
     },
-    [api, generatedContent],
+    [api, effectivePublish],
   );
 
   if (!generatedContent && !isGenerating) {
@@ -242,7 +244,7 @@ export function ArtifactPanel({ generatedContent, previousContent, isGenerating 
         <div className="bld-artifact-toolbar">
           <div className="bld-artifact-status">
             {isGenerating && <span className="bld-artifact-live-dot" />}
-            <span>{isGenerating ? 'Generating...' : 'SKILL.md'}</span>
+            <span>{isGenerating ? 'Generating...' : 'Skill Package'}</span>
             {!isGenerating && generatedContent && (
               <span className="bld-artifact-badge">{lineCount} lines</span>
             )}

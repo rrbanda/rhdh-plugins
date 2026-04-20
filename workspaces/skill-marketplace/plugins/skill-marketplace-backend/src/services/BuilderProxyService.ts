@@ -28,6 +28,28 @@ interface ChatResponse {
 }
 
 /**
+ * Extracts the SKILL.md content from the agent's full response.
+ * The agent typically returns a quality review followed by the skill files
+ * embedded in fenced markdown code blocks. This function finds the first
+ * code block that appears after a heading containing "SKILL.md" and
+ * returns its contents. Falls back to the full text if no match is found.
+ */
+export function extractSkillContent(raw: string): string {
+  // Pattern: heading containing SKILL.md, then a fenced code block
+  const headingThenFence =
+    /###?\s+`?SKILL\.md`?\s*\n+```(?:markdown|md)?\s*\n([\s\S]*?)```/i;
+  const m = headingThenFence.exec(raw);
+  if (m && m[1].trim()) return m[1].trim();
+
+  // Fallback: any fenced block that starts with YAML frontmatter (---\n)
+  const frontmatterFence = /```(?:markdown|md|yaml)?\s*\n(---\n[\s\S]*?)```/;
+  const fm = frontmatterFence.exec(raw);
+  if (fm && fm[1].trim()) return fm[1].trim();
+
+  return raw;
+}
+
+/**
  * Talks to the skill-builder agent via Kagenti's ChatRequest API.
  *
  * Primary mode: streaming via Kagenti /stream endpoint.
@@ -94,10 +116,12 @@ export class BuilderProxyService {
     const emitComplete = () => {
       if (completeSent) return;
       completeSent = true;
+      const extracted = extractSkillContent(accumulated);
       onEvent({
         event: 'complete',
         data: {
-          skill_content: accumulated,
+          skill_content: extracted,
+          full_output: accumulated,
           validation: accumulated ? 'passed' : '',
         },
       });
@@ -236,10 +260,12 @@ export class BuilderProxyService {
         data: { agent: this.agentName, text: response.content },
       });
 
+      const extracted = extractSkillContent(response.content);
       events.push({
         event: 'complete',
         data: {
-          skill_content: response.content,
+          skill_content: extracted,
+          full_output: response.content,
           validation: response.is_complete ? 'passed' : '',
         },
       });

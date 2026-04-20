@@ -29,6 +29,7 @@ export interface UseBuilderChatReturn {
   messages: ChatMessage[];
   isGenerating: boolean;
   generatedContent: string;
+  publishContent: string;
   previousContent: string;
   currentAgent: string;
   events: BuilderEvent[];
@@ -47,6 +48,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [contextId, setContextId] = useState('');
   const [generatedContent, setGeneratedContent] = useState('');
+  const [publishContent, setPublishContent] = useState('');
   const [previousContent, setPreviousContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamIdleTimeout, setStreamIdleTimeout] = useState<number | undefined>(undefined);
@@ -91,6 +93,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
       let errorMsg: string | null = null;
       let finalEvents: BuilderEvent[] = [];
       let finalContent = '';
+      let finalPublishContent = '';
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         errorMsg = null;
@@ -113,6 +116,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
           }
           finalEvents = result.events;
           finalContent = result.content;
+          finalPublishContent = result.publishContent;
           break;
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Generation failed';
@@ -135,6 +139,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
 
       setIsGenerating(false);
       if (finalContent) setGeneratedContent(finalContent);
+      if (finalPublishContent) setPublishContent(finalPublishContent);
 
       const hasCompletion = finalEvents.some(e => e.type === 'complete');
       const streamError = finalEvents.find(
@@ -232,6 +237,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
     setMessages([]);
     setContextId('');
     setGeneratedContent('');
+    setPublishContent('');
     setPreviousContent('');
     sse.resetEvents();
   }, [sse]);
@@ -240,6 +246,7 @@ export function useBuilderChat(): UseBuilderChatReturn {
     messages,
     isGenerating,
     generatedContent,
+    publishContent,
     previousContent,
     currentAgent: sse.currentAgent,
     events: sse.events,
