@@ -87,11 +87,15 @@ describe('E2E: Mock builder agent integration', () => {
 
   beforeAll(async () => {
     const logger = mockServices.logger.mock();
+    const mockKagenti = {
+      sendMessage: jest.fn().mockResolvedValue({
+        status: 200,
+        data: { content: '# Test Skill\n\nA test skill.', session_id: 'sess-1', is_complete: true },
+      }),
+    } as any;
     const builderProxy = new BuilderProxyService({
-      baseUrl: `http://localhost:${MOCK_BUILDER_PORT}`,
-      apiKey: 'test-key',
+      kagenti: mockKagenti,
       logger,
-      streamTimeoutMs: 10_000,
     });
 
     const router = await createRouter({
@@ -199,11 +203,15 @@ describe('E2E: Full pipeline with builder + publish', () => {
 
   beforeAll(async () => {
     const logger = mockServices.logger.mock();
+    const mockKagenti2 = {
+      sendMessage: jest.fn().mockResolvedValue({
+        status: 200,
+        data: { content: '# Test Skill\n\nA test skill.', session_id: 'sess-2', is_complete: true },
+      }),
+    } as any;
     const builderProxy = new BuilderProxyService({
-      baseUrl: `http://localhost:${MOCK_BUILDER_PORT}`,
-      apiKey: 'test-key',
+      kagenti: mockKagenti2,
       logger,
-      streamTimeoutMs: 10_000,
     });
 
     const routerOpts: Parameters<typeof createRouter>[0] = {

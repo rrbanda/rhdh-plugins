@@ -14,242 +14,137 @@
  * limitations under the License.
  */
 import { mockServices } from '@backstage/backend-test-utils';
-
-const a2aSkillResponse = {
-  id: 'test-001',
-  jsonrpc: '2.0',
-  result: {
-    contextId: 'ctx-123',
-    artifacts: [
-      {
-        artifactId: 'art-1',
-        parts: [{ kind: 'text', text: '# My Skill\n\nThis is a test skill.' }],
-      },
-    ],
-    history: [
-      {
-        role: 'user',
-        parts: [{ kind: 'text', text: 'Create a test skill' }],
-      },
-      {
-        role: 'agent',
-        parts: [
-          {
-            kind: 'data',
-            data: { id: 'fc-1', name: 'list_skills', args: {} },
-            metadata: { adk_type: 'function_call' },
-          },
-        ],
-      },
-      {
-        role: 'agent',
-        parts: [
-          {
-            kind: 'data',
-            data: {
-              id: 'fc-1',
-              name: 'list_skills',
-              response: { result: 'skill-creator, skill-reviewer' },
-            },
-            metadata: { adk_type: 'function_response' },
-          },
-        ],
-      },
-      {
-        role: 'agent',
-        parts: [{ kind: 'text', text: 'Here is your skill.' }],
-      },
-    ],
-    status: { state: 'completed' },
-  },
-};
-
-jest.mock('node-fetch', () => {
-  const fn = jest.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    text: () => Promise.resolve(JSON.stringify(a2aSkillResponse)),
-  });
-  return { __esModule: true, default: fn };
-});
-
-import fetchMock from 'node-fetch';
 import { BuilderProxyService } from './BuilderProxyService';
 
-const mockedFetch = fetchMock as unknown as jest.Mock;
+function createMockKagenti(overrides) {
+  return Object.assign({
+    sendMessage: jest.fn().mockResolvedValue({
+      status: 200,
+      data: {
+        content: '# Code Review Skill\n\nReview code for quality.',
+        session_id: 'sess-123',
+        is_complete: true,
+      },
+    }),
+  }, overrides || {});
+}
 
-describe('BuilderProxyService (A2A)', () => {
+describe('BuilderProxyService (Kagenti ChatRequest)', () => {
   const logger = mockServices.logger.mock();
 
-  beforeEach(() => {
-    mockedFetch.mockClear();
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: () => Promise.resolve(JSON.stringify(a2aSkillResponse)),
-    });
-    jest.useFakeTimers();
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  describe('constructor', () => {
-    it('initializes with required options', () => {
-      const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: '',
-        logger,
-      });
-      expect(svc).toBeDefined();
-    });
-
-    it('strips trailing slashes from baseUrl', async () => {
-      const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080/',
-        apiKey: '',
-        logger,
-      });
-      await svc.generate({ description: 'test' });
-      expect(mockedFetch).toHaveBeenCalledWith(
-        'http://skill-builder.team1:8080',
-        expect.anything(),
-      );
-    });
-  });
-
   describe('generate', () => {
-    it('sends A2A message/send to root path', async () => {
+    it('calls kagenti.sendMessage with generate prompt', async () => {
+      const kagenti = createMockKagenti();
       const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: 'test-key',
+        kagenti,
         logger,
+        namespace: 'team1',
+        agentName: 'skill-builder',
       });
+
       await svc.generate({ description: 'build a code review skill' });
-      expect(mockedFetch).toHaveBeenCalledWith(
-        'http://skill-builder.team1:8080',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer test-key',
-          }),
-        }),
+
+      expect(kagenti.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('build a code review skill'),
+        undefined,
+        'team1',
+        'skill-builder',
       );
-      const body = JSON.parse(mockedFetch.mock.calls[0][1].body);
-      expect(body.jsonrpc).toBe('2.0');
-      expect(body.method).toBe('message/send');
-      expect(body.params.message.parts[0].text).toContain('build a code review skill');
     });
 
-    it('returns SSE events from A2A response', async () => {
+    it('returns SSE events with skill content', async () => {
       const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: '',
+        kagenti: createMockKagenti(),
         logger,
       });
-      const events = await svc.generate({ description: 'test' });
 
-      const types = events.map(e => e.event);
+      const events = await svc.generate({ description: 'test' });
+      const types = events.map(function(e) { return e.event; });
+
       expect(types).toContain('agent_start');
-      expect(types).toContain('tool_call');
-      expect(types).toContain('tool_result');
       expect(types).toContain('agent_output');
       expect(types).toContain('complete');
 
-      const complete = events.find(e => e.event === 'complete');
-      expect(complete?.data.skill_content).toContain('# My Skill');
+      const complete = events.find(function(e) { return e.event === 'complete'; });
+      expect(complete.data.skill_content).toContain('# Code Review Skill');
+      expect(complete.data.validation).toBe('passed');
+    });
+
+    it('passes context_id as session_id', async () => {
+      const kagenti = createMockKagenti();
+      const svc = new BuilderProxyService({ kagenti, logger });
+
+      await svc.generate({
+        description: 'test',
+        context_id: 'ctx-456',
+      });
+
+      expect(kagenti.sendMessage).toHaveBeenCalledWith(
+        expect.any(String),
+        'ctx-456',
+        expect.any(String),
+        expect.any(String),
+      );
     });
   });
 
   describe('refine', () => {
-    it('sends A2A message with refine prompt', async () => {
-      const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: '',
-        logger,
-      });
+    it('sends refine prompt with feedback', async () => {
+      const kagenti = createMockKagenti();
+      const svc = new BuilderProxyService({ kagenti, logger });
+
       await svc.refine({ feedback: 'add error handling' });
-      const body = JSON.parse(mockedFetch.mock.calls[0][1].body);
-      expect(body.params.message.parts[0].text).toContain('add error handling');
+
+      expect(kagenti.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('add error handling'),
+        undefined,
+        expect.any(String),
+        expect.any(String),
+      );
+    });
+  });
+
+  describe('error handling', () => {
+    it('throws when Kagenti returns non-200', async () => {
+      const kagenti = createMockKagenti({
+        sendMessage: jest.fn().mockResolvedValue({
+          status: 500,
+          data: { error: 'Internal Server Error' },
+        }),
+      });
+
+      const svc = new BuilderProxyService({ kagenti, logger });
+
+      await expect(svc.generate({ description: 'test' })).rejects.toThrow(
+        /Kagenti chat failed/,
+      );
+    });
+
+    it('returns only agent_start when content is empty', async () => {
+      const kagenti = createMockKagenti({
+        sendMessage: jest.fn().mockResolvedValue({
+          status: 200,
+          data: { content: '', session_id: 'sess-1', is_complete: true },
+        }),
+      });
+
+      const svc = new BuilderProxyService({ kagenti, logger });
+      const events = await svc.generate({ description: 'test' });
+
+      expect(events).toHaveLength(1);
+      expect(events[0].event).toBe('agent_start');
     });
   });
 
   describe('save', () => {
     it('returns success', async () => {
       const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: '',
+        kagenti: createMockKagenti(),
         logger,
       });
       const result = await svc.save({ content: 'test' });
       expect(result.status).toBe(200);
       expect(result.data).toMatchObject({ success: true });
-    });
-  });
-
-  describe('A2A error handling', () => {
-    it('throws on non-OK HTTP response', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve('Internal Server Error'),
-      });
-      const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: '',
-        logger,
-      });
-      await expect(svc.generate({ description: 'test' })).rejects.toThrow(
-        /A2A request failed/,
-      );
-    });
-
-    it('throws on JSON-RPC error', async () => {
-      mockedFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        text: () =>
-          Promise.resolve(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              error: { code: -32600, message: 'Invalid Request' },
-            }),
-          ),
-      });
-      const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: '',
-        logger,
-      });
-      await expect(svc.generate({ description: 'test' })).rejects.toThrow(
-        /A2A error/,
-      );
-    });
-  });
-
-  describe('headers', () => {
-    it('omits Authorization when apiKey is empty', async () => {
-      const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: '',
-        logger,
-      });
-      await svc.generate({ description: 'test' });
-      const headers = mockedFetch.mock.calls[0][1].headers;
-      expect(headers.Authorization).toBeUndefined();
-    });
-
-    it('includes Authorization when apiKey is set', async () => {
-      const svc = new BuilderProxyService({
-        baseUrl: 'http://skill-builder.team1:8080',
-        apiKey: 'my-secret',
-        logger,
-      });
-      await svc.generate({ description: 'test' });
-      const headers = mockedFetch.mock.calls[0][1].headers;
-      expect(headers.Authorization).toBe('Bearer my-secret');
     });
   });
 });

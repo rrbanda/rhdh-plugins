@@ -87,25 +87,6 @@ export const skillMarketplacePlugin = createBackendPlugin({
         }
 
         let builderProxy: BuilderProxyService | undefined;
-        const builderUrl = config.getOptionalString(
-          'skillMarketplace.builderAgent.url',
-        );
-        if (builderUrl) {
-          builderProxy = new BuilderProxyService({
-            baseUrl: builderUrl,
-            apiKey:
-              config.getOptionalString('skillMarketplace.builderAgent.apiKey') ||
-              '',
-            logger,
-            timeoutMs: config.getOptionalNumber('skillMarketplace.builderAgent.timeoutMs'),
-            streamTimeoutMs: config.getOptionalNumber('skillMarketplace.builderAgent.streamTimeoutMs'),
-          });
-          logger.info(`Builder agent configured: ${builderUrl}`);
-        } else {
-          logger.info(
-            'Builder agent not configured -- builder features will return 503',
-          );
-        }
 
         let ociRegistry: OciRegistryService | undefined;
         const ociRegistries = config.getOptionalConfigArray(
@@ -204,6 +185,20 @@ export const skillMarketplacePlugin = createBackendPlugin({
           logger.info(
             'Kagenti not configured -- Kagenti features disabled',
           );
+        }
+
+        if (kagenti) {
+          const builderNs = config.getOptionalString('skillMarketplace.kagenti.namespace') || 'team1';
+          const builderAgent = config.getOptionalString('skillMarketplace.kagenti.agentName') || 'skill-builder';
+          builderProxy = new BuilderProxyService({
+            kagenti,
+            logger,
+            namespace: builderNs,
+            agentName: builderAgent,
+          });
+          logger.info(`Builder proxy configured via Kagenti: ${builderNs}/${builderAgent}`);
+        } else {
+          logger.info('Builder proxy not available -- Kagenti not configured');
         }
 
         const skillSearchDirs = config.getOptionalStringArray(

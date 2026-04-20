@@ -36,7 +36,7 @@ export interface KagentiConfig {
   };
 }
 
-const KAGENTI_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const KAGENTI_DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 const KAGENTI_DEFAULT_TOKEN_TIMEOUT_MS = 10_000;
 
 interface TokenCache {
