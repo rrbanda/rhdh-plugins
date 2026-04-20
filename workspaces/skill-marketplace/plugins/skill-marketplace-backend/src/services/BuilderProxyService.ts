@@ -29,8 +29,12 @@ interface ChatResponse {
 
 /**
  * Talks to the skill-builder agent via Kagenti's ChatRequest API.
- * Converts the ChatResponse into a sequence of SSE events that the
- * frontend's useBuilderSSE hook can consume.
+ *
+ * Primary mode: streaming via Kagenti /stream endpoint.
+ * Each content chunk is forwarded to the frontend in real-time as an
+ * agent_output SSE event.
+ *
+ * Fallback: synchronous via Kagenti /send endpoint (generate/refine methods).
  */
 export class BuilderProxyService {
   private readonly kagenti: KagentiService;
@@ -49,6 +53,146 @@ export class BuilderProxyService {
     this.namespace = options.namespace || 'team1';
     this.agentName = options.agentName || 'skill-builder';
   }
+
+  // ---------------------------------------------------------------------------
+  // Streaming (primary) -- uses Kagenti /stream endpoint
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Parse a Kagenti SSE stream and emit BuilderSSEEvents via callback.
+   * Kagenti /stream returns lines like:
+   *   data: {"content": "...", "session_id": "..."}
+   *   data: {"done": true, "session_id": "..."}
+   */
+  private async readKagentiStream(
+    message: string,
+    sessionId: string | undefined,
+    onEvent: (evt: BuilderSSEEvent) => void,
+  ): Promise<void> {
+    const res = await this.kagenti.streamMessage(
+      message,
+      sessionId,
+      this.namespace,
+      this.agentName,
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Kagenti stream failed (${res.status}): ${text.slice(0, 500)}`);
+    }
+
+    if (!res.body) {
+      throw new Error('Kagenti stream response has no body');
+    }
+
+    onEvent({ event: 'agent_start', data: { agent: this.agentName } });
+
+    let accumulated = '';
+    let buffer = '';
+    let completeSent = false;
+
+    const emitComplete = () => {
+      if (completeSent) return;
+      completeSent = true;
+      onEvent({
+        event: 'complete',
+        data: {
+          skill_content: accumulated,
+          validation: accumulated ? 'passed' : '',
+        },
+      });
+    };
+
+    for await (const chunk of res.body) {
+      const text = typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf-8');
+      buffer += text;
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+
+        let payload: Record<string, unknown>;
+        try {
+          payload = JSON.parse(line.slice(6));
+        } catch {
+          this.logger.debug(`Skipping unparseable stream line: ${line.slice(0, 200)}`);
+          continue;
+        }
+
+        if (payload.done) {
+          emitComplete();
+          continue;
+        }
+
+        const content = (payload.content as string) || '';
+        if (content) {
+          accumulated += content;
+          onEvent({
+            event: 'agent_output',
+            data: { agent: this.agentName, text: content },
+          });
+        }
+      }
+    }
+
+    // Handle any remaining data in the buffer
+    if (buffer.startsWith('data: ')) {
+      try {
+        const payload = JSON.parse(buffer.slice(6));
+        if (payload.done) {
+          emitComplete();
+        } else if (payload.content) {
+          accumulated += payload.content;
+          onEvent({
+            event: 'agent_output',
+            data: { agent: this.agentName, text: payload.content },
+          });
+        }
+      } catch {
+        // ignore trailing partial data
+      }
+    }
+
+    // If we accumulated content but never got a done signal, emit complete anyway
+    if (accumulated && !completeSent) {
+      this.logger.warn('Kagenti stream ended without done signal, emitting complete from accumulated content');
+      emitComplete();
+    }
+  }
+
+  async generateStream(
+    body: Record<string, unknown>,
+    onEvent: (evt: BuilderSSEEvent) => void,
+  ): Promise<void> {
+    const description =
+      (body.description as string) || (body.message as string) || '';
+    const sessionId = body.context_id as string | undefined;
+
+    const prompt = `Create a skill: ${description}`;
+    this.logger.info(`Builder generateStream: "${prompt.slice(0, 100)}"`);
+
+    await this.readKagentiStream(prompt, sessionId, onEvent);
+  }
+
+  async refineStream(
+    body: Record<string, unknown>,
+    onEvent: (evt: BuilderSSEEvent) => void,
+  ): Promise<void> {
+    const feedback =
+      (body.feedback as string) || (body.message as string) || '';
+    const sessionId = body.context_id as string | undefined;
+
+    const prompt = `Refine the skill based on this feedback: ${feedback}`;
+    this.logger.info(`Builder refineStream: "${prompt.slice(0, 100)}"`);
+
+    await this.readKagentiStream(prompt, sessionId, onEvent);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Synchronous fallback -- uses Kagenti /send endpoint
+  // ---------------------------------------------------------------------------
 
   private async sendChat(
     message: string,
@@ -127,6 +271,10 @@ export class BuilderProxyService {
     const response = await this.sendChat(prompt, sessionId);
     return this.chatResponseToSSEEvents(response);
   }
+
+  // ---------------------------------------------------------------------------
+  // Other actions
+  // ---------------------------------------------------------------------------
 
   async save(
     body: Record<string, unknown>,

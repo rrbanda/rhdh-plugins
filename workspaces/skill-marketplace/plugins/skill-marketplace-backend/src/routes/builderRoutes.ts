@@ -176,32 +176,49 @@ export function registerBuilderRoutes(
       cleanup();
     });
 
+    const forwardEvent = (evt: BuilderSSEEvent) => {
+      if (!clientDisconnected) writeSSEEvent(res, evt);
+    };
+
     try {
-      const events: BuilderSSEEvent[] =
-        action === 'generate'
-          ? await builderProxy.generate(req.body)
-          : await builderProxy.refine(req.body);
+      const streamFn = action === 'generate'
+        ? builderProxy.generateStream.bind(builderProxy)
+        : builderProxy.refineStream.bind(builderProxy);
 
-      if (clientDisconnected) {
-        cleanup();
-        return;
-      }
-
-      for (const evt of events) {
-        writeSSEEvent(res, evt);
-      }
+      await streamFn(req.body, forwardEvent);
 
       if (!res.writableEnded) {
         res.write('event: stream_end\ndata: {}\n\n');
         res.end();
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      logger.error(`Builder ${action} failed: ${msg}`);
-      if (!res.writableEnded) {
-        res.write(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`);
-        res.write('event: stream_end\ndata: {}\n\n');
-        res.end();
+    } catch (streamErr) {
+      const streamMsg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+      logger.warn(`Builder ${action} stream failed, falling back to /send: ${streamMsg}`);
+
+      try {
+        const events: BuilderSSEEvent[] =
+          action === 'generate'
+            ? await builderProxy.generate(req.body)
+            : await builderProxy.refine(req.body);
+
+        if (clientDisconnected) { cleanup(); return; }
+
+        for (const evt of events) {
+          writeSSEEvent(res, evt);
+        }
+
+        if (!res.writableEnded) {
+          res.write('event: stream_end\ndata: {}\n\n');
+          res.end();
+        }
+      } catch (fallbackErr) {
+        const msg = fallbackErr instanceof Error ? fallbackErr.message : 'Unknown error';
+        logger.error(`Builder ${action} fallback also failed: ${msg}`);
+        if (!res.writableEnded) {
+          res.write(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`);
+          res.write('event: stream_end\ndata: {}\n\n');
+          res.end();
+        }
       }
     } finally {
       cleanup();
