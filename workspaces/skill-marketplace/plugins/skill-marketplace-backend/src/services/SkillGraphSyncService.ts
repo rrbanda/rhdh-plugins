@@ -82,6 +82,28 @@ function contentHash(skill: Skill, content?: string): string {
   return crypto.createHash('sha256').update(data).digest('hex').slice(0, 16);
 }
 
+const DEADLOCK_MAX_RETRIES = 3;
+
+async function withDeadlockRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = DEADLOCK_MAX_RETRIES,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isDeadlock =
+        msg.includes('DeadlockDetected') ||
+        msg.includes('ForsetiClient') ||
+        msg.includes('ExclusiveLock') ||
+        msg.includes('TransientError');
+      if (!isDeadlock || attempt >= maxRetries) throw err;
+      await new Promise(r => setTimeout(r, 200 * 2 ** attempt));
+    }
+  }
+}
+
 export class SkillGraphSyncService {
   private readonly logger: LoggerService;
   private readonly neo4j: Neo4jService;
@@ -233,12 +255,16 @@ export class SkillGraphSyncService {
       for (let i = 0; i < batchItems.length; i += BATCH_SIZE) {
         const batch = batchItems.slice(i, i + BATCH_SIZE);
         const upsertResults = await Promise.all(
-          batch.map(item => this.upsertSkill(item.skill, item.hash, item.category, item.complexity)),
+          batch.map(item =>
+            withDeadlockRetry(() =>
+              this.upsertSkill(item.skill, item.hash, item.category, item.complexity),
+            ),
+          ),
         );
         nodesUpserted += upsertResults.filter(Boolean).length;
 
-        const relResults = await Promise.all(
-          batch.map(item =>
+        for (const item of batch) {
+          const relCount = await withDeadlockRetry(() =>
             this.syncRelationshipsBatched(
               item.skill.card.metadata.name,
               item.tools,
@@ -247,9 +273,9 @@ export class SkillGraphSyncService {
               item.deps,
               item.relatedSkills,
             ),
-          ),
-        );
-        relationshipsCreated += relResults.reduce((sum, r) => sum + r, 0);
+          );
+          relationshipsCreated += relCount;
+        }
       }
 
       nodesRemoved = await this.cleanStaleNodes(skillNames);
@@ -378,71 +404,73 @@ export class SkillGraphSyncService {
     const session = await this.neo4j.getHealthySession();
     let count = 0;
     try {
-      if (tools.length > 0) {
-        await session.run(
-          `MATCH (s:Skill {name: $skillName})-[r:USES_TOOL]->() DELETE r`,
+      await session.executeWrite(async tx => {
+        if (tools.length > 0) {
+          await tx.run(
+            `MATCH (s:Skill {name: $skillName})-[r:USES_TOOL]->() DELETE r`,
+            { skillName },
+          );
+          await tx.run(
+            `MATCH (s:Skill {name: $skillName})
+             UNWIND $tools AS tool
+             MERGE (t:Tool {name: tool})
+             MERGE (s)-[:USES_TOOL]->(t)`,
+            { skillName, tools },
+          );
+          count += tools.length;
+        }
+
+        await tx.run(
+          `MATCH (s:Skill {name: $skillName})-[r:BELONGS_TO]->() DELETE r`,
           { skillName },
         );
-        await session.run(
+        await tx.run(
           `MATCH (s:Skill {name: $skillName})
-           UNWIND $tools AS tool
-           MERGE (t:Tool {name: tool})
-           MERGE (s)-[:USES_TOOL]->(t)`,
-          { skillName, tools },
+           MERGE (d:Domain {name: $domain})
+           ON CREATE SET d.color = $color, d.description = $domain
+           MERGE (s)-[:BELONGS_TO]->(d)`,
+          { skillName, domain, color: domainColor },
         );
-        count += tools.length;
-      }
+        count++;
 
-      await session.run(
-        `MATCH (s:Skill {name: $skillName})-[r:BELONGS_TO]->() DELETE r`,
-        { skillName },
-      );
-      await session.run(
-        `MATCH (s:Skill {name: $skillName})
-         MERGE (d:Domain {name: $domain})
-         ON CREATE SET d.color = $color, d.description = $domain
-         MERGE (s)-[:BELONGS_TO]->(d)`,
-        { skillName, domain, color: domainColor },
-      );
-      count++;
+        if (deps.length > 0) {
+          await tx.run(
+            `MATCH (s:Skill {name: $skillName})-[r:DEPENDS_ON]->() DELETE r`,
+            { skillName },
+          );
+          await tx.run(
+            `MATCH (s:Skill {name: $skillName})
+             UNWIND $deps AS dep
+             MERGE (d:Skill {name: dep.name})
+             MERGE (s)-[r:DEPENDS_ON]->(d)
+             SET r.version = dep.version`,
+            { skillName, deps: deps.map(d => ({ name: d.name, version: d.version })) },
+          );
+          count += deps.length;
+        }
 
-      if (deps.length > 0) {
-        await session.run(
-          `MATCH (s:Skill {name: $skillName})-[r:DEPENDS_ON]->() DELETE r`,
-          { skillName },
-        );
-        await session.run(
-          `MATCH (s:Skill {name: $skillName})
-           UNWIND $deps AS dep
-           MERGE (d:Skill {name: dep.name})
-           MERGE (s)-[r:DEPENDS_ON]->(d)
-           SET r.version = dep.version`,
-          { skillName, deps: deps.map(d => ({ name: d.name, version: d.version })) },
-        );
-        count += deps.length;
-      }
-
-      if (relatedSkills.length > 0) {
-        await session.run(
-          `MATCH (s:Skill {name: $skillName})-[r:RELATED_TO]->() DELETE r`,
-          { skillName },
-        );
-        await session.run(
-          `MATCH (s:Skill {name: $skillName})
-           UNWIND $rels AS rel
-           MERGE (t:Skill {name: rel.name})
-           MERGE (s)-[r:RELATED_TO]->(t)
-           SET r.description = rel.description`,
-          {
-            skillName,
-            rels: relatedSkills.map(r => ({
-              name: r.name,
-              description: r.description || '',
-            })),
-          },
-        );
-        count += relatedSkills.length;
-      }
+        if (relatedSkills.length > 0) {
+          await tx.run(
+            `MATCH (s:Skill {name: $skillName})-[r:RELATED_TO]->() DELETE r`,
+            { skillName },
+          );
+          await tx.run(
+            `MATCH (s:Skill {name: $skillName})
+             UNWIND $rels AS rel
+             MERGE (t:Skill {name: rel.name})
+             MERGE (s)-[r:RELATED_TO]->(t)
+             SET r.description = rel.description`,
+            {
+              skillName,
+              rels: relatedSkills.map(r => ({
+                name: r.name,
+                description: r.description || '',
+              })),
+            },
+          );
+          count += relatedSkills.length;
+        }
+      });
 
       return count;
     } finally {
