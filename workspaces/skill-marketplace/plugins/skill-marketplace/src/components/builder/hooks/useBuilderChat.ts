@@ -183,22 +183,35 @@ export function useBuilderChat(): UseBuilderChatReturn {
       } else {
         const streamEnded = finalEvents.some(e => e.type === 'stream_end');
         const hasContent = !!finalContent;
-        const message = streamEnded && !hasContent
-          ? 'The agent ended unexpectedly without producing output. Please try again.'
-          : streamEnded
-            ? 'The stream ended without full completion. Partial output is shown in the preview.'
+        if (streamEnded && hasContent) {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: nextMsgId(),
+              role: 'agent',
+              text: isRefine
+                ? 'Skill refined. Check the updated preview.'
+                : 'Skill generated. Review the preview and publish when ready.',
+              timestamp: Date.now(),
+              events: finalEvents,
+            },
+          ]);
+        } else {
+          const message = streamEnded && !hasContent
+            ? 'The agent ended unexpectedly without producing output. Please try again.'
             : 'Generation completed with no final result. Try describing the skill differently.';
-        setMessages(prev => [
-          ...prev,
-          {
-            id: nextMsgId(),
-            role: 'agent',
-            text: message,
-            timestamp: Date.now(),
-            isError: !hasContent,
-            events: finalEvents,
-          },
-        ]);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: nextMsgId(),
+              role: 'agent',
+              text: message,
+              timestamp: Date.now(),
+              isError: true,
+              events: finalEvents,
+            },
+          ]);
+        }
       }
     },
     [api, isGenerating, contextId, generatedContent, sse],
