@@ -157,9 +157,14 @@ export function registerBuilderRoutes(
       return;
     }
 
+    // Prevent Express compression middleware and proxies from gzip-encoding
+    // this SSE stream. Gzip buffers writes and only flushes on res.end(),
+    // which completely breaks incremental streaming to the browser.
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Content-Encoding', 'identity');
     res.flushHeaders();
 
     const keepaliveInterval = setInterval(() => {

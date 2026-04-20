@@ -193,20 +193,23 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
   // ---------------------------------------------------------------------------
 
   /**
-   * SSE streaming request. Uses fetchApi for auth, then ensures the response
-   * has a usable ReadableStream body. If the runtime's fetch implementation
-   * doesn't support streaming (response.body is null), falls back to reading
-   * the full response as text and wrapping it in a new Response.
+   * SSE streaming request. Uses fetchApi for auth, then reads the full body
+   * text and wraps it in a fresh Response with a ReadableStream body.
+   *
+   * We always read the full body rather than forwarding the original
+   * ReadableStream because gzip compression (applied by Express or reverse
+   * proxies) buffers the response and prevents incremental streaming.
+   * Reading the full text lets the browser transparently decompress before
+   * we hand the data to the SSE parser.
    */
   private async streamingFetch(url: string, init: RequestInit): Promise<Response> {
     const res = await this.fetchApi.fetch(url, init);
     if (!res.ok) throw await ResponseError.fromResponse(res);
 
-    if (res.body && typeof res.body.getReader === 'function') {
-      return res;
-    }
-
     const text = await res.text();
+    if (!text) {
+      throw new Error('Empty response from builder agent');
+    }
     return new Response(text, {
       status: 200,
       headers: { 'Content-Type': 'text/event-stream' },
