@@ -194,26 +194,37 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
 
   async generateSkill(body: Record<string, unknown>): Promise<Response> {
     const baseUrl = await this.getBaseUrl();
-    const res = await this.fetchApi.fetch(
-      `${baseUrl}/builder?action=generate`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    const res = await fetch(`${baseUrl}/builder?action=generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
       },
-    );
-    if (!res.ok) throw await ResponseError.fromResponse(res);
+      body: JSON.stringify(body),
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Builder request failed (${res.status}): ${text}`);
+    }
     return res;
   }
 
   async refineSkill(body: Record<string, unknown>): Promise<Response> {
     const baseUrl = await this.getBaseUrl();
-    const res = await this.fetchApi.fetch(`${baseUrl}/builder?action=refine`, {
+    const res = await fetch(`${baseUrl}/builder?action=refine`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
       body: JSON.stringify(body),
+      credentials: 'include',
     });
-    if (!res.ok) throw await ResponseError.fromResponse(res);
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Builder refine failed (${res.status}): ${text}`);
+    }
     return res;
   }
 
@@ -285,12 +296,19 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     activeSkill?: string,
   ): Promise<Response> {
     const baseUrl = await this.getBaseUrl();
-    const res = await this.fetchApi.fetch(`${baseUrl}/kagenti/stream`, {
+    const res = await fetch(`${baseUrl}/kagenti/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
       body: JSON.stringify({ message, sessionId, namespace, agentName, activeSkill }),
+      credentials: 'include',
     });
-    if (!res.ok) throw await ResponseError.fromResponse(res);
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Agent stream failed (${res.status}): ${text}`);
+    }
     return res;
   }
 

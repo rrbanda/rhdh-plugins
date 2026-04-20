@@ -75,9 +75,17 @@ export function useBuilderSSE(
 
   const startStream = useCallback(
     async (response: Response): Promise<StreamResult> => {
-      const empty: StreamResult = { events: [], content: '' };
-      const reader = response.body?.getReader();
-      if (!reader) return empty;
+      if (!response.body) {
+        const errEvt: BuilderEvent = {
+          type: 'error',
+          error: 'Response has no streaming body — the fetch implementation may not support ReadableStream. This is a browser/runtime issue.',
+          ts: Date.now(),
+        };
+        setEvents(prev => [...prev, errEvt]);
+        setError(errEvt.error);
+        return { events: [errEvt], content: '' };
+      }
+      const reader = response.body.getReader();
 
       const controller = new AbortController();
       abortRef.current = controller;
