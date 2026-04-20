@@ -105,27 +105,20 @@ export function registerGraphRoutes(
       return;
     }
     try {
-      const upstream = await builderProxy.graphBuild();
-      if (!upstream.ok) {
-        const text = await upstream.text();
-        logger.error(`Graph build upstream error (${upstream.status}): ${text}`);
-        res.status(upstream.status).json({ error: 'Graph build request failed' });
-        return;
-      }
-      if (!upstream.body) {
-        res.status(502).send('No stream body');
-        return;
-      }
+      const events = await builderProxy.graphBuild();
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
-      upstream.body.pipe(res);
-      upstream.body.on('error', err => {
-        logger.error(`Graph build SSE error: ${err.message}`);
+      for (const evt of events) {
+        if (!res.writableEnded) {
+          res.write(`event: ${evt.event}\ndata: ${JSON.stringify(evt.data)}\n\n`);
+        }
+      }
+      if (!res.writableEnded) {
+        res.write('event: stream_end\ndata: {}\n\n');
         res.end();
-      });
-      req.on('close', () => { (upstream.body as unknown as { destroy?: () => void })?.destroy?.(); });
+      }
     } catch (err) {
       logger.error(`POST /graph/build failed: ${err instanceof Error ? err.message : err}`);
       res.status(502).json({ error: 'Failed to reach builder agent' });

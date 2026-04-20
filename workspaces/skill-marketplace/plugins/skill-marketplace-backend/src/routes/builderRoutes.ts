@@ -21,8 +21,14 @@ import {
   skillMarketplaceAccessPermission,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { BuilderProxyService, OciRegistryService, SkillGraphSyncService } from '../services';
+import type { BuilderSSEEvent } from '../services/BuilderProxyService';
 import { validateTypedSkillCard } from '../services/SkillCardValidator';
 import { requirePermission } from './authUtils';
+
+function writeSSEEvent(res: { write: (chunk: string) => boolean; writableEnded: boolean }, evt: BuilderSSEEvent): void {
+  if (res.writableEnded) return;
+  res.write(`event: ${evt.event}\ndata: ${JSON.stringify(evt.data)}\n\n`);
+}
 
 export function registerBuilderRoutes(
   router: Router,
@@ -117,6 +123,7 @@ export function registerBuilderRoutes(
       res.status(502).json({ error: 'Failed to publish skill to OCI registry' });
     }
   });
+
   router.post('/builder', async (req, res) => {
     const accessAllowed = await requirePermission(req, res, skillMarketplaceAccessPermission, {
       httpAuth, permissions, securityMode,
@@ -147,62 +154,54 @@ export function registerBuilderRoutes(
       return;
     }
 
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const keepaliveInterval = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(': keepalive\n\n');
+      }
+    }, 15_000);
+
+    const cleanup = () => clearInterval(keepaliveInterval);
+
+    let clientDisconnected = false;
+    req.on('close', () => {
+      clientDisconnected = true;
+      cleanup();
+    });
+
     try {
-      const upstream =
+      const events: BuilderSSEEvent[] =
         action === 'generate'
           ? await builderProxy.generate(req.body)
           : await builderProxy.refine(req.body);
 
-      if (!upstream.ok) {
-        const text = await upstream.text();
-        logger.error(`Builder ${action} upstream error (${upstream.status}): ${text}`);
-        res.status(upstream.status).json({ error: `Builder ${action} request failed` });
+      if (clientDisconnected) {
+        cleanup();
         return;
       }
 
-      if (!upstream.body) {
-        res.status(502).json({ error: 'No stream body' });
-        return;
+      for (const evt of events) {
+        writeSSEEvent(res, evt);
       }
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.flushHeaders();
-
-      const keepaliveInterval = setInterval(() => {
-        if (!res.writableEnded) {
-          res.write(':\n\n');
-        }
-      }, 15_000);
-
-      const cleanup = () => {
-        clearInterval(keepaliveInterval);
-      };
-
-      upstream.body.on('end', () => {
-        cleanup();
-        if (!res.writableEnded) {
-          res.write('event: stream_end\ndata: {}\n\n');
-          res.end();
-        }
-      });
-      upstream.body.pipe(res, { end: false });
-      upstream.body.on('error', err => {
-        cleanup();
-        logger.error(`Builder SSE stream error: ${err.message}`);
-        if (!res.writableEnded) {
-          res.write(`event: error\ndata: ${JSON.stringify({ error: 'Stream interrupted' })}\n\n`);
-          res.end();
-        }
-      });
-      req.on('close', () => {
-        cleanup();
-        (upstream.body as unknown as { destroy?: () => void })?.destroy?.();
-      });
+      if (!res.writableEnded) {
+        res.write('event: stream_end\ndata: {}\n\n');
+        res.end();
+      }
     } catch (err) {
-      logger.error(`Builder stream failed: ${err instanceof Error ? err.message : err}`);
-      res.status(502).json({ error: 'Failed to reach builder agent' });
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      logger.error(`Builder ${action} failed: ${msg}`);
+      if (!res.writableEnded) {
+        res.write(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`);
+        res.write('event: stream_end\ndata: {}\n\n');
+        res.end();
+      }
+    } finally {
+      cleanup();
     }
   });
 }

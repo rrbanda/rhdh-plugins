@@ -192,9 +192,9 @@ export interface Config {
       /**
        * Custom category keyword mappings for skill classification.
        * Keys are category names, values are arrays of keywords.
-       * @visibility backend
+       * @deepVisibility backend
        */
-      categoryKeywords?: Record<string, string[]>;
+      categoryKeywords?: { [key: string]: string[] };
       /**
        * Agentic GraphRAG configuration
        * @visibility backend
