@@ -192,40 +192,49 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
   // Builder
   // ---------------------------------------------------------------------------
 
+  /**
+   * SSE streaming request. Uses fetchApi for auth, then ensures the response
+   * has a usable ReadableStream body. If the runtime's fetch implementation
+   * doesn't support streaming (response.body is null), falls back to reading
+   * the full response as text and wrapping it in a new Response.
+   */
+  private async streamingFetch(url: string, init: RequestInit): Promise<Response> {
+    const res = await this.fetchApi.fetch(url, init);
+    if (!res.ok) throw await ResponseError.fromResponse(res);
+
+    if (res.body && typeof res.body.getReader === 'function') {
+      return res;
+    }
+
+    const text = await res.text();
+    return new Response(text, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+  }
+
   async generateSkill(body: Record<string, unknown>): Promise<Response> {
     const baseUrl = await this.getBaseUrl();
-    const res = await fetch(`${baseUrl}/builder?action=generate`, {
+    return this.streamingFetch(`${baseUrl}/builder?action=generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
       },
       body: JSON.stringify(body),
-      credentials: 'include',
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      throw new Error(`Builder request failed (${res.status}): ${text}`);
-    }
-    return res;
   }
 
   async refineSkill(body: Record<string, unknown>): Promise<Response> {
     const baseUrl = await this.getBaseUrl();
-    const res = await fetch(`${baseUrl}/builder?action=refine`, {
+    return this.streamingFetch(`${baseUrl}/builder?action=refine`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
       },
       body: JSON.stringify(body),
-      credentials: 'include',
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      throw new Error(`Builder refine failed (${res.status}): ${text}`);
-    }
-    return res;
   }
 
   async publishSkill(body: {
@@ -296,20 +305,14 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     activeSkill?: string,
   ): Promise<Response> {
     const baseUrl = await this.getBaseUrl();
-    const res = await fetch(`${baseUrl}/kagenti/stream`, {
+    return this.streamingFetch(`${baseUrl}/kagenti/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
       },
       body: JSON.stringify({ message, sessionId, namespace, agentName, activeSkill }),
-      credentials: 'include',
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      throw new Error(`Agent stream failed (${res.status}): ${text}`);
-    }
-    return res;
   }
 
   async listAgentNamespaces(): Promise<{ namespaces: string[] }> {
