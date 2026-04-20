@@ -192,7 +192,7 @@ export interface Config {
       /**
        * Custom category keyword mappings for skill classification.
        * Keys are category names, values are arrays of keywords.
-       * @deepVisibility backend
+       * @visibility backend
        */
       categoryKeywords?: { [key: string]: string[] };
       /**
