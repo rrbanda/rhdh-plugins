@@ -193,24 +193,48 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
   // ---------------------------------------------------------------------------
 
   /**
-   * SSE streaming request. Uses fetchApi for auth, then returns the
-   * response directly so the caller can read the body incrementally.
+   * SSE streaming request. Uses fetchApi for auth, reads the full body,
+   * then wraps it in a fresh Response with a synthetic ReadableStream
+   * that delivers SSE events one at a time.
    *
-   * The backend sets Content-Encoding: identity to prevent gzip buffering,
-   * so the browser receives raw SSE chunks in real-time.
+   * We read the full body via res.text() because Backstage's fetchApi
+   * middleware and RHDH's proxy layer can interfere with direct
+   * ReadableStream consumption. Reading as text guarantees transparent
+   * decompression and correct encoding handling.
    *
-   * If the fetch implementation doesn't provide a ReadableStream body
-   * (e.g. some polyfills), we fall back to reading the full text and
-   * wrapping it so the SSE parser still works (just without incremental updates).
+   * To still give the SSE parser individual events (so the UI shows
+   * agent_start → agent_output → complete transitions rather than
+   * jumping straight to the end), we split the text into SSE event
+   * blocks and enqueue them one per microtask.
    */
   private async streamingFetch(url: string, init: RequestInit): Promise<Response> {
     const res = await this.fetchApi.fetch(url, init);
     if (!res.ok) throw await ResponseError.fromResponse(res);
 
-    if (res.body) return res;
-
     const text = await res.text();
-    return new Response(text, {
+    if (!text) {
+      throw new Error('Empty response from builder agent');
+    }
+
+    const encoder = new TextEncoder();
+    const blocks = text.split('\n\n').filter(b => b.trim());
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        let i = 0;
+        const push = () => {
+          if (i < blocks.length) {
+            controller.enqueue(encoder.encode(blocks[i] + '\n\n'));
+            i++;
+            Promise.resolve().then(push);
+          } else {
+            controller.close();
+          }
+        };
+        push();
+      },
+    });
+
+    return new Response(stream, {
       status: 200,
       headers: { 'Content-Type': 'text/event-stream' },
     });
