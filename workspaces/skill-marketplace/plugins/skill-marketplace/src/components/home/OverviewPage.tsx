@@ -17,12 +17,20 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSkills } from '../../hooks';
 import {
-  getComplexity,
   humanize,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import type { SkillData } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import LoadingSpinner from '../shared/LoadingSpinner';
+import type { SkillData, ComplexityLevel } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import ErrorMessage from '../shared/ErrorMessage';
+
+function estimateComplexity(s: SkillData): ComplexityLevel {
+  const tagCount = s.tags?.length ?? 0;
+  const descLen = s.description.length;
+  if (s.sections.workflow.length > 0 || tagCount > 4 || descLen > 300)
+    return 'Advanced';
+  if (tagCount > 2 || descLen > 150) return 'Complex';
+  if (descLen > 60) return 'Medium';
+  return 'Simple';
+}
 
 export default function OverviewPage() {
   const { skills, marketplace, loading, error } = useSkills();
@@ -44,7 +52,7 @@ export default function OverviewPage() {
     () =>
       skills.reduce(
         (acc, s) => {
-          const c = getComplexity(s.rawContent.split('\n').length);
+          const c = estimateComplexity(s);
           acc[c] = (acc[c] || 0) + 1;
           return acc;
         },
@@ -55,7 +63,7 @@ export default function OverviewPage() {
 
   const featured = useMemo(() => selectFeatured(skills, 3), [skills]);
 
-  if (loading) return <LoadingSpinner message="Loading marketplace..." />;
+  if (loading) return null;
   if (error) return <ErrorMessage message={error} />;
 
   const plugins = marketplace?.plugins ?? [];
@@ -199,7 +207,7 @@ export default function OverviewPage() {
 }
 
 function FeaturedCard({ skill, onClick }: { skill: SkillData; onClick: () => void }) {
-  const complexity = getComplexity(skill.rawContent.split('\n').length);
+  const complexity = estimateComplexity(skill);
   const pluginColor = skill.plugin.color ?? '#6b7280';
   const cxColor: Record<string, string> = { Simple: '#10b981', Medium: '#3b82f6', Complex: '#f59e0b', Advanced: '#ef4444' };
   const stepCount = skill.sections.workflow.length;

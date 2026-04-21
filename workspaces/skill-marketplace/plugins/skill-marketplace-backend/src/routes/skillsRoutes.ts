@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import fs from 'fs';
 import { Router } from 'express';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { OciRegistryService } from '../services';
@@ -134,43 +135,109 @@ interface CachedCatalog {
   expiresAt: number;
 }
 
-const CATALOG_CACHE_TTL_MS = 300_000;
+const DEFAULT_CATALOG_TTL_MS = 300_000;
+const DEFAULT_DISK_CACHE_PATH = '/tmp/skill-marketplace-catalog.json';
 
+let catalogTtlMs = DEFAULT_CATALOG_TTL_MS;
+let diskCachePath = DEFAULT_DISK_CACHE_PATH;
 let catalogCache: CachedCatalog | null = null;
 let catalogBuildPromise: Promise<CachedCatalog> | null = null;
 
-async function getCatalog(
+function buildSlugIndex(skills: SkillData[]): Map<string, number> {
+  const idx = new Map<string, number>();
+  for (let i = 0; i < skills.length; i++) {
+    idx.set(skills[i].slug, i);
+  }
+  return idx;
+}
+
+function persistToDisk(catalog: CachedCatalog, logger: LoggerService): void {
+  try {
+    const payload = JSON.stringify({
+      skills: catalog.skills,
+      marketplace: catalog.marketplace,
+      savedAt: Date.now(),
+    });
+    const tmpPath = `${diskCachePath}.tmp`;
+    fs.writeFileSync(tmpPath, payload, 'utf8');
+    fs.renameSync(tmpPath, diskCachePath);
+    logger.debug(
+      `Catalog persisted to ${diskCachePath} (${catalog.skills.length} skills, ${(Buffer.byteLength(payload) / 1024).toFixed(0)} KB)`,
+    );
+  } catch (err) {
+    logger.warn(`Failed to persist catalog to disk: ${(err as Error).message}`);
+  }
+}
+
+export function loadCatalogFromDisk(
+  logger: LoggerService,
+  path?: string,
+): CachedCatalog | null {
+  const filePath = path ?? diskCachePath;
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const data = JSON.parse(raw) as {
+      skills: SkillData[];
+      marketplace: MarketplaceData;
+      savedAt?: number;
+    };
+    if (!Array.isArray(data.skills) || data.skills.length === 0) return null;
+    if (!data.marketplace || !Array.isArray(data.marketplace.plugins)) return null;
+
+    const catalog: CachedCatalog = {
+      skills: data.skills,
+      marketplace: data.marketplace,
+      slugIndex: buildSlugIndex(data.skills),
+      expiresAt: 0,
+    };
+    logger.info(
+      `Loaded ${catalog.skills.length} skills from disk cache (${filePath})`,
+    );
+    return catalog;
+  } catch (err) {
+    logger.warn(`Failed to load disk cache: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+export function setCatalogCache(catalog: CachedCatalog): void {
+  catalogCache = catalog;
+}
+
+export function configureCatalog(opts: {
+  ttlMs?: number;
+  cachePath?: string;
+}): void {
+  if (opts.ttlMs !== undefined && opts.ttlMs > 0) catalogTtlMs = opts.ttlMs;
+  if (opts.cachePath) diskCachePath = opts.cachePath;
+}
+
+function rebuildCatalog(
   ociRegistry: OciRegistryService,
   logger: LoggerService,
+  lightweight?: boolean,
 ): Promise<CachedCatalog> {
-  if (catalogCache && Date.now() < catalogCache.expiresAt) {
-    return catalogCache;
-  }
-
-  if (catalogBuildPromise) {
-    return catalogBuildPromise;
-  }
+  if (catalogBuildPromise) return catalogBuildPromise;
 
   catalogBuildPromise = (async () => {
     try {
-      const ociSkills = await ociRegistry.listSkills();
+      const ociSkills = lightweight
+        ? await ociRegistry.listSkillsLightweight()
+        : await ociRegistry.listSkills();
       const skills = ociSkills.map(ociToSkillData);
       const marketplace = buildMarketplace(skills);
-
-      const slugIndex = new Map<string, number>();
-      for (let i = 0; i < skills.length; i++) {
-        slugIndex.set(skills[i].slug, i);
-      }
 
       const cached: CachedCatalog = {
         skills,
         marketplace,
-        slugIndex,
-        expiresAt: Date.now() + CATALOG_CACHE_TTL_MS,
+        slugIndex: buildSlugIndex(skills),
+        expiresAt: Date.now() + catalogTtlMs,
       };
 
       catalogCache = cached;
-      logger.debug(`Catalog cache built: ${skills.length} skills`);
+      persistToDisk(cached, logger);
+      logger.info(`Catalog rebuilt: ${skills.length} skills (lightweight=${!!lightweight})`);
       return cached;
     } finally {
       catalogBuildPromise = null;
@@ -180,8 +247,37 @@ async function getCatalog(
   return catalogBuildPromise;
 }
 
+async function getCatalog(
+  ociRegistry: OciRegistryService,
+  logger: LoggerService,
+): Promise<CachedCatalog> {
+  if (catalogCache && Date.now() < catalogCache.expiresAt) {
+    return catalogCache;
+  }
+
+  if (catalogCache) {
+    rebuildCatalog(ociRegistry, logger).catch(err =>
+      logger.warn(`Background catalog rebuild failed: ${(err as Error).message}`),
+    );
+    return catalogCache;
+  }
+
+  return rebuildCatalog(ociRegistry, logger);
+}
+
 export function invalidateCatalogCache(): void {
   catalogCache = null;
+}
+
+export function warmCatalogCache(
+  ociRegistry: OciRegistryService,
+  logger: LoggerService,
+  lightweight?: boolean,
+): Promise<void> {
+  return rebuildCatalog(ociRegistry, logger, lightweight).then(
+    () => logger.info('Catalog cache warmed successfully'),
+    err => logger.warn(`Catalog cache warm-up failed: ${(err as Error).message}`),
+  );
 }
 
 export function registerSkillsRoutes(
@@ -195,9 +291,11 @@ export function registerSkillsRoutes(
       res.json({ ready: false, reason: 'OCI registry not configured' });
       return;
     }
-    const isReady = catalogCache !== null && Date.now() < catalogCache.expiresAt;
+    const hasData = catalogCache !== null && catalogCache.skills.length > 0;
+    const isStale = hasData && Date.now() >= catalogCache!.expiresAt;
     res.json({
-      ready: isReady,
+      ready: hasData,
+      stale: isStale,
       skillCount: catalogCache?.skills.length ?? 0,
     });
   });

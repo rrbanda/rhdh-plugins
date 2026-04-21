@@ -17,7 +17,6 @@ import { useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSkills } from '../../hooks';
 import { SkillCard } from './SkillCard';
-import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
 
 export default function SkillsPage() {
@@ -71,7 +70,7 @@ export default function SkillsPage() {
     [setSearchParams],
   );
 
-  if (loading) return <LoadingSpinner message="Loading skills..." />;
+  if (loading) return null;
   if (error) return <ErrorMessage message={error} />;
 
   const plugins = marketplace?.plugins ?? [];

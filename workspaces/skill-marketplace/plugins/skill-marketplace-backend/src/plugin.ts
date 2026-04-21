@@ -20,6 +20,12 @@ import {
 import { skillMarketplacePermissions } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import { createRouter } from './router';
 import {
+  warmCatalogCache,
+  loadCatalogFromDisk,
+  setCatalogCache,
+  configureCatalog,
+} from './routes';
+import {
   Neo4jService,
   BuilderProxyService,
   KagentiService,
@@ -386,10 +392,30 @@ export const skillMarketplacePlugin = createBackendPlugin({
         }
 
         if (ociRegistry) {
-          ociRegistry.listSkills().catch(err => {
-            logger.warn(`Background cache warm-up failed: ${(err as Error).message}`);
+          const catalogCachePath =
+            config.getOptionalString('skillMarketplace.oci.catalogCachePath') ||
+            undefined;
+          const catalogTtlSeconds =
+            config.getOptionalNumber('skillMarketplace.oci.catalogTtlSeconds');
+
+          configureCatalog({
+            ttlMs: catalogTtlSeconds ? catalogTtlSeconds * 1000 : undefined,
+            cachePath: catalogCachePath,
           });
-          logger.info('Background OCI cache warm-up started');
+
+          const diskCache = loadCatalogFromDisk(logger, catalogCachePath);
+          if (diskCache) {
+            setCatalogCache(diskCache);
+            logger.info(
+              `Pre-loaded ${diskCache.skills.length} skills from disk — starting background refresh`,
+            );
+            warmCatalogCache(ociRegistry, logger);
+          } else {
+            logger.info(
+              'No disk cache found — awaiting initial catalog build before accepting requests',
+            );
+            await warmCatalogCache(ociRegistry, logger);
+          }
         }
 
         logger.info(

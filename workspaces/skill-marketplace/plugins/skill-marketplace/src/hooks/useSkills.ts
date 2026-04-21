@@ -39,6 +39,10 @@ const SkillsContext = createContext<SkillsState>({
  * Provider that fetches skills once and shares state with all descendant
  * components via React context. Wrap the plugin's top-level page in this
  * to avoid duplicate GET /skills requests from nested pages.
+ *
+ * The backend guarantees the catalog is pre-loaded before routes are
+ * registered, so `GET /skills` returns data instantly. No slow-load
+ * timers or client-side timeouts are needed.
  */
 export function SkillsProvider({ children }: { children: React.ReactNode }) {
   const api = useApi(skillMarketplaceApiRef);
@@ -49,6 +53,7 @@ export function SkillsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+
     api
       .getSkills()
       .then(data => {
@@ -64,6 +69,7 @@ export function SkillsProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
         }
       });
+
     return () => {
       cancelled = true;
     };

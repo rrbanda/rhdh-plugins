@@ -38,6 +38,9 @@ const ANNOTATION_VENDOR = 'org.opencontainers.image.vendor';
 const ANNOTATION_SOURCE = 'org.opencontainers.image.source';
 const ANNOTATION_REVISION = 'org.opencontainers.image.revision';
 const ANNOTATION_LIFECYCLE_STATUS = 'io.skillimage.status';
+const ANNOTATION_TAGS = 'io.skillimage.tags';
+const ANNOTATION_ALLOWED_TOOLS = 'io.skillimage.allowed-tools';
+const ANNOTATION_DISPLAY_NAME = 'io.skillimage.display-name';
 
 const IMAGE_LAYER_MEDIA_TYPE = 'application/vnd.oci.image.layer.v1.tar+gzip';
 
@@ -269,6 +272,10 @@ export class OciRegistryService {
     registry: OciRegistryConfig,
     digest: string,
   ): Promise<Buffer | null> {
+    const cacheKey = `blob:${digest}`;
+    const cached = this.getCached<Buffer>(cacheKey);
+    if (cached) return cached;
+
     const url = this.buildRegistryUrl(
       registry.url,
       `/blobs/${digest}`,
@@ -292,6 +299,7 @@ export class OciRegistryService {
         this.logger.warn(`Blob ${digest} exceeds size limit (${buf.length} bytes)`);
         return null;
       }
+      this.setCache(cacheKey, buf);
       return buf;
     } catch (err) {
       this.logger.warn(
@@ -316,6 +324,9 @@ export class OciRegistryService {
       source: ann[ANNOTATION_SOURCE],
       revision: ann[ANNOTATION_REVISION],
       lifecycleStatus: ann[ANNOTATION_LIFECYCLE_STATUS],
+      tags: ann[ANNOTATION_TAGS],
+      allowedTools: ann[ANNOTATION_ALLOWED_TOOLS],
+      displayName: ann[ANNOTATION_DISPLAY_NAME],
     };
   }
 
@@ -437,9 +448,14 @@ export class OciRegistryService {
           namespace: annotations.vendor || 'default',
           version: annotations.version || tag,
           description: annotations.description || '',
+          'display-name': annotations.displayName || undefined,
           authors: annotations.authors
             ? annotations.authors.split(',').map(a => ({ name: a.trim() }))
             : undefined,
+          tags: annotations.tags
+            ? annotations.tags.split(',').map(t => t.trim()).filter(Boolean)
+            : undefined,
+          'allowed-tools': annotations.allowedTools || undefined,
         },
       },
       ociReference,
@@ -599,23 +615,30 @@ export class OciRegistryService {
   private async fetchSkillFromRepo(
     registry: OciRegistryConfig,
     repo: string,
+    lightweight = false,
   ): Promise<Skill[]> {
-    const skills: Skill[] = [];
     try {
       const repoRegistry = { ...registry, url: `${registry.url}/${repo}` };
       const tags = await this.listTags(registry, repo);
-      for (const tag of tags) {
-        const manifest = await this.getManifest(repoRegistry, tag);
-        if (!manifest) continue;
-        const card = await this.extractSkillCard(repoRegistry, manifest);
-        const skill = this.skillFromManifest(repoRegistry, tag, manifest, card);
-        skill.ociReference = `${registry.url}/${repo}:${tag}`;
-        skills.push(skill);
-      }
+      const results = await this.runParallel(
+        tags,
+        async (tag: string) => {
+          const manifest = await this.getManifest(repoRegistry, tag);
+          if (!manifest) return null;
+          const card = lightweight
+            ? null
+            : await this.extractSkillCard(repoRegistry, manifest);
+          const skill = this.skillFromManifest(repoRegistry, tag, manifest, card);
+          skill.ociReference = `${registry.url}/${repo}:${tag}`;
+          return skill;
+        },
+        10,
+      );
+      return results;
     } catch (err) {
       this.logger.warn(`Error fetching repo ${repo}: ${(err as Error).message}`);
     }
-    return skills;
+    return [];
   }
 
   async listSkills(registryUrl?: string): Promise<Skill[]> {
@@ -643,12 +666,17 @@ export class OciRegistryService {
           for (const batch of batchResults) allSkills.push(...batch);
         } else {
           const tags = await this.listTags(registry);
-          for (const tag of tags) {
-            const manifest = await this.getManifest(registry, tag);
-            if (!manifest) continue;
-            const card = await this.extractSkillCard(registry, manifest);
-            allSkills.push(this.skillFromManifest(registry, tag, manifest, card));
-          }
+          const tagResults = await this.runParallel(
+            tags,
+            async (tag: string) => {
+              const manifest = await this.getManifest(registry, tag);
+              if (!manifest) return null;
+              const card = await this.extractSkillCard(registry, manifest);
+              return this.skillFromManifest(registry, tag, manifest, card);
+            },
+            10,
+          );
+          allSkills.push(...tagResults);
         }
       } catch (err) {
         this.logger.warn(
@@ -658,6 +686,67 @@ export class OciRegistryService {
     }
 
     this.logger.info(`Listed ${allSkills.length} skills from ${registries.length} registries`);
+    this.setCache(cacheKey, allSkills);
+    return allSkills;
+  }
+
+  /**
+   * Annotation-only listing: builds Skill objects using only manifest
+   * annotations, skipping all blob downloads. This is ~50% fewer HTTP
+   * calls and much faster for catalog refreshes where the full skill.yaml
+   * is not needed.
+   */
+  async listSkillsLightweight(registryUrl?: string): Promise<Skill[]> {
+    const cacheKey = `skills-light:${registryUrl || 'all'}`;
+    const cached = this.getCached<Skill[]>(cacheKey);
+    if (cached) return cached;
+
+    const registries = registryUrl
+      ? this.config.registries.filter(r => r.url === registryUrl)
+      : this.config.registries;
+
+    const allSkills: Skill[] = [];
+
+    for (const registry of registries) {
+      try {
+        const repos = await this.listRepos(registry);
+
+        if (repos.length > 0) {
+          this.logger.info(
+            `Lightweight scan: ${repos.length} repos in ${registry.name}`,
+          );
+          const batchResults = await this.runParallel(
+            repos,
+            repo =>
+              this.fetchSkillFromRepo(registry, repo, true).then(s =>
+                s.length > 0 ? s : null,
+              ),
+            25,
+          );
+          for (const batch of batchResults) allSkills.push(...batch);
+        } else {
+          const tags = await this.listTags(registry);
+          const tagResults = await this.runParallel(
+            tags,
+            async (tag: string) => {
+              const manifest = await this.getManifest(registry, tag);
+              if (!manifest) return null;
+              return this.skillFromManifest(registry, tag, manifest, null);
+            },
+            10,
+          );
+          allSkills.push(...tagResults);
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Error in lightweight scan ${registry.url}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    this.logger.info(
+      `Lightweight listed ${allSkills.length} skills from ${registries.length} registries`,
+    );
     this.setCache(cacheKey, allSkills);
     return allSkills;
   }
@@ -830,6 +919,15 @@ export class OciRegistryService {
     if (m.license) annotations[ANNOTATION_LICENSES] = m.license;
     if (authorsStr) annotations[ANNOTATION_AUTHORS] = authorsStr;
     if (m.namespace) annotations[ANNOTATION_VENDOR] = m.namespace;
+    if (m.tags && m.tags.length > 0) {
+      annotations[ANNOTATION_TAGS] = m.tags.join(',');
+    }
+    if (m['allowed-tools']) {
+      annotations[ANNOTATION_ALLOWED_TOOLS] = m['allowed-tools'];
+    }
+    if (m['display-name']) {
+      annotations[ANNOTATION_DISPLAY_NAME] = m['display-name'];
+    }
     if (skillCard.provenance?.source) {
       annotations[ANNOTATION_SOURCE] = skillCard.provenance.source;
     }

@@ -115,6 +115,12 @@ export interface OciAnnotations {
   revision?: string;
   /** io.skillimage.status — lifecycle state annotation */
   lifecycleStatus?: string;
+  /** io.skillimage.tags — comma-separated skill tags */
+  tags?: string;
+  /** io.skillimage.allowed-tools — space-separated tool names */
+  allowedTools?: string;
+  /** io.skillimage.display-name — human-friendly display name */
+  displayName?: string;
 }
 
 /** @public */

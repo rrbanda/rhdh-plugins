@@ -13,7 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export { registerSkillsRoutes, invalidateCatalogCache } from './skillsRoutes';
+export {
+  registerSkillsRoutes,
+  invalidateCatalogCache,
+  warmCatalogCache,
+  loadCatalogFromDisk,
+  setCatalogCache,
+  configureCatalog,
+} from './skillsRoutes';
 export { registerGraphRoutes } from './graphRoutes';
 export { registerBuilderRoutes } from './builderRoutes';
 export { registerKagentiRoutes } from './kagentiRoutes';

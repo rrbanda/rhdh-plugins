@@ -14,11 +14,8 @@
  * limitations under the License.
  */
 import { useNavigate } from 'react-router-dom';
-import type { SkillData } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import {
-  getComplexity,
-  humanize,
-} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import type { SkillData, ComplexityLevel } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import { humanize } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 interface SkillCardProps {
   skill: SkillData;
@@ -39,9 +36,19 @@ const LIFECYCLE_STYLES: Record<string, { bg: string; fg: string; label: string }
   archived: { bg: '#6b728018', fg: '#4b5563', label: 'Archived' },
 };
 
+function estimateComplexity(skill: SkillData): ComplexityLevel {
+  const tagCount = skill.tags?.length ?? 0;
+  const hasWorkflow = skill.sections.workflow.length > 0;
+  const descLen = skill.description.length;
+  if (hasWorkflow || tagCount > 4 || descLen > 300) return 'Advanced';
+  if (tagCount > 2 || descLen > 150) return 'Complex';
+  if (descLen > 60) return 'Medium';
+  return 'Simple';
+}
+
 export function SkillCard({ skill }: SkillCardProps) {
   const navigate = useNavigate();
-  const complexity = getComplexity(skill.rawContent.split('\n').length);
+  const complexity = estimateComplexity(skill);
   const pluginColor = skill.plugin.color ?? '#6b7280';
   const cStyles = COMPLEXITY_STYLES[complexity] ?? COMPLEXITY_STYLES.Medium;
 

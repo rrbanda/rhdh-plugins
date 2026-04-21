@@ -98,6 +98,19 @@ export interface Config {
        * @visibility backend
        */
       maxCacheEntries?: number;
+      /** File path for persistent catalog disk cache.
+       * The plugin writes the built catalog to this file and reads it on
+       * startup so skills are available instantly without OCI round-trips.
+       * Default: /tmp/skill-marketplace-catalog.json
+       * @visibility backend
+       */
+      catalogCachePath?: string;
+      /** Catalog cache TTL in seconds. Controls how long the in-memory catalog
+       * is considered fresh before a background refresh is triggered.
+       * Default: 300 (5 minutes)
+       * @visibility backend
+       */
+      catalogTtlSeconds?: number;
     };
 
     /**
