@@ -15,28 +15,19 @@
  */
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Neo4jService } from './Neo4jService';
-
-const CONSTRAINT_STATEMENTS = [
-  'CREATE CONSTRAINT skill_name IF NOT EXISTS FOR (s:Skill) REQUIRE s.name IS UNIQUE',
-  'CREATE CONSTRAINT tool_name IF NOT EXISTS FOR (t:Tool) REQUIRE t.name IS UNIQUE',
-  'CREATE CONSTRAINT domain_name IF NOT EXISTS FOR (d:Domain) REQUIRE d.name IS UNIQUE',
-];
-
-const INDEX_STATEMENTS = [
-  'CREATE INDEX skill_category IF NOT EXISTS FOR (s:Skill) ON (s.category)',
-  'CREATE INDEX skill_ociref IF NOT EXISTS FOR (s:Skill) ON (s.ociReference)',
-  `CREATE FULLTEXT INDEX skill_search IF NOT EXISTS FOR (s:Skill) ON EACH [s.name, s.description, s.category, s.author]`,
-];
+import type { CypherQueryCatalog } from './CypherQueryCatalog';
 
 export class GraphSchemaManager {
   private readonly logger: LoggerService;
   private readonly neo4j: Neo4jService;
+  private readonly queryCatalog?: CypherQueryCatalog;
   private initialized = false;
   private initFailed = false;
 
-  constructor(options: { logger: LoggerService; neo4j: Neo4jService }) {
+  constructor(options: { logger: LoggerService; neo4j: Neo4jService; queryCatalog?: CypherQueryCatalog }) {
     this.logger = options.logger;
     this.neo4j = options.neo4j;
+    this.queryCatalog = options.queryCatalog;
   }
 
   get isInitialized(): boolean {
@@ -52,7 +43,15 @@ export class GraphSchemaManager {
     const session = await this.neo4j.getHealthySession();
     let criticalFailures = 0;
     try {
-      for (const stmt of CONSTRAINT_STATEMENTS) {
+      const constraints = this.queryCatalog
+        ? Object.values(this.queryCatalog.getSection('schema.constraints'))
+        : [
+            'CREATE CONSTRAINT skill_name IF NOT EXISTS FOR (s:Skill) REQUIRE s.name IS UNIQUE',
+            'CREATE CONSTRAINT tool_name IF NOT EXISTS FOR (t:Tool) REQUIRE t.name IS UNIQUE',
+            'CREATE CONSTRAINT domain_name IF NOT EXISTS FOR (d:Domain) REQUIRE d.name IS UNIQUE',
+            'CREATE CONSTRAINT agent_name_ns IF NOT EXISTS FOR (a:Agent) REQUIRE (a.name, a.namespace) IS NODE KEY',
+          ];
+      for (const stmt of constraints) {
         try {
           await session.run(stmt);
         } catch (err) {
@@ -62,7 +61,15 @@ export class GraphSchemaManager {
           );
         }
       }
-      for (const stmt of INDEX_STATEMENTS) {
+
+      const indexes = this.queryCatalog
+        ? Object.values(this.queryCatalog.getSection('schema.indexes'))
+        : [
+            'CREATE INDEX skill_category IF NOT EXISTS FOR (s:Skill) ON (s.category)',
+            'CREATE INDEX skill_ociref IF NOT EXISTS FOR (s:Skill) ON (s.ociReference)',
+            'CREATE FULLTEXT INDEX skill_search IF NOT EXISTS FOR (s:Skill) ON EACH [s.name, s.description, s.category, s.author]',
+          ];
+      for (const stmt of indexes) {
         try {
           await session.run(stmt);
         } catch (err) {
@@ -89,15 +96,15 @@ export class GraphSchemaManager {
   async ensureVectorIndex(dimensions: number): Promise<void> {
     const session = await this.neo4j.getHealthySession();
     try {
-      await session.run(
-        `CREATE VECTOR INDEX skill_embedding IF NOT EXISTS
-         FOR (s:Skill) ON s.embedding
-         OPTIONS {indexConfig: {
-           \`vector.dimensions\`: $dimensions,
-           \`vector.similarity_function\`: 'cosine'
-         }}`,
-        { dimensions },
-      );
+      const query = this.queryCatalog
+        ? this.queryCatalog.get('schema.vectorIndex')
+        : `CREATE VECTOR INDEX skill_embedding IF NOT EXISTS
+           FOR (s:Skill) ON s.embedding
+           OPTIONS {indexConfig: {
+             \`vector.dimensions\`: $dimensions,
+             \`vector.similarity_function\`: 'cosine'
+           }}`;
+      await session.run(query, { dimensions });
     } catch {
       this.logger.debug('Vector index creation skipped (may already exist or unsupported)');
     } finally {

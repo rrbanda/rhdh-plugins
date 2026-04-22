@@ -53,14 +53,11 @@ export const searchSemanticTool: AgentTool = {
 
     const session = await ctx.neo4j.getHealthySession();
     try {
+      const cypher = ctx.queryCatalog
+        ? ctx.queryCatalog.get('tools.searchSemantic')
+        : `CALL db.index.vector.queryNodes('skill_embedding', $topK, $embedding) YIELD node, score WHERE score >= 0.5 RETURN node.name AS name, node.description AS description, node.category AS category, node.version AS version, node.author AS author, node.ociReference AS ociReference, score ORDER BY score DESC`;
       const result = await session.run(
-        `CALL db.index.vector.queryNodes('skill_embedding', $topK, $embedding)
-         YIELD node, score WHERE score >= 0.5
-         RETURN node.name AS name, node.description AS description,
-                node.category AS category, node.version AS version,
-                node.author AS author, node.ociReference AS ociReference,
-                score
-         ORDER BY score DESC`,
+        cypher,
         { topK: neo4jDriver.int(limit), embedding },
       );
 

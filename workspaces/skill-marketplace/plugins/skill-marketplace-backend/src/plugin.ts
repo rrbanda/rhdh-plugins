@@ -35,6 +35,7 @@ import {
   AgenticRagService,
   EmbeddingService,
 } from './services';
+import { CypherQueryCatalog } from './services/CypherQueryCatalog';
 import type { KagentiConfig, OciRegistryServiceConfig, GraphSyncConfig } from './services';
 
 /**
@@ -70,6 +71,37 @@ export const skillMarketplacePlugin = createBackendPlugin({
         const securityMode =
           config.getOptionalString('skillMarketplace.security.mode') || 'plugin-only';
 
+        let queryOverrides: Record<string, unknown> | undefined;
+        const queriesConfig = config.getOptionalConfig('skillMarketplace.graph.queries');
+        if (queriesConfig) {
+          queryOverrides = {};
+          for (const section of queriesConfig.keys()) {
+            const sectionConfig = queriesConfig.getOptionalConfig(section);
+            if (!sectionConfig) continue;
+            const sectionObj: Record<string, unknown> = {};
+            for (const key of sectionConfig.keys()) {
+              const nested = sectionConfig.getOptionalConfig(key);
+              if (nested) {
+                const nestedObj: Record<string, string> = {};
+                for (const nk of nested.keys()) {
+                  nestedObj[nk] = nested.getString(nk);
+                }
+                sectionObj[key] = nestedObj;
+              } else {
+                sectionObj[key] = sectionConfig.getString(key);
+              }
+            }
+            queryOverrides[section] = sectionObj;
+          }
+        }
+        const queryCatalog = new CypherQueryCatalog(queryOverrides, logger);
+        const validationErrors = queryCatalog.validate();
+        if (validationErrors.length > 0) {
+          for (const err of validationErrors) {
+            logger.warn(`Cypher query validation: ${err}`);
+          }
+        }
+
         let neo4j: Neo4jService | undefined;
         const neo4jUri = config.getOptionalString('skillMarketplace.neo4j.uri');
         const neo4jPassword = config.getOptionalString('skillMarketplace.neo4j.password');
@@ -83,6 +115,7 @@ export const skillMarketplacePlugin = createBackendPlugin({
               config.getOptionalString('skillMarketplace.neo4j.database') ||
               'neo4j',
             logger,
+            queryCatalog,
           });
           logger.info(`Neo4j configured: ${neo4jUri}`);
           lifecycle.addShutdownHook(() => neo4j!.close());
@@ -211,12 +244,27 @@ export const skillMarketplacePlugin = createBackendPlugin({
           ? { namespace: kagentiNs, agentName: kagentiAgent }
           : undefined;
 
+        const embeddingApiUrl = config.getOptionalString('skillMarketplace.graph.embeddingApiUrl');
+        const embeddingApiKey = config.getOptionalString('skillMarketplace.graph.embeddingApiKey');
+
+        let sharedEmbeddingService: EmbeddingService | undefined;
+        if (embeddingApiUrl && embeddingApiKey) {
+          sharedEmbeddingService = new EmbeddingService({
+            logger,
+            apiUrl: embeddingApiUrl,
+            apiKey: embeddingApiKey,
+            model: config.getOptionalString('skillMarketplace.graph.embeddingModel'),
+            dimensions: config.getOptionalNumber('skillMarketplace.graph.embeddingDimensions'),
+            timeoutMs: config.getOptionalNumber('skillMarketplace.graph.embeddingTimeoutMs'),
+          });
+        }
+
         let syncService: SkillGraphSyncService | undefined;
         if (neo4j && ociRegistry) {
           const graphSyncConfig: GraphSyncConfig = {
-            embeddingApiUrl: config.getOptionalString('skillMarketplace.graph.embeddingApiUrl'),
+            embeddingApiUrl,
             embeddingModel: config.getOptionalString('skillMarketplace.graph.embeddingModel'),
-            embeddingApiKey: config.getOptionalString('skillMarketplace.graph.embeddingApiKey'),
+            embeddingApiKey,
             embeddingDimensions: config.getOptionalNumber('skillMarketplace.graph.embeddingDimensions'),
             embeddingTimeoutMs: config.getOptionalNumber('skillMarketplace.graph.embeddingTimeoutMs'),
             similarityThreshold: config.getOptionalNumber('skillMarketplace.graph.similarityThreshold'),
@@ -232,12 +280,47 @@ export const skillMarketplacePlugin = createBackendPlugin({
             graphSyncConfig.categoryKeywords = categoryKeywords;
           }
 
+          const rawToolMeta = config.getOptionalConfig('skillMarketplace.graph.toolMetadata');
+          if (rawToolMeta) {
+            const toolMetadata: Record<string, { description?: string; docsUrl?: string; version?: string; deprecated?: boolean }> = {};
+            for (const key of rawToolMeta.keys()) {
+              const entry = rawToolMeta.getConfig(key);
+              toolMetadata[key] = {
+                description: entry.getOptionalString('description'),
+                docsUrl: entry.getOptionalString('docsUrl'),
+                version: entry.getOptionalString('version'),
+                deprecated: entry.getOptionalBoolean('deprecated') ?? undefined,
+              };
+            }
+            graphSyncConfig.toolMetadata = toolMetadata;
+          }
+
+          const rawDomainTax = config.getOptionalConfig('skillMarketplace.graph.domainTaxonomy');
+          if (rawDomainTax) {
+            const domainTaxonomy: Record<string, { description?: string; owner?: string; parent?: string }> = {};
+            for (const key of rawDomainTax.keys()) {
+              const entry = rawDomainTax.getConfig(key);
+              domainTaxonomy[key] = {
+                description: entry.getOptionalString('description'),
+                owner: entry.getOptionalString('owner'),
+                parent: entry.getOptionalString('parent') ?? undefined,
+              };
+            }
+            graphSyncConfig.domainTaxonomy = domainTaxonomy;
+          }
+
+          graphSyncConfig.matchThreshold = config.getOptionalNumber('skillMarketplace.graph.matchThreshold');
+          graphSyncConfig.semanticThreshold = config.getOptionalNumber('skillMarketplace.graph.semanticThreshold');
+          graphSyncConfig.syncEventRetention = config.getOptionalNumber('skillMarketplace.graph.syncEventRetention');
+
           syncService = new SkillGraphSyncService({
             logger,
             neo4j,
             ociRegistry,
             kagenti,
             config: graphSyncConfig,
+            embeddingService: sharedEmbeddingService,
+            queryCatalog,
           });
           logger.info('Skill Knowledge Graph sync service initialized');
 
@@ -285,9 +368,7 @@ export const skillMarketplacePlugin = createBackendPlugin({
         }
 
         let agenticService: AgenticRagService | undefined;
-        const embeddingApiUrl = config.getOptionalString('skillMarketplace.graph.embeddingApiUrl');
-        const embeddingApiKey = config.getOptionalString('skillMarketplace.graph.embeddingApiKey');
-        if (neo4j && embeddingApiUrl && embeddingApiKey) {
+        if (neo4j && sharedEmbeddingService && embeddingApiUrl && embeddingApiKey) {
           const configuredLlmUrl = config.getOptionalString('skillMarketplace.graph.agent.llmApiUrl');
           const llmApiUrl = configuredLlmUrl || embeddingApiUrl.replace(/\/embeddings\/?$/, '/chat/completions');
           const llmApiKey = config.getOptionalString('skillMarketplace.graph.agent.llmApiKey') || embeddingApiKey;
@@ -300,25 +381,17 @@ export const skillMarketplacePlugin = createBackendPlugin({
             timeoutMs: config.getOptionalNumber('skillMarketplace.graph.agent.timeoutMs'),
           });
 
-          const embeddingForAgent = new EmbeddingService({
-            logger,
-            apiUrl: embeddingApiUrl,
-            apiKey: embeddingApiKey,
-            model: config.getOptionalString('skillMarketplace.graph.embeddingModel'),
-            dimensions: config.getOptionalNumber('skillMarketplace.graph.embeddingDimensions'),
-            timeoutMs: config.getOptionalNumber('skillMarketplace.graph.embeddingTimeoutMs'),
-          });
-
           agenticService = new AgenticRagService({
             llm,
             neo4j,
             ociRegistry,
-            embedding: embeddingForAgent,
+            embedding: sharedEmbeddingService,
             logger,
             config: {
               maxIterations: config.getOptionalNumber('skillMarketplace.graph.agent.maxIterations') ?? undefined,
               schemaCacheTtlSeconds: config.getOptionalNumber('skillMarketplace.graph.agent.schemaCacheTtlSeconds') ?? undefined,
             },
+            queryCatalog,
           });
           logger.info('Agentic GraphRAG service initialized');
         } else {
@@ -342,6 +415,7 @@ export const skillMarketplacePlugin = createBackendPlugin({
             agenticService,
             securityMode,
             builderStreamTimeoutMs: config.getOptionalNumber('skillMarketplace.builderAgent.streamTimeoutMs'),
+            queryCatalog,
           }),
         );
 
@@ -363,9 +437,27 @@ export const skillMarketplacePlugin = createBackendPlugin({
           '/graph/neighborhood',
           '/graph/build',
           '/graph/update',
+          '/graph/sync/history',
+          '/graph/quality',
+          '/graph/capabilities/:skillId/verify',
+          '/graph/capabilities/:skillId/override',
+          '/graph/capabilities/gaps',
+          '/graph/capabilities/gaps/count',
+          '/graph/agents',
+          '/graph/agents/count',
+          '/graph/agents/:namespace/:name/capabilities',
+          '/graph/agents/:namespace/:name/skills',
+          '/graph/skills/unused',
+          '/graph/skills/:skillName/agents',
+          '/graph/tags',
           '/graph/rag',
           '/graph/agentic-rag',
           '/graph/agentic-rag/stream',
+          '/graph/bundles',
+          '/graph/bundles/:id',
+          '/graph/bundles/:id/export',
+          '/graph/bundles/:id/fork',
+          '/graph/bundles/resolve',
           '/builder',
           '/sync',
           '/sync/status',

@@ -61,6 +61,7 @@ import {
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
+import { useBundle } from '../../hooks';
 
 export default function SkillDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -71,6 +72,7 @@ export default function SkillDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const { addSkill, hasSkill } = useBundle();
 
   useEffect(() => {
     if (!slug) return;
@@ -196,6 +198,20 @@ export default function SkillDetailPage() {
                 ))}
               </LabelGroup>
             )}
+            <div style={{ marginTop: 12 }}>
+              <Button
+                variant={hasSkill(skill.skillName) ? 'secondary' : 'primary'}
+                isDisabled={hasSkill(skill.skillName)}
+                onClick={() => addSkill({
+                  name: skill.skillName,
+                  slug: skill.slug,
+                  category: skill.pluginName,
+                  description: skill.description,
+                })}
+              >
+                {hasSkill(skill.skillName) ? 'In Bundle' : 'Add to Bundle'}
+              </Button>
+            </div>
           </SplitItem>
         </Split>
       </PageSection>
@@ -503,18 +519,18 @@ export default function SkillDetailPage() {
             <Card style={{ marginTop: 16 }}>
               <CardBody>
                 <Title headingLevel="h3" size="lg" style={{ marginBottom: 12 }}>
-                  Test this skill in the Playground
+                  Test this skill in the Skills Playground
                 </Title>
                 <Content component={ContentVariants.p} style={{ marginBottom: 16, color: 'var(--pf-t--global--text--color--subtle)' }}>
-                  Open the Skill Playground with &ldquo;{humanize(skill.name)}&rdquo; pre-selected.
+                  Open the Skills Playground with &ldquo;{humanize(skill.name)}&rdquo; pre-selected.
                   The live agent will load this skill and you can test it interactively.
                 </Content>
                 <Button
                   variant="primary"
-                  onClick={() => navigate(`${basePath}/agents?skill=${encodeURIComponent(skill.skillName)}`)}
+                  onClick={() => navigate(`${basePath}/playground?skill=${encodeURIComponent(skill.skillName)}`)}
                   icon={<RocketIcon />}
                 >
-                  Open Playground
+                  Open Skills Playground
                 </Button>
               </CardBody>
             </Card>

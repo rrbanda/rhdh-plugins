@@ -17,6 +17,7 @@ import type { LlmToolFunction } from '../LlmClient';
 import type { Neo4jService } from '../Neo4jService';
 import type { OciRegistryService } from '../OciRegistryService';
 import type { EmbeddingService } from '../EmbeddingService';
+import type { CypherQueryCatalog } from '../CypherQueryCatalog';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 
 export interface ToolContext {
@@ -24,6 +25,7 @@ export interface ToolContext {
   ociRegistry?: OciRegistryService;
   embedding?: EmbeddingService;
   logger: LoggerService;
+  queryCatalog?: CypherQueryCatalog;
 }
 
 export interface AgentTool {

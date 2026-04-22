@@ -150,6 +150,46 @@ export interface OciRegistryConfig {
 }
 
 // ---------------------------------------------------------------------------
+// A2A AgentCard types
+// ---------------------------------------------------------------------------
+
+/** A skill entry within an A2A AgentCard. @public */
+export interface AgentSkillRef {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  examples?: string[];
+  inputModes?: string[];
+  outputModes?: string[];
+}
+
+/** Full A2A AgentCard structure. @public */
+export interface AgentCardData {
+  name: string;
+  description: string;
+  url: string;
+  provider?: {
+    organization: string;
+    url: string;
+  };
+  version: string;
+  documentationUrl?: string;
+  capabilities: {
+    streaming?: boolean;
+    pushNotifications?: boolean;
+    stateTransitionHistory?: boolean;
+  };
+  authentication?: {
+    schemes: string[];
+    credentials?: string;
+  };
+  defaultInputModes: string[];
+  defaultOutputModes: string[];
+  skills: AgentSkillRef[];
+}
+
+// ---------------------------------------------------------------------------
 // Kagenti Agent types
 // ---------------------------------------------------------------------------
 
@@ -175,6 +215,7 @@ export interface KagentiAgent {
     agent?: string;
     health?: string;
   };
+  agentCard?: AgentCardData;
 }
 
 /** @public */
@@ -330,6 +371,78 @@ export function humanize(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Graph: AgentCapability, Tag, and ImplementedBy types (Two-Card Ontology)
+// ---------------------------------------------------------------------------
+
+/** A capability declared by an agent via its AgentCard. @public */
+export interface AgentCapabilityNode {
+  skillId: string;
+  agentName: string;
+  agentNamespace: string;
+  name: string;
+  description: string;
+  tags: string[];
+  examples: string[];
+  inputModes: string[];
+  outputModes: string[];
+  matchConfidence: number | null;
+  matchType: string | null;
+  matchedSkillName: string | null;
+  completeness: number;
+}
+
+/** A shared taxonomy tag used by both SkillCards and AgentCard capabilities. @public */
+export interface TagNode {
+  name: string;
+  skillCount: number;
+  capabilityCount: number;
+}
+
+/** Enriched Tool node from the knowledge graph. @public */
+export interface ToolNode {
+  name: string;
+  description: string;
+  docsUrl: string;
+  version: string;
+  deprecated: boolean;
+  usedByCount: number;
+}
+
+/** Enriched Domain node with hierarchy support. @public */
+export interface DomainNode {
+  name: string;
+  description: string;
+  owner: string;
+  color: string;
+  parent: string | null;
+  skillCount: number;
+}
+
+/** Audit record for a graph sync cycle. @public */
+export interface SyncEventRecord {
+  timestamp: string;
+  skillsUpserted: number;
+  capabilitiesCreated: number;
+  matchesCreated: number;
+  gapsFound: number;
+  durationMs: number;
+}
+
+/** An edge from AgentCapability to Skill representing implementation. @public */
+export interface ImplementedByEdge {
+  capabilitySkillId: string;
+  agentName: string;
+  agentNamespace: string;
+  skillName: string;
+  confidence: number;
+  matchType: 'name' | 'name_fuzzy' | 'tag' | 'semantic' | 'semantic_weak' | 'manual';
+  verified: boolean;
+  verifiedBy: string | null;
+  matchedAt: string | null;
+  matchCount: number;
+}
+
+// ---------------------------------------------------------------------------
 // Graph sync result
 // ---------------------------------------------------------------------------
 
@@ -341,6 +454,9 @@ export interface GraphSyncResult {
   nodesRemoved: number;
   durationMs: number;
   embeddingsGenerated: number;
+  agentCapabilitiesCreated: number;
+  tagsCreated: number;
+  implementedByEdges: number;
 }
 
 // ---------------------------------------------------------------------------

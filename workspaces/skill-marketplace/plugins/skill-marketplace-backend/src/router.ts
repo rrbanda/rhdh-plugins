@@ -26,6 +26,7 @@ import type {
   AgenticRagService,
 } from './services';
 import { SkillContextBuilder } from './services';
+import type { CypherQueryCatalog } from './services/CypherQueryCatalog';
 import {
   registerSkillsRoutes,
   registerGraphRoutes,
@@ -35,6 +36,7 @@ import {
   registerRagRoutes,
   registerAgenticRoutes,
   registerLifecycleRoutes,
+  registerBundleRoutes,
 } from './routes';
 
 /** @public */
@@ -54,13 +56,14 @@ export interface RouterOptions {
   agenticService?: AgenticRagService;
   securityMode?: string;
   builderStreamTimeoutMs?: number;
+  queryCatalog?: CypherQueryCatalog;
 }
 
 /** @public */
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, permissions, neo4j, builderProxy, kagenti, ociRegistry, publishRegistry, skillSearchDirs, kagentiDefaults, syncService, ragConfig, agenticService, securityMode, builderStreamTimeoutMs } = options;
+  const { logger, httpAuth, permissions, neo4j, builderProxy, kagenti, ociRegistry, publishRegistry, skillSearchDirs, kagentiDefaults, syncService, ragConfig, agenticService, securityMode, builderStreamTimeoutMs, queryCatalog } = options;
 
   const router = Router();
   router.use(express.json());
@@ -90,9 +93,10 @@ export async function createRouter(
   registerBuilderRoutes(router, builderProxy, logger, ociRegistry, publishRegistry, httpAuth, permissions, syncService, securityMode);
   registerKagentiRoutes(router, kagenti, logger, httpAuth, permissions, securityMode, skillContextBuilder);
   registerSyncRoutes(router, logger, syncService, httpAuth, permissions, securityMode);
-  registerRagRoutes(router, logger, neo4j, syncService, httpAuth, permissions, ragConfig);
+  registerRagRoutes(router, logger, neo4j, syncService, httpAuth, permissions, ragConfig, queryCatalog);
   registerAgenticRoutes(router, logger, agenticService, httpAuth, permissions);
   registerLifecycleRoutes(router, logger, ociRegistry, httpAuth, permissions, securityMode);
+  registerBundleRoutes(router, neo4j, logger);
 
   router.use(
     (

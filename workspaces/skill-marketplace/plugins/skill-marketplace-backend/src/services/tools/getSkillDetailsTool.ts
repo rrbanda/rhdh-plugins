@@ -41,16 +41,10 @@ export const getSkillDetailsTool: AgentTool = {
 
     const session = await ctx.neo4j.getHealthySession();
     try {
-      const nodeResult = await session.run(
-        `MATCH (s:Skill)
-         WHERE s.name = $name OR s.ociReference = $name
-         RETURN s.name AS name, s.description AS description,
-                s.category AS category, s.version AS version,
-                s.author AS author, s.ociReference AS ociReference,
-                s.complexity AS complexity, s.workflowSteps AS workflowSteps
-         LIMIT 1`,
-        { name: skillName },
-      );
+      const cypher = ctx.queryCatalog
+        ? ctx.queryCatalog.get('tools.getSkillDetails')
+        : `MATCH (s:Skill) WHERE s.name = $name OR s.ociReference = $name RETURN s.name AS name, s.description AS description, s.category AS category, s.version AS version, s.author AS author, s.ociReference AS ociReference, s.complexity AS complexity, s.tags AS tags, s.displayName AS displayName LIMIT 1`;
+      const nodeResult = await session.run(cypher, { name: skillName });
 
       if (nodeResult.records.length === 0) {
         return { error: `Skill "${skillName}" not found in graph` };
@@ -65,7 +59,8 @@ export const getSkillDetailsTool: AgentTool = {
         version: record.get('version'),
         author: record.get('author'),
         complexity: record.get('complexity'),
-        workflowSteps: record.get('workflowSteps'),
+        tags: record.get('tags'),
+        displayName: record.get('displayName'),
       };
 
       let content: string | null = null;
@@ -77,9 +72,44 @@ export const getSkillDetailsTool: AgentTool = {
         }
       }
 
+      let agents: Array<{ name: string; namespace: string; status: string }> = [];
+      try {
+        const agentsResult = await session.run(
+          ctx.queryCatalog
+            ? ctx.queryCatalog.get('read.fetchAgentsBySkill')
+            : 'MATCH (a:Agent)-[:EXPOSES]->(c:AgentCapability)-[:IMPLEMENTED_BY]->(s:Skill {name: $skillName}) RETURN a.name AS name, a.namespace AS namespace, a.status AS status',
+          { skillName: metadata.name as string },
+        );
+        agents = agentsResult.records.map(r => ({
+          name: r.get('name') as string,
+          namespace: r.get('namespace') as string,
+          status: r.get('status') as string,
+        }));
+      } catch {
+        ctx.logger.debug(`Could not fetch agents for skill ${skillName}`);
+      }
+
+      let implementingCapabilities: Array<{ capName: string; agentName: string; confidence: number; matchType: string }> = [];
+      try {
+        const capsResult = await session.run(
+          'MATCH (c:AgentCapability)-[r:IMPLEMENTED_BY]->(s:Skill {name: $skillName}) RETURN c.name AS capName, c.agentName AS agentName, r.confidence AS confidence, r.matchType AS matchType',
+          { skillName: metadata.name as string },
+        );
+        implementingCapabilities = capsResult.records.map(r => ({
+          capName: r.get('capName') as string,
+          agentName: r.get('agentName') as string,
+          confidence: Number(r.get('confidence')),
+          matchType: r.get('matchType') as string,
+        }));
+      } catch {
+        ctx.logger.debug(`Could not fetch implementing capabilities for skill ${skillName}`);
+      }
+
       return {
         metadata,
         content: content ? content.slice(0, 4000) : null,
+        usedByAgents: agents,
+        implementingCapabilities,
       };
     } finally {
       await session.close();

@@ -28,6 +28,7 @@ import type {
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { Neo4jService } from '../services/Neo4jService';
 import type { SkillGraphSyncService } from '../services/SkillGraphSyncService';
+import type { CypherQueryCatalog } from '../services/CypherQueryCatalog';
 import { toNumber, resolveId, escapeLucene } from '../services/neo4jUtils';
 
 export interface RagConfig {
@@ -128,8 +129,13 @@ export function registerRagRoutes(
   httpAuth?: HttpAuthService,
   permissions?: PermissionsService,
   ragConfig?: Partial<RagConfig>,
+  queryCatalog?: CypherQueryCatalog,
 ) {
   const cfg = { ...RAG_DEFAULTS, ...ragConfig };
+  const rq = (key: string) => {
+    if (!queryCatalog) throw new Error(`ragRoutes: queryCatalog not available for key "${key}"`);
+    return queryCatalog.get(key);
+  };
 
   router.post('/graph/rag', async (req, res) => {
     if (httpAuth && permissions) {
@@ -175,10 +181,7 @@ export function registerRagRoutes(
           queryEmbeddingUsed = true;
           try {
             const vectorResult = await session.run(
-              `CALL db.index.vector.queryNodes('skill_embedding', $topK, $queryEmbedding)
-               YIELD node, score WHERE score >= $minSimilarity
-               RETURN node, elementId(node) AS eid, score
-               ORDER BY score DESC`,
+              rq('rag.vectorSearch'),
               {
                 topK: neo4jDriver.int(maxResults * cfg.vectorTopKMultiplier),
                 queryEmbedding,
@@ -211,10 +214,7 @@ export function registerRagRoutes(
       try {
         const escaped = escapeLucene(query);
         const fulltextResult = await session.run(
-          `CALL db.index.fulltext.queryNodes('skill_search', $query)
-           YIELD node, score WHERE score > $floor
-           RETURN node, elementId(node) AS eid, score
-           ORDER BY score DESC LIMIT $limit`,
+          rq('rag.fulltextSearch'),
           { query: `${escaped}~`, floor: cfg.fulltextScoreFloor, limit: neo4jDriver.int(cfg.fulltextLimit) },
         );
         for (const record of fulltextResult.records) {
@@ -239,11 +239,7 @@ export function registerRagRoutes(
         logger.warn(`Fulltext search failed, using fallback: ${err instanceof Error ? err.message : String(err)}`);
         try {
           const fallbackResult = await session.run(
-            `MATCH (s:Skill)
-             WHERE toLower(s.name) CONTAINS toLower($query)
-                OR toLower(s.description) CONTAINS toLower($query)
-             RETURN s AS node, elementId(s) AS eid
-             LIMIT $limit`,
+            rq('rag.fulltextFallback'),
             { query, limit: neo4jDriver.int(cfg.fulltextLimit) },
           );
           for (const record of fallbackResult.records) {
@@ -270,12 +266,7 @@ export function registerRagRoutes(
       if (includeRelated && skillMap.size > 0) {
         const seedNames = Array.from(skillMap.keys()).slice(0, maxResults);
         const expandResult = await session.run(
-          `UNWIND $names AS seedName
-           MATCH (s:Skill {name: seedName})-[r:DEPENDS_ON|RELATED_TO|SIMILAR_TO]-(neighbor:Skill)
-           RETURN seedName, neighbor, elementId(neighbor) AS eid,
-                  type(r) AS relType,
-                  CASE WHEN r.score IS NOT NULL THEN r.score ELSE 0.5 END AS relScore
-           LIMIT $limit`,
+          rq('rag.expandRelatedSkills'),
           { names: seedNames, limit: neo4jDriver.int(cfg.expansionLimit) },
         );
         for (const record of expandResult.records) {
@@ -306,9 +297,7 @@ export function registerRagRoutes(
 
         const allNames = Array.from(skillMap.keys());
         const toolResult = await session.run(
-          `UNWIND $names AS skillName
-           MATCH (s:Skill {name: skillName})-[:USES_TOOL|OPTIONALLY_USES]->(t:Tool)
-           RETURN skillName, collect(t.name) AS tools`,
+          rq('rag.collectToolsBySkill'),
           { names: allNames },
         );
         for (const record of toolResult.records) {
@@ -335,9 +324,7 @@ export function registerRagRoutes(
 
       const domainsSearched = [...new Set(results.map(r => r.domain).filter(Boolean))];
 
-      const totalCountResult = await session.run(
-        'MATCH (s:Skill) RETURN count(s) AS c',
-      );
+      const totalCountResult = await session.run(rq('rag.countAllSkills'));
       const totalSkills = toNumber(totalCountResult.records[0]?.get('c'));
 
       const response: GraphRAGResult = {

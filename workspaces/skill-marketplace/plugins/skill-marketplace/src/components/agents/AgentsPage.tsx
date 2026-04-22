@@ -28,13 +28,16 @@ interface ChatMessage {
   isError?: boolean;
 }
 
-export default function AgentsPage() {
+export default function SkillsPlayground() {
   const api = useApi(skillMarketplaceApiRef);
   const { skills } = useSkills();
   const [searchParams] = useSearchParams();
 
   const preloadSkill = searchParams.get('skill') || '';
-  const [selectedSkill, setSelectedSkill] = useState(preloadSkill);
+  const preloadSkills = searchParams.get('skills') || '';
+  const bundleSkillNames = preloadSkills ? preloadSkills.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const initialSkill = preloadSkill || (bundleSkillNames.length === 1 ? bundleSkillNames[0] : '');
+  const [selectedSkill, setSelectedSkill] = useState(initialSkill);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
@@ -192,6 +195,25 @@ export default function AgentsPage() {
           {selectedSkillData && (
             <p className="pg-skill-desc">{selectedSkillData.description || selectedSkillData.body?.slice(0, 120)}</p>
           )}
+          {bundleSkillNames.length > 1 && (
+            <div className="pg-bundle-context">
+              <label className="pg-label" style={{ marginTop: 12 }}>Bundle Skills ({bundleSkillNames.length})</label>
+              <div className="pg-bundle-chips">
+                {bundleSkillNames.map(name => (
+                  <button
+                    key={name}
+                    className={`pg-bundle-chip ${selectedSkill === name ? 'pg-bundle-chip-active' : ''}`}
+                    onClick={() => setSelectedSkill(name)}
+                  >
+                    {name.split(':').pop() || name}
+                  </button>
+                ))}
+              </div>
+              <span className="pg-skill-hint">
+                Click a skill chip to set it as the active context, or send a message to test the full bundle.
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="pg-tools">
@@ -212,24 +234,47 @@ export default function AgentsPage() {
         <div className="pg-messages">
           {messages.length === 0 && (
             <div className="pg-empty">
-              <h3>Skill Playground</h3>
-              <p>Select a skill from the sidebar and send a message to test it with the live agent.</p>
-              <div className="pg-suggestions">
-                {[
-                  { skill: 'url-summary', text: 'Summarize https://go.dev/blog/go1.24' },
-                  { skill: 'code-review', text: 'Review this: func add(a,b int) { return a + b }' },
-                  { skill: '', text: 'What skills do you have available?' },
-                ].map((s, i) => (
-                  <button
-                    key={i}
-                    className="pg-suggestion"
-                    onClick={() => { setSelectedSkill(s.skill); setInput(s.text); }}
-                  >
-                    {s.skill && <span className="pg-sug-skill">{s.skill}</span>}
-                    <span>{s.text}</span>
-                  </button>
-                ))}
-              </div>
+              <h3>Skills Playground</h3>
+              {bundleSkillNames.length > 1 ? (
+                <>
+                  <p>
+                    Testing <strong>{bundleSkillNames.length} skills</strong> from your bundle.
+                    Select an active skill from the chips in the sidebar, then send a message to test it.
+                  </p>
+                  <div className="pg-suggestions">
+                    {bundleSkillNames.slice(0, 3).map(name => (
+                      <button
+                        key={name}
+                        className="pg-suggestion"
+                        onClick={() => { setSelectedSkill(name); setInput(`What can you do with the ${name.split(':').pop()} skill?`); }}
+                      >
+                        <span className="pg-sug-skill">{(name.split(':').pop() || name)}</span>
+                        <span>Test this skill</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p>Select a skill from the sidebar and send a message to test it with the live agent.</p>
+                  <div className="pg-suggestions">
+                    {[
+                      { skill: 'url-summary', text: 'Summarize https://go.dev/blog/go1.24' },
+                      { skill: 'code-review', text: 'Review this: func add(a,b int) { return a + b }' },
+                      { skill: '', text: 'What skills do you have available?' },
+                    ].map((s, i) => (
+                      <button
+                        key={i}
+                        className="pg-suggestion"
+                        onClick={() => { setSelectedSkill(s.skill); setInput(s.text); }}
+                      >
+                        {s.skill && <span className="pg-sug-skill">{s.skill}</span>}
+                        <span>{s.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
           {messages.map((msg, i) => (
@@ -253,6 +298,11 @@ export default function AgentsPage() {
           <div ref={messagesEndRef} />
         </div>
 
+        {agentStatus === 'offline' && (
+          <div className="pg-offline-bar">
+            Agent is currently offline. Check your Kagenti connection to enable testing.
+          </div>
+        )}
         <div className="pg-input-bar">
           <div className="pg-input-wrap">
             <textarea
@@ -261,7 +311,11 @@ export default function AgentsPage() {
               value={input}
               onChange={e => { setInput(e.target.value); autoGrow(); }}
               onKeyDown={handleKeyDown}
-              placeholder={selectedSkill ? `Test "${selectedSkill}" skill...` : 'Send a message to the agent...'}
+              placeholder={
+                bundleSkillNames.length > 1
+                  ? `Test ${bundleSkillNames.length} bundle skills${selectedSkill ? ` (active: ${selectedSkill})` : ''}...`
+                  : selectedSkill ? `Test "${selectedSkill}" skill...` : 'Send a message to the agent...'
+              }
               rows={2}
               disabled={sending || agentStatus === 'offline'}
             />
@@ -327,6 +381,29 @@ const playgroundStyles = `
   }
   .pg-skill-hint { font-size: 13px; color: var(--pf-t--global--color--brand--default, #0066cc); margin-top: 4px; display: block; }
   .pg-skill-desc { font-size: 13px; color: var(--pf-t--global--text--color--subtle, #6a6e73); margin: 6px 0 0; line-height: 1.5; }
+  .pg-bundle-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .pg-bundle-chip {
+    display: inline-flex;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    background: var(--pf-t--global--background--color--primary--default, #fff);
+    color: var(--pf-t--global--text--color--regular, #151515);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .pg-bundle-chip:hover {
+    border-color: var(--pf-t--global--color--brand--default, #0066cc);
+    color: var(--pf-t--global--color--brand--default, #0066cc);
+  }
+  .pg-bundle-chip-active {
+    background: var(--pf-t--global--color--brand--default, #0066cc);
+    border-color: var(--pf-t--global--color--brand--default, #0066cc);
+    color: #fff;
+  }
 
   .pg-tool-list { display: flex; flex-wrap: wrap; gap: 4px; }
   .pg-tool-badge {
@@ -449,6 +526,15 @@ const playgroundStyles = `
 
   .pg-typing { color: var(--pf-t--global--text--color--subtle, #6a6e73); font-style: italic; }
 
+  .pg-offline-bar {
+    padding: 8px 32px;
+    background: #ef444412;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    border-top: 1px solid #ef444430;
+  }
   .pg-input-bar {
     display: flex;
     gap: 10px;

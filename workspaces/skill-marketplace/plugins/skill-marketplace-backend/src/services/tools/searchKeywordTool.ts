@@ -45,28 +45,21 @@ export const searchKeywordTool: AgentTool = {
 
     const session = await ctx.neo4j.getHealthySession();
     try {
+      const fulltextQuery = ctx.queryCatalog
+        ? ctx.queryCatalog.get('tools.searchKeywordFulltext')
+        : `CALL db.index.fulltext.queryNodes('skill_search', $query) YIELD node, score WHERE score > 0.3 RETURN node.name AS name, node.description AS description, node.category AS category, node.version AS version, node.author AS author, node.ociReference AS ociReference, score ORDER BY score DESC LIMIT $limit`;
+      const fallbackQuery = ctx.queryCatalog
+        ? ctx.queryCatalog.get('tools.searchKeywordFallback')
+        : `MATCH (s:Skill) WHERE toLower(s.name) CONTAINS toLower($query) OR toLower(s.description) CONTAINS toLower($query) RETURN s.name AS name, s.description AS description, s.category AS category, s.version AS version, s.author AS author, s.ociReference AS ociReference, 1.0 AS score LIMIT $limit`;
       let result;
       try {
         result = await session.run(
-          `CALL db.index.fulltext.queryNodes('skill_search', $query)
-           YIELD node, score WHERE score > 0.3
-           RETURN node.name AS name, node.description AS description,
-                  node.category AS category, node.version AS version,
-                  node.author AS author, node.ociReference AS ociReference,
-                  score
-           ORDER BY score DESC LIMIT $limit`,
+          fulltextQuery,
           { query: `${escaped}~`, limit: neo4jDriver.int(limit) },
         );
       } catch {
         result = await session.run(
-          `MATCH (s:Skill)
-           WHERE toLower(s.name) CONTAINS toLower($query)
-              OR toLower(s.description) CONTAINS toLower($query)
-           RETURN s.name AS name, s.description AS description,
-                  s.category AS category, s.version AS version,
-                  s.author AS author, s.ociReference AS ociReference,
-                  1.0 AS score
-           LIMIT $limit`,
+          fallbackQuery,
           { query, limit: neo4jDriver.int(limit) },
         );
       }

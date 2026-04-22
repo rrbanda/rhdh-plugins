@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useApi } from '@backstage/core-plugin-api';
+import { skillMarketplaceApiRef } from '../../api';
 import { useSkills } from '../../hooks';
 import {
   humanize,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { SkillData, ComplexityLevel } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
 
 function estimateComplexity(s: SkillData): ComplexityLevel {
@@ -35,6 +38,29 @@ function estimateComplexity(s: SkillData): ComplexityLevel {
 export default function OverviewPage() {
   const { skills, marketplace, loading, error } = useSkills();
   const navigate = useNavigate();
+  const api = useApi(skillMarketplaceApiRef);
+  const [agentCount, setAgentCount] = useState(0);
+  const [gapCount, setGapCount] = useState(0);
+  const [tags, setTags] = useState<Array<{ name: string; skillCount: number; capabilityCount: number }>>([]);
+  const [avgQuality, setAvgQuality] = useState<number | null>(null);
+
+  useEffect(() => {
+    api.getAgentCount()
+      .then(r => setAgentCount(r.count))
+      .catch(() => { /* graph may not be configured */ });
+    api.getCatalogGapsCount()
+      .then(r => setGapCount(r.count))
+      .catch(() => { /* graph may not be configured */ });
+    api.getTags(20)
+      .then(r => setTags((r.tags ?? []) as Array<{ name: string; skillCount: number; capabilityCount: number }>))
+      .catch(() => { /* graph may not be configured */ });
+    api.getQualityAggregate()
+      .then(r => {
+        const avg = Number(r.avgSkill ?? 0);
+        if (avg > 0) setAvgQuality(Math.round(avg * 100));
+      })
+      .catch(() => { /* graph may not be configured */ });
+  }, [api]);
 
   const pluginCounts = useMemo(
     () =>
@@ -63,7 +89,7 @@ export default function OverviewPage() {
 
   const featured = useMemo(() => selectFeatured(skills, 3), [skills]);
 
-  if (loading) return null;
+  if (loading) return <LoadingSpinner message="Loading marketplace..." />;
   if (error) return <ErrorMessage message={error} />;
 
   const plugins = marketplace?.plugins ?? [];
@@ -99,16 +125,45 @@ export default function OverviewPage() {
         </div>
         <div className="ov-hero-right">
           {[
-            { value: skills.length, label: 'Skills', color: '#0066cc' },
-            { value: plugins.length, label: 'Categories', color: '#3e8635' },
+            { value: skills.length, label: 'Skills', color: '#0066cc', tip: 'Total skill definitions synced from OCI registries' },
+            { value: plugins.length, label: 'Categories', color: '#3e8635', tip: 'Skill domains auto-detected from tags and keywords' },
+            { value: agentCount, label: 'Active Agents', color: '#f59e0b', tip: 'AI agents registered via Kagenti with declared capabilities' },
+            { value: gapCount, label: 'Catalog Gaps', color: '#ef4444', tip: 'Agent capabilities with no matching skill \u2014 these need new skills authored', action: gapCount > 0 ? () => navigate('gaps') : undefined },
+            ...(avgQuality !== null ? [{ value: `${avgQuality}%`, label: 'Skill Quality', color: avgQuality >= 70 ? '#22c55e' : avgQuality >= 40 ? '#f59e0b' : '#ef4444', tip: 'Average completeness score across all skills (description, tags, prompt, examples, etc.)' }] : []),
           ].map(s => (
-            <div key={s.label} className="ov-stat-card">
+            <div key={s.label} className={`ov-stat-card ${(s as any).action ? 'ov-stat-clickable' : ''}`} title={(s as any).tip} onClick={(s as any).action}>
               <span className="ov-stat-v" style={{ color: s.color }}>{s.value}</span>
               <span className="ov-stat-l">{s.label}</span>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Actionable Warnings */}
+      {(gapCount > 0 || (avgQuality !== null && avgQuality < 50)) && (
+        <div className="ov-alerts">
+          {gapCount > 0 && (
+            <button className="ov-alert ov-alert-warn" onClick={() => navigate('gaps')}>
+              <span className="ov-alert-icon">!</span>
+              <span className="ov-alert-text">
+                <strong>{gapCount} agent {gapCount === 1 ? 'capability has' : 'capabilities have'} no matching skill.</strong>
+                {' '}Author new skills to close the gap.
+              </span>
+              <span className="ov-alert-action">View gaps &rarr;</span>
+            </button>
+          )}
+          {avgQuality !== null && avgQuality < 50 && (
+            <button className="ov-alert ov-alert-info" onClick={() => navigate('graph')}>
+              <span className="ov-alert-icon">i</span>
+              <span className="ov-alert-text">
+                <strong>Average skill quality is {avgQuality}%.</strong>
+                {' '}Add descriptions, tags, and examples to improve completeness scores.
+              </span>
+              <span className="ov-alert-action">View graph &rarr;</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Categories */}
       <div className="ov-section">
@@ -149,6 +204,33 @@ export default function OverviewPage() {
           ))}
         </div>
       </div>
+
+      {/* Tag Cloud */}
+      {tags.length > 0 && (
+        <div className="ov-section">
+          <div className="ov-sec-hdr">
+            <h2 className="ov-h2">Tag Cloud</h2>
+            <span className="ov-tag-subtitle">Skills &amp; capabilities across the graph</span>
+          </div>
+          <div className="ov-tag-cloud">
+            {tags.map(t => {
+              const total = t.skillCount + t.capabilityCount;
+              const fontSize = Math.min(11 + total * 0.5, 22);
+              return (
+                <span
+                  key={t.name}
+                  className="ov-tag"
+                  style={{ fontSize }}
+                  title={`${t.skillCount} skills, ${t.capabilityCount} capabilities`}
+                >
+                  {t.name}
+                  <span className="ov-tag-count">{total}</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* How it works + Complexity */}
       <div className="ov-bottom">
@@ -489,6 +571,121 @@ const styles = `
   .ov-cx-track { flex: 1; height: 10px; border-radius: 5px; background: var(--pf-t--global--background--color--secondary--default, #f0f0f0); overflow: hidden; }
   .ov-cx-fill { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
   .ov-cx-ct { font-size: 18px; font-weight: 800; width: 36px; text-align: right; flex-shrink: 0; }
+
+  /* ── Tag Cloud ──────────────────────────────── */
+  .ov-tag-subtitle {
+    font-size: 13px;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+  }
+  .ov-tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px;
+    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    border-radius: 12px;
+    background: var(--pf-t--global--background--color--primary--default, #fff);
+    align-items: center;
+    justify-content: center;
+  }
+  .ov-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(168,85,247,0.08);
+    color: #7c3aed;
+    font-weight: 600;
+    transition: transform 0.1s;
+    cursor: default;
+  }
+  .ov-tag:hover { transform: scale(1.05); }
+  .ov-tag-count {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(168,85,247,0.15);
+    color: #7c3aed;
+  }
+
+  /* ── Clickable stat cards ─────────────────────── */
+  .ov-stat-clickable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .ov-stat-clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  }
+
+  /* ── Actionable Alerts ─────────────────────────── */
+  .ov-alerts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 32px 20px;
+  }
+  .ov-alert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: 1px solid;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: all 0.15s;
+    width: 100%;
+  }
+  .ov-alert:hover {
+    filter: brightness(0.97);
+  }
+  .ov-alert-warn {
+    background: rgba(245,158,11,0.05);
+    border-color: rgba(245,158,11,0.3);
+    color: #92400e;
+  }
+  .ov-alert-info {
+    background: rgba(59,130,246,0.05);
+    border-color: rgba(59,130,246,0.3);
+    color: #1e40af;
+  }
+  .ov-alert-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .ov-alert-warn .ov-alert-icon {
+    background: rgba(245,158,11,0.15);
+    color: #d97706;
+  }
+  .ov-alert-info .ov-alert-icon {
+    background: rgba(59,130,246,0.15);
+    color: #3b82f6;
+  }
+  .ov-alert-text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .ov-alert-text strong { font-weight: 700; }
+  .ov-alert-action {
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .ov-alert-warn .ov-alert-action { color: #d97706; }
+  .ov-alert-info .ov-alert-action { color: #3b82f6; }
 
   /* ── Responsive ───────────────────────────────── */
   @media (max-width: 768px) {

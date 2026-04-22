@@ -164,7 +164,7 @@ export interface Config {
        * @visibility backend
        */
       syncOnStartup?: boolean;
-      /** Periodic sync interval in seconds (default: 30, 0 = disabled)
+      /** Periodic sync interval in seconds (default: 300, 0 = disabled)
        * @visibility backend
        */
       syncIntervalSeconds?: number;
@@ -200,6 +200,70 @@ export interface Config {
        * @visibility backend
        */
       categoryKeywords?: { [key: string]: string[] };
+      /**
+       * Configurable metadata for Tool nodes in the knowledge graph.
+       * Keys are tool names (matching SkillCard allowed-tools), values are enrichment metadata.
+       * @visibility backend
+       */
+      toolMetadata?: { [key: string]: {
+        /** @visibility backend */
+        description?: string;
+        /** @visibility backend */
+        docsUrl?: string;
+        /** @visibility backend */
+        version?: string;
+        /** @visibility backend */
+        deprecated?: boolean;
+      }};
+      /**
+       * Configurable domain taxonomy for knowledge graph categorization.
+       * Keys are domain names, values include description, owner, and optional parent for hierarchy.
+       * @visibility backend
+       */
+      domainTaxonomy?: { [key: string]: {
+        /** @visibility backend */
+        description?: string;
+        /** @visibility backend */
+        owner?: string;
+        /** @visibility backend */
+        parent?: string;
+      }};
+      /** Minimum confidence for tag-based IMPLEMENTED_BY matching (default: 0.6, range: 0-1)
+       * @visibility backend
+       */
+      matchThreshold?: number;
+      /** Minimum cosine similarity for weak semantic IMPLEMENTED_BY matching (default: 0.6, range: 0-1)
+       * @visibility backend
+       */
+      semanticThreshold?: number;
+      /** Maximum number of SyncEvent audit nodes to retain (default: 50)
+       * @visibility backend
+       */
+      syncEventRetention?: number;
+      /**
+       * Cypher query overrides. Use $include to reference a separate YAML file.
+       * In RHDH/OpenShift, mount the file as a Kubernetes Secret for security.
+       * @visibility backend
+       */
+      queries?: {
+        /** @visibility backend */
+        schema?: {
+          /** @visibility backend */
+          constraints?: { [key: string]: string };
+          /** @visibility backend */
+          indexes?: { [key: string]: string };
+          /** @visibility backend */
+          vectorIndex?: string;
+        };
+        /** @visibility backend */
+        sync?: { [key: string]: string };
+        /** @visibility backend */
+        read?: { [key: string]: string };
+        /** @visibility backend */
+        rag?: { [key: string]: string };
+        /** @visibility backend */
+        tools?: { [key: string]: string };
+      };
       /**
        * Agentic GraphRAG configuration
        * @visibility backend

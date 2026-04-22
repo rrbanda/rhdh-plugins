@@ -31,5 +31,6 @@ export type { AgenticRagConfig } from './AgenticRagService';
 export { validateSkillCard, validateTypedSkillCard } from './SkillCardValidator';
 export type { ValidationResult } from './SkillCardValidator';
 export { SkillContextBuilder } from './SkillContextBuilder';
+export { CypherQueryCatalog } from './CypherQueryCatalog';
 export { getToolRegistry, getToolByName } from './tools';
 export type { AgentTool, ToolContext } from './tools';

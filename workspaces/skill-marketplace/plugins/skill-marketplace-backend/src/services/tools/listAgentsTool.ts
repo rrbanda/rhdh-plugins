@@ -16,50 +16,46 @@
 import neo4jDriver from 'neo4j-driver';
 import type { AgentTool, ToolContext } from './types';
 
-export const listByDomainTool: AgentTool = {
+export const listAgentsTool: AgentTool = {
   definition: {
-    name: 'list_skills_by_domain',
+    name: 'list_agents',
     description:
-      'List all skills belonging to a specific domain/category. Use for questions like "show all security skills" or "what engineering skills exist".',
+      'List all A2A agents registered in the knowledge graph, including their skills. Use for questions like "what agents exist", "which agents are available", or "show agents using skill X".',
     parameters: {
       type: 'object',
       properties: {
-        domain: {
-          type: 'string',
-          description: 'Domain/category name (e.g. "security", "engineering", "devops", "human-resources")',
-        },
         limit: {
           type: 'number',
           description: 'Maximum results (default 20, max 50)',
         },
       },
-      required: ['domain'],
     },
   },
 
   async execute(args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {
-    const domain = String(args.domain || '');
     const limit = Math.min(Number(args.limit) || 20, 50);
 
     const session = await ctx.neo4j.getHealthySession();
     try {
       const cypher = ctx.queryCatalog
-        ? ctx.queryCatalog.get('tools.listSkillsByDomain')
-        : `MATCH (s:Skill) WHERE toLower(s.category) = toLower($domain) RETURN s.name AS name, s.description AS description, s.category AS category, s.version AS version, s.complexity AS complexity, s.author AS author ORDER BY s.name LIMIT $limit`;
+        ? ctx.queryCatalog.get('tools.listAgents')
+        : `MATCH (a:Agent) OPTIONAL MATCH (a)-[:EXPOSES]->(c:AgentCapability) OPTIONAL MATCH (c)-[:IMPLEMENTED_BY]->(s:Skill) RETURN a.name AS name, a.namespace AS namespace, a.status AS status, a.description AS description, a.framework AS framework, a.version AS version, a.streaming AS streaming, collect(DISTINCT c.name) AS capabilities, collect(DISTINCT s.name) AS skills ORDER BY a.name LIMIT $limit`;
       const result = await session.run(
         cypher,
-        { domain, limit: neo4jDriver.int(limit) },
+        { limit: neo4jDriver.int(limit) },
       );
 
       return {
-        domain,
-        skills: result.records.map(r => ({
+        agents: result.records.map(r => ({
           name: r.get('name'),
+          namespace: r.get('namespace'),
+          status: r.get('status'),
           description: r.get('description'),
-          category: r.get('category'),
+          framework: r.get('framework'),
           version: r.get('version'),
-          complexity: r.get('complexity'),
-          author: r.get('author'),
+          streaming: r.get('streaming'),
+          capabilities: r.get('capabilities'),
+          skills: r.get('skills'),
         })),
         count: result.records.length,
       };

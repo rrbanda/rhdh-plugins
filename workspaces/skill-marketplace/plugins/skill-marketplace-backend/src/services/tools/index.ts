@@ -23,6 +23,8 @@ import { exploreGraphTool } from './exploreGraphTool';
 import { queryRelationshipsTool } from './queryRelationshipsTool';
 import { getGraphSchemaTool } from './getGraphSchemaTool';
 import { listByDomainTool } from './listByDomainTool';
+import { listAgentsTool } from './listAgentsTool';
+import { findGapsTool } from './findGapsTool';
 
 const ALL_TOOLS: AgentTool[] = [
   searchSemanticTool,
@@ -32,6 +34,8 @@ const ALL_TOOLS: AgentTool[] = [
   queryRelationshipsTool,
   getGraphSchemaTool,
   listByDomainTool,
+  listAgentsTool,
+  findGapsTool,
 ];
 
 const TOOL_MAP = new Map(ALL_TOOLS.map(t => [t.definition.name, t]));

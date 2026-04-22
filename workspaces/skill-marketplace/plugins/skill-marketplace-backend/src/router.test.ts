@@ -24,7 +24,7 @@ jest.mock('./services/SkillCardValidator', () => ({
 }));
 
 import { createRouter } from './router';
-import type { BuilderProxyService, OciRegistryService, SkillGraphSyncService } from './services';
+import type { BuilderProxyService, OciRegistryService } from './services';
 
 function createMockBuilderProxy(overrides?: Partial<BuilderProxyService>): BuilderProxyService {
   return {

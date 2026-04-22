@@ -48,15 +48,11 @@ export const exploreGraphTool: AgentTool = {
 
     const session = await ctx.neo4j.getHealthySession();
     try {
+      const cypher = ctx.queryCatalog
+        ? ctx.queryCatalog.get('tools.exploreNeighborhood', { depth })
+        : `MATCH (center) WHERE center.name = $nodeId OR center.id = $nodeId MATCH (center)-[r*1..${depth}]-(neighbor) WITH center, collect(DISTINCT neighbor)[0..$limit] AS neighbors, [rel IN collect(DISTINCT last(r)) | {type: type(rel), from: startNode(rel).name, to: endNode(rel).name}] AS connections RETURN center.name AS centerName, labels(center) AS centerLabels, [n IN neighbors | {name: n.name, labels: labels(n), description: n.description}] AS neighbors, connections[0..$limit] AS connections`;
       const result = await session.run(
-        `MATCH (center)
-         WHERE center.name = $nodeId OR center.id = $nodeId
-         MATCH (center)-[r*1..${depth}]-(neighbor)
-         WITH center, collect(DISTINCT neighbor)[0..$limit] AS neighbors,
-              [rel IN collect(DISTINCT last(r)) | {type: type(rel), from: startNode(rel).name, to: endNode(rel).name}] AS connections
-         RETURN center.name AS centerName, labels(center) AS centerLabels,
-                [n IN neighbors | {name: n.name, labels: labels(n), description: n.description}] AS neighbors,
-                connections[0..$limit] AS connections`,
+        cypher,
         { nodeId, limit: neo4jDriver.int(limit) },
       );
 

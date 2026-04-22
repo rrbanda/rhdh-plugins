@@ -23,6 +23,7 @@ import type {
   SkillData,
   MarketplaceData,
   NvlGraphData,
+  GraphSchema,
   GraphRAGQuery,
   GraphRAGResult,
   GraphSyncResult,
@@ -37,9 +38,11 @@ export interface SkillMarketplaceApi {
   getSkillBySlug(slug: string): Promise<SkillData>;
 
   getGraphData(limit?: number): Promise<NvlGraphData>;
+  getGraphSchema(): Promise<GraphSchema>;
   searchGraph(query: string): Promise<NvlGraphData>;
   getNeighborhood(nodeId: string, depth?: number, limit?: number): Promise<NvlGraphData>;
   triggerSync(): Promise<GraphSyncResult>;
+  getSyncStatus(): Promise<{ available: boolean }>;
   queryRAG(query: GraphRAGQuery): Promise<GraphRAGResult>;
   agenticQuery(query: AgenticQuery): Promise<AgenticResult>;
   agenticQueryStreamUrl(query: AgenticQuery): Promise<{ url: string; body: string; headers: Record<string, string> }>;
@@ -58,6 +61,31 @@ export interface SkillMarketplaceApi {
   streamWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string, activeSkill?: string): Promise<Response>;
   listAgentNamespaces(): Promise<{ namespaces: string[] }>;
   getHealth(): Promise<Record<string, unknown>>;
+
+  getAgentsFromGraph(): Promise<{ agents: Array<Record<string, unknown>> }>;
+  getAgentCount(): Promise<{ count: number }>;
+  getAgentSkillsFromGraph(namespace: string, name: string): Promise<{ skills: Array<Record<string, unknown>> }>;
+  getSkillAgents(skillName: string): Promise<{ agents: Array<Record<string, unknown>> }>;
+
+  getAgentCapabilities(namespace: string, name: string): Promise<{ capabilities: Array<Record<string, unknown>> }>;
+  getCatalogGaps(): Promise<{ gaps: Array<Record<string, unknown>> }>;
+  getCatalogGapsCount(): Promise<{ count: number }>;
+  getUnusedSkills(limit?: number): Promise<{ skills: Array<Record<string, unknown>> }>;
+  getTags(limit?: number): Promise<{ tags: Array<Record<string, unknown>> }>;
+
+  getSyncHistory(limit?: number): Promise<{ events: Array<Record<string, unknown>> }>;
+  getQualityAggregate(): Promise<Record<string, unknown>>;
+  verifyMatch(skillId: string, body: { agentName: string; agentNamespace: string; verified: boolean }): Promise<Record<string, unknown>>;
+  overrideMatch(skillId: string, body: { agentName: string; agentNamespace: string; skillName: string }): Promise<Record<string, unknown>>;
+
+  createBundle(body: { name: string; description: string; skillSlugs: string[] }): Promise<Record<string, unknown>>;
+  listBundles(): Promise<{ bundles: Array<Record<string, unknown>> }>;
+  getBundle(id: string): Promise<Record<string, unknown>>;
+  updateBundle(id: string, body: { name?: string; description?: string; skillSlugs?: string[] }): Promise<Record<string, unknown>>;
+  deleteBundle(id: string): Promise<{ ok: boolean }>;
+  exportBundle(id: string): Promise<Record<string, unknown>>;
+  forkBundle(id: string): Promise<Record<string, unknown>>;
+  resolveDependencies(skillNames: string[]): Promise<{ dependencies: Array<Record<string, unknown>>; tools: Array<Record<string, unknown>>; similar: Array<Record<string, unknown>> }>;
 }
 
 /** @public */
@@ -113,6 +141,10 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
     return this.request(`/graph${query}`);
   }
 
+  async getGraphSchema(): Promise<GraphSchema> {
+    return this.request('/graph/schema');
+  }
+
   async searchGraph(query: string): Promise<NvlGraphData> {
     return this.request('/graph/search', {
       method: 'POST',
@@ -133,6 +165,10 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
 
   async triggerSync(): Promise<GraphSyncResult> {
     return this.request('/sync', { method: 'POST' });
+  }
+
+  async getSyncStatus(): Promise<{ available: boolean }> {
+    return this.request('/sync/status');
   }
 
   async queryRAG(query: GraphRAGQuery): Promise<GraphRAGResult> {
@@ -348,5 +384,130 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
 
   async getHealth(): Promise<Record<string, unknown>> {
     return this.request('/health');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Agent graph data (reads from Neo4j)
+  // ---------------------------------------------------------------------------
+
+  async getAgentsFromGraph(): Promise<{ agents: Array<Record<string, unknown>> }> {
+    return this.request('/graph/agents');
+  }
+
+  async getAgentCount(): Promise<{ count: number }> {
+    return this.request('/graph/agents/count');
+  }
+
+  async getAgentSkillsFromGraph(
+    namespace: string,
+    name: string,
+  ): Promise<{ skills: Array<Record<string, unknown>> }> {
+    return this.request(`/graph/agents/${namespace}/${name}/skills`);
+  }
+
+  async getSkillAgents(
+    skillName: string,
+  ): Promise<{ agents: Array<Record<string, unknown>> }> {
+    return this.request(`/graph/skills/${encodeURIComponent(skillName)}/agents`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Two-Card Ontology: capabilities, gaps, tags
+  // ---------------------------------------------------------------------------
+
+  async getAgentCapabilities(
+    namespace: string,
+    name: string,
+  ): Promise<{ capabilities: Array<Record<string, unknown>> }> {
+    return this.request(`/graph/agents/${namespace}/${name}/capabilities`);
+  }
+
+  async getCatalogGaps(): Promise<{ gaps: Array<Record<string, unknown>> }> {
+    return this.request('/graph/capabilities/gaps');
+  }
+
+  async getCatalogGapsCount(): Promise<{ count: number }> {
+    return this.request('/graph/capabilities/gaps/count');
+  }
+
+  async getUnusedSkills(limit?: number): Promise<{ skills: Array<Record<string, unknown>> }> {
+    const qs = limit ? `?limit=${limit}` : '';
+    return this.request(`/graph/skills/unused${qs}`);
+  }
+
+  async getTags(limit?: number): Promise<{ tags: Array<Record<string, unknown>> }> {
+    const qs = limit ? `?limit=${limit}` : '';
+    return this.request(`/graph/tags${qs}`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Enterprise Graph: sync history, quality, governance
+  // ---------------------------------------------------------------------------
+
+  async getSyncHistory(limit?: number): Promise<{ events: Array<Record<string, unknown>> }> {
+    const qs = limit ? `?limit=${limit}` : '';
+    return this.request(`/graph/sync/history${qs}`);
+  }
+
+  async getQualityAggregate(): Promise<Record<string, unknown>> {
+    return this.request('/graph/quality');
+  }
+
+  async verifyMatch(
+    skillId: string,
+    body: { agentName: string; agentNamespace: string; verified: boolean },
+  ): Promise<Record<string, unknown>> {
+    return this.request(`/graph/capabilities/${encodeURIComponent(skillId)}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async overrideMatch(
+    skillId: string,
+    body: { agentName: string; agentNamespace: string; skillName: string },
+  ): Promise<Record<string, unknown>> {
+    return this.request(`/graph/capabilities/${encodeURIComponent(skillId)}/override`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skill Bundles
+  // ---------------------------------------------------------------------------
+
+  async createBundle(body: { name: string; description: string; skillSlugs: string[] }): Promise<Record<string, unknown>> {
+    return this.request('/graph/bundles', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async listBundles(): Promise<{ bundles: Array<Record<string, unknown>> }> {
+    return this.request('/graph/bundles');
+  }
+
+  async getBundle(id: string): Promise<Record<string, unknown>> {
+    return this.request(`/graph/bundles/${encodeURIComponent(id)}`);
+  }
+
+  async updateBundle(id: string, body: { name?: string; description?: string; skillSlugs?: string[] }): Promise<Record<string, unknown>> {
+    return this.request(`/graph/bundles/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  async deleteBundle(id: string): Promise<{ ok: boolean }> {
+    return this.request(`/graph/bundles/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  async exportBundle(id: string): Promise<Record<string, unknown>> {
+    return this.request(`/graph/bundles/${encodeURIComponent(id)}/export`);
+  }
+
+  async forkBundle(id: string): Promise<Record<string, unknown>> {
+    return this.request(`/graph/bundles/${encodeURIComponent(id)}/fork`, { method: 'POST' });
+  }
+
+  async resolveDependencies(skillNames: string[]): Promise<{ dependencies: Array<Record<string, unknown>>; tools: Array<Record<string, unknown>>; similar: Array<Record<string, unknown>> }> {
+    return this.request('/graph/bundles/resolve', { method: 'POST', body: JSON.stringify({ skillNames }) });
   }
 }

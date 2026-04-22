@@ -17,7 +17,7 @@ import { mockServices } from '@backstage/backend-test-utils';
 import { BuilderProxyService } from './BuilderProxyService';
 import type { BuilderSSEEvent } from './BuilderProxyService';
 
-function createMockKagenti(overrides) {
+function createMockKagenti(overrides?: Record<string, unknown>): any {
   return Object.assign({
     sendMessage: jest.fn().mockResolvedValue({
       status: 200,
@@ -40,7 +40,7 @@ function createMockKagenti(overrides) {
  * Build a mock node-fetch Response whose body is an async iterable
  * yielding the given SSE lines (mimicking Kagenti /stream output).
  */
-function mockStreamResponse(chunks) {
+function mockStreamResponse(chunks: string[]) {
   const body = {
     [Symbol.asyncIterator]: function() {
       let idx = 0;
@@ -105,8 +105,8 @@ describe('BuilderProxyService (Kagenti ChatRequest)', () => {
       expect(types).toContain('complete');
 
       const complete = events.find(function(e) { return e.event === 'complete'; });
-      expect(complete.data.skill_content).toContain('# Code Review Skill');
-      expect(complete.data.validation).toBe('passed');
+      expect(complete!.data.skill_content).toContain('# Code Review Skill');
+      expect(complete!.data.validation).toBe('passed');
     });
 
     it('passes context_id as session_id', async () => {
@@ -240,7 +240,7 @@ describe('BuilderProxyService (Kagenti ChatRequest)', () => {
       expect(outputs[1].data.text).toBe('Part 2.');
 
       const complete = collected.find(function(e) { return e.event === 'complete'; });
-      expect(complete.data.skill_content).toBe('Part 1. Part 2.');
+      expect(complete!.data.skill_content).toBe('Part 1. Part 2.');
     });
 
     it('calls kagenti.streamMessage with correct args', async () => {
@@ -313,7 +313,7 @@ describe('BuilderProxyService (Kagenti ChatRequest)', () => {
       );
 
       const complete = collected.find(function(e) { return e.event === 'complete'; });
-      expect(complete.data.skill_content).toBe('Refined skill.');
+      expect(complete!.data.skill_content).toBe('Refined skill.');
     });
   });
 });

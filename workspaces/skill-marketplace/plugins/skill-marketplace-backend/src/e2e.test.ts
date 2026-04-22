@@ -47,7 +47,6 @@ import { createMockBuilderServer } from './__fixtures__/mock-builder';
 
 const MOCK_BUILDER_PORT = 18001;
 const OCI_REGISTRY_URL = 'http://localhost:5050';
-const NEO4J_URI = 'bolt://localhost:7687';
 
 async function isPortReachable(url: string): Promise<boolean> {
   try {
@@ -60,16 +59,12 @@ async function isPortReachable(url: string): Promise<boolean> {
 
 let mockBuilderServer: Server | null = null;
 let ociAvailable = false;
-let neo4jAvailable = false;
 
 beforeAll(async () => {
   const builder = createMockBuilderServer(MOCK_BUILDER_PORT);
   mockBuilderServer = await builder.start();
 
   ociAvailable = await isPortReachable(`${OCI_REGISTRY_URL}/v2/`);
-  neo4jAvailable = await isPortReachable(
-    `http://localhost:7474`,
-  );
 }, 15000);
 
 afterAll(async () => {
@@ -162,7 +157,7 @@ describe('E2E: OCI registry integration', () => {
 
     const logger = mockServices.logger.mock();
     mockOciRegistry = new OciRegistryService(
-      [{ url: `${OCI_REGISTRY_URL}/v2/test-skills`, name: 'test-registry' }],
+      { registries: [{ url: `${OCI_REGISTRY_URL}/v2/test-skills`, name: 'test-registry' }], cacheTimeout: 300 },
       logger,
     );
 
@@ -223,7 +218,7 @@ describe('E2E: Full pipeline with builder + publish', () => {
 
     if (ociAvailable) {
       const ociRegistry = new OciRegistryService(
-        [{ url: `${OCI_REGISTRY_URL}/v2/test-skills`, name: 'test-registry' }],
+        { registries: [{ url: `${OCI_REGISTRY_URL}/v2/test-skills`, name: 'test-registry' }], cacheTimeout: 300 },
         logger,
       );
       routerOpts.ociRegistry = ociRegistry;

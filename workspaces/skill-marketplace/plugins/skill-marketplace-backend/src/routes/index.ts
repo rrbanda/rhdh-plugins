@@ -25,6 +25,7 @@ export { registerGraphRoutes } from './graphRoutes';
 export { registerBuilderRoutes } from './builderRoutes';
 export { registerKagentiRoutes } from './kagentiRoutes';
 export { registerSyncRoutes } from './syncRoutes';
+export { registerBundleRoutes } from './bundleRoutes';
 export { registerRagRoutes } from './ragRoutes';
 export { registerAgenticRoutes } from './agenticRoutes';
 export { registerLifecycleRoutes } from './lifecycleRoutes';

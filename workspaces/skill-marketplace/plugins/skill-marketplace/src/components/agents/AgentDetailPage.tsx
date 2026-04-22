@@ -180,7 +180,7 @@ export default function AgentDetailPage() {
             color: (agent.status ?? agent.readyStatus) === 'Ready' ? '#059669' : '#d97706',
           }}
         >
-          {agent.status ?? agent.readyStatus ?? 'Unknown'}
+          {typeof agent.status === 'string' ? agent.status : (agent.readyStatus ?? 'Unknown')}
         </span>
       </div>
 

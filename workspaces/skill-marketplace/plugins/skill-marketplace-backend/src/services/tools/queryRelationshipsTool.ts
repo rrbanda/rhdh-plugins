@@ -17,14 +17,12 @@ import neo4jDriver from 'neo4j-driver';
 import type { AgentTool, ToolContext } from './types';
 
 const ALLOWED_REL_TYPES = new Set([
-  'USES_TOOL', 'OPTIONALLY_USES', 'DEPENDS_ON', 'RELATED_TO',
-  'SIMILAR_TO', 'BELONGS_TO', 'EXTENDS', 'COMPLEMENTS',
-  'ALTERNATIVE_TO', 'PRECEDES', 'SAME_PLUGIN', 'SAME_DOMAIN',
-  'CROSS_LANGUAGE', 'USES_AUTH', 'MEMBER_OF',
+  'USES_TOOL', 'DEPENDS_ON', 'RELATED_TO', 'SIMILAR_TO', 'BELONGS_TO',
+  'EXPOSES', 'IMPLEMENTED_BY', 'TAGGED_WITH', 'PARENT_OF',
 ]);
 
 const ALLOWED_LABELS = new Set([
-  'Skill', 'Tool', 'Domain', 'Plugin', 'AuthMethod',
+  'Skill', 'Tool', 'Domain', 'Agent', 'AgentCapability', 'Tag', 'SyncEvent',
 ]);
 
 export const queryRelationshipsTool: AgentTool = {
@@ -37,15 +35,15 @@ export const queryRelationshipsTool: AgentTool = {
       properties: {
         fromLabel: {
           type: 'string',
-          description: 'Label of the source node (e.g. "Skill", "Tool", "Domain")',
+          description: 'Label of the source node. Available: Skill, Tool, Domain, Agent, AgentCapability, Tag',
         },
         relationType: {
           type: 'string',
-          description: 'Relationship type (e.g. "USES_TOOL", "DEPENDS_ON", "BELONGS_TO", "SIMILAR_TO")',
+          description: 'Relationship type. Available: USES_TOOL, DEPENDS_ON, RELATED_TO, SIMILAR_TO, BELONGS_TO, EXPOSES, IMPLEMENTED_BY, TAGGED_WITH',
         },
         toLabel: {
           type: 'string',
-          description: 'Label of the target node (e.g. "Tool", "Skill", "Domain")',
+          description: 'Label of the target node. Available: Skill, Tool, Domain, Agent, AgentCapability, Tag',
         },
         nodeName: {
           type: 'string',
@@ -91,11 +89,9 @@ export const queryRelationshipsTool: AgentTool = {
       params.nodeName = nodeName;
     }
 
-    const cypher = `MATCH ${fromClause}-${relClause}->${toClause}
-       ${whereClause}
-       RETURN a.name AS from, type(r) AS relType, b.name AS to,
-              labels(a) AS fromLabels, labels(b) AS toLabels
-       LIMIT $limit`;
+    const cypher = ctx.queryCatalog
+      ? ctx.queryCatalog.get('tools.queryRelationships', { fromClause, relClause, toClause, whereClause })
+      : `MATCH ${fromClause}-${relClause}->${toClause} ${whereClause} RETURN a.name AS from, type(r) AS relType, b.name AS to, labels(a) AS fromLabels, labels(b) AS toLabels LIMIT $limit`;
 
     const session = await ctx.neo4j.getHealthySession();
     try {

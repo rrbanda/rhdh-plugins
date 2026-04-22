@@ -16,6 +16,7 @@
 import { useNavigate } from 'react-router-dom';
 import type { SkillData, ComplexityLevel } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import { humanize } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import { useBundle } from '../../hooks';
 
 interface SkillCardProps {
   skill: SkillData;
@@ -48,9 +49,11 @@ function estimateComplexity(skill: SkillData): ComplexityLevel {
 
 export function SkillCard({ skill }: SkillCardProps) {
   const navigate = useNavigate();
+  const { addSkill, hasSkill } = useBundle();
   const complexity = estimateComplexity(skill);
   const pluginColor = skill.plugin.color ?? '#6b7280';
   const cStyles = COMPLEXITY_STYLES[complexity] ?? COMPLEXITY_STYLES.Medium;
+  const inBundle = hasSkill(skill.skillName);
 
   const title =
     skill.sections.title || humanize(skill.name);
@@ -60,10 +63,12 @@ export function SkillCard({ skill }: SkillCardProps) {
     .replace(/^[a-z]/, c => c.toUpperCase());
 
   return (
-    <button
-      type="button"
+    <div
+      role="link"
+      tabIndex={0}
       className="sm-card"
       onClick={() => navigate(skill.slug)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(skill.slug); } }}
     >
       {/* Left color bar */}
       <span className="sm-card-bar" style={{ backgroundColor: pluginColor }} />
@@ -145,9 +150,36 @@ export function SkillCard({ skill }: SkillCardProps) {
             )}
           </div>
 
+          <button
+            type="button"
+            className="sm-card-bundle-btn"
+            title={inBundle ? 'Already in bundle' : 'Add to Bundle'}
+            aria-label={inBundle ? `${title} already in bundle` : `Add ${title} to bundle`}
+            disabled={inBundle}
+            onClick={e => {
+              e.stopPropagation();
+              if (!inBundle) {
+                addSkill({
+                  name: skill.skillName,
+                  slug: skill.slug,
+                  category: skill.pluginName,
+                  description: skill.description,
+                });
+              }
+            }}
+            style={{
+              width: 28, height: 28, borderRadius: 6, border: 'none',
+              background: inBundle ? '#10b98118' : 'transparent',
+              color: inBundle ? '#059669' : '#6a6e73',
+              cursor: inBundle ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}
+          >
+            {inBundle ? '✓' : '+'}
+          </button>
           <span className="sm-card-arrow">→</span>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

@@ -19,6 +19,8 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import type {
   KagentiAgent,
   AgentDeployRequest,
+  AgentCardData,
+  AgentSkillRef,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 export interface KagentiConfig {
@@ -535,5 +537,83 @@ export class KagentiService {
         createdAt: agentCreatedAt || '',
       };
     });
+  }
+
+  private static readonly AGENT_CARD_TIMEOUT_MS = 5_000;
+
+  private parseAgentCard(raw: unknown): AgentCardData | undefined {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const d = raw as Record<string, unknown>;
+    if (!d.name || !d.url) return undefined;
+
+    const parseSkills = (arr: unknown): AgentSkillRef[] => {
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object' && typeof s.id === 'string')
+        .map(s => ({
+          id: String(s.id),
+          name: String(s.name ?? s.id),
+          description: String(s.description ?? ''),
+          tags: Array.isArray(s.tags) ? s.tags.map(String) : [],
+          examples: Array.isArray(s.examples) ? s.examples.map(String) : undefined,
+          inputModes: Array.isArray(s.inputModes) ? s.inputModes.map(String) : undefined,
+          outputModes: Array.isArray(s.outputModes) ? s.outputModes.map(String) : undefined,
+        }));
+    };
+
+    const caps = (d.capabilities ?? {}) as Record<string, unknown>;
+    const auth = d.authentication as Record<string, unknown> | undefined;
+    const provider = d.provider as Record<string, unknown> | undefined;
+
+    return {
+      name: String(d.name),
+      description: String(d.description ?? ''),
+      url: String(d.url),
+      version: String(d.version ?? ''),
+      documentationUrl: d.documentationUrl ? String(d.documentationUrl) : undefined,
+      provider: provider ? { organization: String(provider.organization ?? ''), url: String(provider.url ?? '') } : undefined,
+      capabilities: {
+        streaming: caps.streaming === true,
+        pushNotifications: caps.pushNotifications === true,
+        stateTransitionHistory: caps.stateTransitionHistory === true,
+      },
+      authentication: auth ? { schemes: Array.isArray(auth.schemes) ? auth.schemes.map(String) : [], credentials: auth.credentials ? String(auth.credentials) : undefined } : undefined,
+      defaultInputModes: Array.isArray(d.defaultInputModes) ? d.defaultInputModes.map(String) : ['text/plain'],
+      defaultOutputModes: Array.isArray(d.defaultOutputModes) ? d.defaultOutputModes.map(String) : ['text/plain'],
+      skills: parseSkills(d.skills),
+    };
+  }
+
+  async listAgentsWithCards(
+    namespace?: string,
+  ): Promise<KagentiAgent[]> {
+    const agents = await this.listAgentsParsed(namespace);
+    if (agents.length === 0) return agents;
+
+    const enriched = await Promise.all(
+      agents.map(async (agent): Promise<KagentiAgent> => {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), KagentiService.AGENT_CARD_TIMEOUT_MS);
+          try {
+            const card = await this.getAgentCard(agent.namespace, agent.name);
+            clearTimeout(timer);
+            if (card.status === 200) {
+              const parsed = this.parseAgentCard(card.data);
+              if (parsed) {
+                return { ...agent, agentCard: parsed };
+              }
+            }
+          } finally {
+            clearTimeout(timer);
+          }
+        } catch (err) {
+          this.logger.debug(`AgentCard fetch failed for ${agent.namespace}/${agent.name}: ${(err as Error).message}`);
+        }
+        return agent;
+      }),
+    );
+
+    return enriched;
   }
 }

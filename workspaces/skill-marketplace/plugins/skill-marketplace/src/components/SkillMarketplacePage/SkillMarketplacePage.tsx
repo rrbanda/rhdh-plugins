@@ -28,9 +28,12 @@ import SkillsPage from '../skills/SkillsPage';
 import SkillDetailPage from '../skills/SkillDetailPage';
 import GraphPage from '../graph/GraphPage';
 import BuilderStudio from '../builder/BuilderStudio';
-import AgentsPage from '../agents/AgentsPage';
-import AgentDetailPage from '../agents/AgentDetailPage';
-import { useSkills, SkillsProvider } from '../../hooks';
+import GapsExplorer from '../graph/GapsExplorer';
+import AnalyticsPage from '../graph/AnalyticsPage';
+import SkillsPlayground from '../agents/AgentsPage';
+import BundleBrowser from '../bundles/BundleBrowser';
+import BundleCart from '../bundles/BundleCart';
+import { useSkills, SkillsProvider, BundleProvider, useBundle } from '../../hooks';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const SkillMarketplacePageInner = () => {
@@ -38,6 +41,7 @@ const SkillMarketplacePageInner = () => {
   const location = useLocation();
   const basePath = useRouteRef(rootRouteRef)();
   const { skills, marketplace, loading } = useSkills();
+  const { toggleDrawer, skills: cartSkills } = useBundle();
   const [showIntro, setShowIntro] = useState(() => !localStorage.getItem(INTRO_KEY));
 
   const dismissIntro = useCallback(() => {
@@ -56,9 +60,12 @@ const SkillMarketplacePageInner = () => {
   const navItems = [
     { label: 'Overview', path: '' },
     { label: 'Skills', path: 'skills' },
-    { label: 'Playground', path: 'agents' },
+    { label: 'Bundles', path: 'bundles' },
+    { label: 'Gaps', path: 'gaps' },
     { label: 'Skill Graph', path: 'graph' },
+    { label: 'Analytics', path: 'analytics' },
     { label: 'Skill Builder', path: 'builder' },
+    { label: 'Skills Playground', path: 'playground' },
   ];
 
   const isActive = (path: string) => {
@@ -118,6 +125,13 @@ const SkillMarketplacePageInner = () => {
             </button>
           ))}
         </div>
+        <button className="sm-cart-btn" onClick={toggleDrawer} aria-label={`Skill Bundle Cart${cartSkills.length > 0 ? `, ${cartSkills.length} items` : ''}`}>
+          <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+            <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
+          </svg>
+          {cartSkills.length > 0 && <span className="sm-cart-badge">{cartSkills.length}</span>}
+        </button>
       </nav>
       <div className="sm-content">
         <PluginErrorBoundary>
@@ -125,10 +139,12 @@ const SkillMarketplacePageInner = () => {
             <Route index element={<OverviewPage />} />
             <Route path="skills" element={<SkillsPage />} />
             <Route path="skills/:slug" element={<SkillDetailPage />} />
-            <Route path="agents" element={<AgentsPage />} />
-            <Route path="agents/:namespace/:name" element={<AgentDetailPage />} />
+            <Route path="bundles" element={<BundleBrowser />} />
+            <Route path="gaps" element={<GapsExplorer />} />
             <Route path="graph" element={<GraphPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="builder" element={<BuilderStudio />} />
+            <Route path="playground" element={<SkillsPlayground />} />
           </Routes>
         </PluginErrorBoundary>
       </div>
@@ -138,7 +154,10 @@ const SkillMarketplacePageInner = () => {
 
 export const SkillMarketplacePage = () => (
   <SkillsProvider>
-    <SkillMarketplacePageInner />
+    <BundleProvider>
+      <SkillMarketplacePageInner />
+      <BundleCart />
+    </BundleProvider>
   </SkillsProvider>
 );
 
@@ -186,6 +205,7 @@ const layoutStyles = `
   .sm-topnav {
     display: flex;
     align-items: center;
+    gap: 12px;
     padding: 0 24px;
     height: 44px;
     border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
@@ -198,7 +218,11 @@ const layoutStyles = `
     gap: 4px;
     height: 100%;
     align-items: stretch;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
+  .sm-tabs::-webkit-scrollbar { display: none; }
   .sm-tab {
     display: flex;
     align-items: center;
@@ -229,5 +253,36 @@ const layoutStyles = `
     flex: 1;
     overflow: auto;
     min-height: 0;
+  }
+  .sm-cart-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
+    background: var(--pf-t--global--background--color--primary--default, #fff);
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .sm-cart-btn:hover {
+    border-color: var(--pf-t--global--color--brand--default, #0066cc);
+    color: var(--pf-t--global--color--brand--default, #0066cc);
+  }
+  .sm-cart-badge {
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--pf-t--global--color--brand--default, #0066cc);
+    color: #fff;
+    font-weight: 700;
+    line-height: 16px;
+    min-width: 16px;
+    text-align: center;
   }
 `;

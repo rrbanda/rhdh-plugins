@@ -64,6 +64,7 @@ export function useAgenticSearch() {
     let sources: string[] = [];
     let durationMs = 0;
     let iterations = 0;
+    let lastToolInput: Record<string, unknown> = {};
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -156,6 +157,7 @@ export function useAgenticSearch() {
           break;
 
         case 'tool_call':
+          lastToolInput = (d.input as Record<string, unknown>) ?? {};
           setStreaming({
             status: 'tool_call',
             currentTool: String(d.tool),
@@ -166,10 +168,11 @@ export function useAgenticSearch() {
         case 'tool_result':
           steps.push({
             tool: String(d.tool),
-            input: {},
+            input: lastToolInput,
             output: d.summary,
             durationMs: Number(d.durationMs) || 0,
           });
+          lastToolInput = {};
           setStreaming({
             status: 'tool_result',
             currentTool: String(d.tool),

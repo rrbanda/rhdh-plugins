@@ -27,6 +27,8 @@ import type {
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
 import AgenticPanel from './AgenticPanel';
+import GraphInsightsBar from './GraphInsightsBar';
+import { useBundle } from '../../hooks';
 
 type LayoutMode = 'forceDirected' | 'hierarchical';
 
@@ -39,16 +41,53 @@ const GRAPH_DEFAULTS = {
   MIN_SEARCH_LENGTH: 2,
 } as const;
 
+function AddToBundleGraphBtn({ node }: { node: { id: string; properties: Record<string, unknown> } }) {
+  const { addSkill, hasSkill } = useBundle();
+  const name = String(node.properties.name || node.id);
+  const inBundle = hasSkill(name);
+  return (
+    <button
+      className="explore-btn"
+      style={{ marginTop: 4, opacity: inBundle ? 0.5 : 1 }}
+      disabled={inBundle}
+      onClick={() => {
+        if (!inBundle) {
+          addSkill({
+            name,
+            slug: `${node.properties.category || 'skill'}-${name}`,
+            category: String(node.properties.category || ''),
+            description: String(node.properties.description || ''),
+          });
+        }
+      }}
+    >
+      {inBundle ? '✓ In Bundle' : '+ Add to Bundle'}
+    </button>
+  );
+}
+
 const REL_COLORS: Record<string, string> = {
-  SAME_PLUGIN: '#06b6d4',
-  USES_AUTH: '#ef4444',
-  SAME_DOMAIN: '#8b5cf6',
-  COMPLEMENTS: '#10b981',
-  CROSS_LANGUAGE: '#f59e0b',
+  USES_TOOL: '#3b82f6',
+  BELONGS_TO: '#10b981',
   DEPENDS_ON: '#ef4444',
-  ALTERNATIVE_TO: '#f59e0b',
-  EXTENDS: '#8b5cf6',
-  PRECEDES: '#06b6d4',
+  RELATED_TO: '#8b5cf6',
+  SIMILAR_TO: '#06b6d4',
+  EXPOSES: '#f59e0b',
+  IMPLEMENTED_BY: '#22c55e',
+  TAGGED_WITH: '#a855f7',
+  PARENT_OF: '#64748b',
+};
+
+const REL_TIPS: Record<string, string> = {
+  USES_TOOL: 'Skill depends on this tool at runtime',
+  BELONGS_TO: 'Skill is classified under this domain',
+  DEPENDS_ON: 'Skill requires another skill as a prerequisite',
+  RELATED_TO: 'Skills are topically related by keyword overlap',
+  SIMILAR_TO: 'Skills have high semantic similarity (vector match)',
+  EXPOSES: 'Agent declares this capability',
+  IMPLEMENTED_BY: 'Agent capability is fulfilled by this skill',
+  TAGGED_WITH: 'Node is annotated with this tag',
+  PARENT_OF: 'Domain has this subdomain',
 };
 
 const HIDDEN_PROPS = new Set([
@@ -62,6 +101,7 @@ export default function GraphPage() {
   const api = useApi(skillMarketplaceApiRef);
   const { data, loading, error, refetch } = useGraphData(GRAPH_DEFAULTS.INITIAL_GRAPH_LIMIT);
   const nvlRef = useRef<NVL | null>(null);
+  const triggerSync = useCallback(() => { api.triggerSync().catch(() => {}); }, [api]);
 
   const [layout, setLayout] = useState<LayoutMode>('forceDirected');
   const [searchQuery, setSearchQuery] = useState('');
@@ -364,10 +404,53 @@ export default function GraphPage() {
     );
   }
   if (!data)
-    return <ErrorMessage message="No graph data available. Is Neo4j running?" />;
+    return (
+      <div style={{ padding: 48, textAlign: 'center', maxWidth: 540, margin: '0 auto' }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>No Graph Data Available</h2>
+        <p style={{ color: '#6b7280', lineHeight: 1.6 }}>
+          The knowledge graph database is not returning data. Make sure Neo4j is running and configured in your <code>app-config.yaml</code> under <code>skillMarketplace.neo4j</code>.
+        </p>
+        <button onClick={refetch} style={{ marginTop: 16, padding: '10px 24px', borderRadius: 8, border: '1px solid #d2d2d2', background: '#0066cc', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+          Retry
+        </button>
+      </div>
+    );
 
   const pluginGroups: PluginGroup[] = data.schema.pluginGroups ?? [];
   const hasRelTypes = data.schema.relationshipTypes.length > 0;
+  const isEmpty = data.schema.totalNodes === 0;
+
+  if (isEmpty) {
+    return (
+      <div className="graph-page-root">
+        <style>{graphPageStyles}</style>
+        <div style={{ padding: 48, textAlign: 'center', maxWidth: 640, margin: '40px auto' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700 }}>Your Knowledge Graph is Empty</h2>
+          <p style={{ color: '#6b7280', lineHeight: 1.7, margin: '0 0 24px' }}>
+            The graph syncs automatically when skills are loaded from OCI registries and agents are registered via Kagenti.
+            To get started:
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left', maxWidth: 500, margin: '0 auto 32px' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ background: '#0066cc', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>1</span>
+              <span style={{ fontSize: 14, lineHeight: 1.6 }}><strong>Add skills</strong> &mdash; Use the Skill Builder to author skill definitions, or configure an OCI registry in your <code>app-config.yaml</code>.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ background: '#0066cc', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>2</span>
+              <span style={{ fontSize: 14, lineHeight: 1.6 }}><strong>Connect agents</strong> &mdash; Configure Kagenti so agent capabilities are synced into the graph.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ background: '#0066cc', color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>3</span>
+              <span style={{ fontSize: 14, lineHeight: 1.6 }}><strong>Trigger sync</strong> &mdash; The graph syncs on startup and periodically. You can also trigger it manually.</span>
+            </div>
+          </div>
+          <button onClick={() => { triggerSync(); refetch(); }} style={{ padding: '10px 24px', borderRadius: 8, border: '1px solid #d2d2d2', background: '#0066cc', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Trigger Sync Now
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="graph-page-root">
@@ -375,16 +458,23 @@ export default function GraphPage() {
 
       {/* Header */}
       <div className="graph-header">
-        <h1 className="graph-title">Skill Knowledge Graph</h1>
-        <span className="graph-stats">
-          {data.schema.totalNodes} nodes &middot;{' '}
-          {data.schema.totalRelationships} relationships
-          {data.schema.pluginGroups.length > 0 && (
-            <> &middot; {data.schema.pluginGroups.length} domains</>
-          )}
-        </span>
-        <AutoSyncIndicator intervalMs={GRAPH_DEFAULTS.AUTO_REFRESH_MS} />
+        <div className="graph-header-top">
+          <h1 className="graph-title">Skill Knowledge Graph</h1>
+          <span className="graph-stats">
+            {data.schema.totalNodes} nodes &middot;{' '}
+            {data.schema.totalRelationships} relationships
+            {data.schema.pluginGroups.length > 0 && (
+              <> &middot; {data.schema.pluginGroups.length} domains</>
+            )}
+          </span>
+          <AutoSyncIndicator intervalMs={GRAPH_DEFAULTS.AUTO_REFRESH_MS} />
+        </div>
+        <p className="graph-onboarding">
+          Explore how skills, agents, tools, and domains are connected. Click a node for details. Use the AI assistant to ask natural-language questions about your graph.
+        </p>
       </div>
+
+      <GraphInsightsBar />
 
       {/* Main content */}
       <div className="graph-body">
@@ -580,7 +670,7 @@ export default function GraphPage() {
               {data.schema.relationshipTypes.map(({ type, count }) => {
                 const c = REL_COLORS[type] ?? '#475569';
                 return (
-                  <span key={type} className="rel-legend-item">
+                  <span key={type} className="rel-legend-item" title={REL_TIPS[type] ?? ''}>
                     <span
                       className="rel-legend-line"
                       style={{ backgroundColor: c }}
@@ -761,6 +851,107 @@ function DetailPanel({
             <button className="explore-btn" onClick={() => onExplore(node.id)}>
               Explore Neighborhood
             </button>
+            <AddToBundleGraphBtn node={node} />
+          </div>
+        )}
+
+        {/* AgentCapability-specific metadata */}
+        {node.labels.includes('AgentCapability') && (
+          <div className="detail-section">
+            {node.properties.agentName ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Agent</span>
+                <span className="skill-meta-value">{String(node.properties.agentName)}/{String(node.properties.agentNamespace)}</span>
+              </div>
+            ) : null}
+            {node.properties.skillId ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Skill ID</span>
+                <span className="skill-meta-value" style={{ fontSize: 12, fontFamily: 'monospace' }}>{String(node.properties.skillId)}</span>
+              </div>
+            ) : null}
+            {Array.isArray(node.properties.tags) && (node.properties.tags as string[]).length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {(node.properties.tags as string[]).map(t => (
+                  <span key={t} className="ac-cap-badge" style={{ background: 'rgba(168,85,247,0.1)', color: '#a855f7' }}>{t}</span>
+                ))}
+              </div>
+            )}
+            {Array.isArray(node.properties.examples) && (node.properties.examples as string[]).length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <span className="skill-meta-label" style={{ display: 'block', marginBottom: 4 }}>Examples</span>
+                {(node.properties.examples as string[]).slice(0, 3).map((ex, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#6a6e73', padding: '2px 0', fontStyle: 'italic' }}>
+                    &ldquo;{ex}&rdquo;
+                  </div>
+                ))}
+              </div>
+            )}
+            <button className="explore-btn" onClick={() => onExplore(node.id)}>
+              Explore Neighborhood
+            </button>
+          </div>
+        )}
+
+        {/* Tag-specific metadata */}
+        {node.labels.includes('Tag') && (
+          <div className="detail-section">
+            <button className="explore-btn" onClick={() => onExplore(node.id)}>
+              Explore Neighborhood
+            </button>
+          </div>
+        )}
+
+        {/* Agent-specific metadata */}
+        {node.labels.includes('Agent') && (
+          <div className="detail-section">
+            {node.properties.namespace ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Namespace</span>
+                <span className="skill-meta-value">{String(node.properties.namespace)}</span>
+              </div>
+            ) : null}
+            {node.properties.status ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Status</span>
+                <span className="skill-meta-value" style={{ color: node.properties.status === 'Ready' ? '#10b981' : node.properties.status === 'Error' ? '#ef4444' : '#f59e0b' }}>
+                  {String(node.properties.status)}
+                </span>
+              </div>
+            ) : null}
+            {node.properties.framework ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Framework</span>
+                <span className="skill-meta-value">{String(node.properties.framework)}</span>
+              </div>
+            ) : null}
+            {node.properties.version ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">Version</span>
+                <span className="skill-meta-value">{String(node.properties.version)}</span>
+              </div>
+            ) : null}
+            {node.properties.url ? (
+              <div className="skill-meta-row">
+                <span className="skill-meta-label">URL</span>
+                <span className="skill-meta-value" style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all' }}>{String(node.properties.url)}</span>
+              </div>
+            ) : null}
+            <div className="agent-cap-badges">
+              {node.properties.streaming === true && <span className="ac-cap-badge">Streaming</span>}
+              {node.properties.pushNotifications === true && <span className="ac-cap-badge">Push</span>}
+            </div>
+            {typeof node.properties.skillCount === 'number' && Number(node.properties.skillCount) > 0 && (
+              <div className="skill-meta-row" style={{ marginTop: 4 }}>
+                <span className="skill-meta-label">Skills</span>
+                <span className="skill-meta-value" style={{ color: '#f59e0b', fontWeight: 700 }}>
+                  {Number(node.properties.skillCount)} linked
+                </span>
+              </div>
+            )}
+            <button className="explore-btn" onClick={() => onExplore(node.id)}>
+              Explore Neighborhood
+            </button>
           </div>
         )}
 
@@ -844,6 +1035,12 @@ const graphPageStyles = `
   .graph-header {
     padding: 16px 24px 8px;
   }
+  .graph-header-top {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
   .graph-title {
     font-size: 20px;
     font-weight: 700;
@@ -853,6 +1050,12 @@ const graphPageStyles = `
   .graph-stats {
     font-size: 13px;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
+  }
+  .graph-onboarding {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--pf-t--global--text--color--subtle, #6a6e73);
+    line-height: 1.5;
   }
 
   .graph-body {
@@ -1372,6 +1575,23 @@ const graphPageStyles = `
     height: 4px;
     border-radius: 50%;
     background: var(--pf-t--global--color--brand--default, #0066cc);
+  }
+
+  /* Agent capability badges */
+  .agent-cap-badges {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .ac-cap-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(16,185,129,0.1);
+    color: #10b981;
   }
 
   /* Explore button */

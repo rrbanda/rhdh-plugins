@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import * as crypto from 'crypto';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Skill } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import { getComplexity, getPluginColor } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
@@ -24,6 +23,26 @@ import type { KagentiService } from './KagentiService';
 import { EmbeddingService } from './EmbeddingService';
 import { GraphSchemaManager } from './GraphSchemaManager';
 import { parseRelatedSkills } from './RelatedSkillsParser';
+import type { CypherQueryCatalog } from './CypherQueryCatalog';
+import {
+  categoriesOf,
+  normalizeName,
+  computeSkillCompleteness,
+  computeAgentCompleteness,
+  computeCapabilityCompleteness,
+  contentHash,
+} from './graphUtils';
+import type { DomainTaxonomyEntry, CategoryAssignment } from './graphUtils';
+
+export type { DomainTaxonomyEntry, CategoryAssignment };
+export { categoriesOf, normalizeName, computeSkillCompleteness, computeAgentCompleteness, computeCapabilityCompleteness, contentHash };
+
+export interface ToolMetadataEntry {
+  description?: string;
+  docsUrl?: string;
+  version?: string;
+  deprecated?: boolean;
+}
 
 export interface GraphSyncConfig {
   embeddingApiUrl?: string;
@@ -34,6 +53,11 @@ export interface GraphSyncConfig {
   similarityThreshold?: number;
   categoryKeywords?: Record<string, string[]>;
   similarityTopK?: number;
+  toolMetadata?: Record<string, ToolMetadataEntry>;
+  domainTaxonomy?: Record<string, DomainTaxonomyEntry>;
+  matchThreshold?: number;
+  semanticThreshold?: number;
+  syncEventRetention?: number;
 }
 
 const DEFAULT_CATEGORY_KEYWORDS: [string, string[]][] = [
@@ -57,30 +81,6 @@ function buildCategoryKeywords(custom?: Record<string, string[]>): [string, stri
   return Array.from(merged.entries());
 }
 
-function categoryOf(skill: Skill, keywords: [string, string[]][]): string {
-  const tags = skill.card.metadata.tags;
-  if (tags && tags.length > 0) {
-    const tagStr = tags.join(' ').toLowerCase();
-    for (const [cat, kws] of keywords) {
-      if (kws.some(kw => tagStr.includes(kw))) return cat;
-    }
-  }
-  const haystack =
-    `${skill.card.metadata.name} ${skill.card.metadata.description ?? ''}`.toLowerCase();
-  for (const [cat, kws] of keywords) {
-    if (kws.some(kw => haystack.includes(kw))) return cat;
-  }
-  return 'general';
-}
-
-function contentHash(skill: Skill, content?: string): string {
-  const data = JSON.stringify({
-    card: skill.card,
-    content: content ?? '',
-    ociReference: skill.ociReference,
-  });
-  return crypto.createHash('sha256').update(data).digest('hex').slice(0, 16);
-}
 
 const DEADLOCK_MAX_RETRIES = 3;
 
@@ -114,6 +114,12 @@ export class SkillGraphSyncService {
   private readonly categoryKeywords: [string, string[]][];
   private readonly similarityThreshold: number;
   private readonly similarityTopK: number;
+  private readonly qc?: CypherQueryCatalog;
+  private readonly toolMetadata: Record<string, ToolMetadataEntry>;
+  private readonly domainTaxonomy: Record<string, DomainTaxonomyEntry>;
+  private readonly matchThreshold: number;
+  private readonly semanticThreshold: number;
+  private readonly syncEventRetention: number;
   private syncing = false;
   private syncPromise: Promise<GraphSyncResult> | null = null;
 
@@ -123,6 +129,8 @@ export class SkillGraphSyncService {
     ociRegistry: OciRegistryService;
     kagenti?: KagentiService;
     config: GraphSyncConfig;
+    embeddingService?: EmbeddingService;
+    queryCatalog?: CypherQueryCatalog;
   }) {
     this.logger = options.logger;
     this.neo4j = options.neo4j;
@@ -131,13 +139,22 @@ export class SkillGraphSyncService {
     this.similarityThreshold = options.config.similarityThreshold ?? 0.75;
     this.similarityTopK = options.config.similarityTopK ?? 10;
     this.categoryKeywords = buildCategoryKeywords(options.config.categoryKeywords);
+    this.toolMetadata = options.config.toolMetadata ?? {};
+    this.domainTaxonomy = options.config.domainTaxonomy ?? {};
+    this.matchThreshold = options.config.matchThreshold ?? 0.6;
+    this.semanticThreshold = options.config.semanticThreshold ?? 0.6;
+    this.syncEventRetention = options.config.syncEventRetention ?? 50;
+    this.qc = options.queryCatalog;
 
     this.schemaManager = new GraphSchemaManager({
       logger: options.logger,
       neo4j: options.neo4j,
+      queryCatalog: options.queryCatalog,
     });
 
-    if (options.config.embeddingApiUrl && options.config.embeddingApiKey) {
+    if (options.embeddingService) {
+      this.embeddingService = options.embeddingService;
+    } else if (options.config.embeddingApiUrl && options.config.embeddingApiKey) {
       this.embeddingService = new EmbeddingService({
         logger: options.logger,
         apiUrl: options.config.embeddingApiUrl,
@@ -147,6 +164,11 @@ export class SkillGraphSyncService {
         timeoutMs: options.config.embeddingTimeoutMs,
       });
     }
+  }
+
+  private sq(key: string): string {
+    if (!this.qc) throw new Error(`SkillGraphSyncService: queryCatalog not available for key "${key}"`);
+    return this.qc.get(key);
   }
 
   async generateEmbedding(text: string): Promise<number[] | null> {
@@ -169,6 +191,9 @@ export class SkillGraphSyncService {
         nodesRemoved: 0,
         durationMs: 0,
         embeddingsGenerated: 0,
+        agentCapabilitiesCreated: 0,
+        tagsCreated: 0,
+        implementedByEdges: 0,
       };
     }
     this.syncing = true;
@@ -184,12 +209,18 @@ export class SkillGraphSyncService {
   private async doSync(): Promise<GraphSyncResult> {
     const start = Date.now();
     let nodesUpserted = 0;
+    let skillsUpsertedCount = 0;
     let relationshipsCreated = 0;
     let nodesRemoved = 0;
     let embeddingsGenerated = 0;
+    let agentCapabilitiesCreated = 0;
+    let tagsCreated = 0;
+    let implementedByEdges = 0;
 
     try {
       await this.schemaManager.ensureSchema();
+
+      await this.migrateRemoveUsesSkill();
 
       const skills = await this.ociRegistry.listSkills();
       this.logger.info(`Syncing ${skills.length} skills from OCI to Neo4j`);
@@ -220,11 +251,13 @@ export class SkillGraphSyncService {
       interface SkillBatchItem {
         skill: Skill;
         hash: string;
-        category: string;
+        categories: CategoryAssignment[];
         complexity: string;
-        tools: string[];
+        tools: Array<{ name: string; description: string; docsUrl: string; version: string; deprecated: boolean }>;
         deps: Array<{ name: string; version: string }>;
         relatedSkills: { name: string; description?: string }[];
+        completeness: number;
+        hasContent: boolean;
       }
 
       const batchItems: SkillBatchItem[] = [];
@@ -233,48 +266,84 @@ export class SkillGraphSyncService {
         skillNames.add(name);
         const content = contentMap.get(skill.ociReference);
         const hash = contentHash(skill, content);
-        const category = categoryOf(skill, this.categoryKeywords);
+        const cats = categoriesOf(skill, this.categoryKeywords, this.domainTaxonomy);
         const complexity = content
           ? getComplexity(content.split('\n').length)
           : 'Simple';
         const allowedToolsStr = skill.card.metadata['allowed-tools'] || '';
-        const tools = allowedToolsStr
+        const toolNames = allowedToolsStr
           ? allowedToolsStr.split(/\s+/).filter(Boolean)
           : [];
+        const tools = toolNames.map(t => {
+          const meta = this.toolMetadata[t];
+          return {
+            name: t,
+            description: meta?.description ?? '',
+            docsUrl: meta?.docsUrl ?? '',
+            version: meta?.version ?? '',
+            deprecated: meta?.deprecated ?? false,
+          };
+        });
         const deps = skill.card.spec?.dependencies ?? [];
-        if (!allDomains.has(category)) {
-          allDomains.set(category, getPluginColor(category));
+        for (const c of cats) {
+          if (!allDomains.has(c.domain)) {
+            allDomains.set(c.domain, getPluginColor(c.domain));
+          }
         }
+        const hasContent = content !== undefined;
         batchItems.push({
-          skill, hash, category, complexity, tools, deps,
+          skill, hash, categories: cats, complexity, tools, deps,
           relatedSkills: content ? parseRelatedSkills(content) : [],
+          completeness: computeSkillCompleteness(skill, hasContent),
+          hasContent,
         });
       }
 
       const BATCH_SIZE = 50;
+      const REL_CONCURRENCY = 10;
       for (let i = 0; i < batchItems.length; i += BATCH_SIZE) {
         const batch = batchItems.slice(i, i + BATCH_SIZE);
+        const primaryCategory = (item: SkillBatchItem) =>
+          item.categories.find(c => c.primary)?.domain ?? 'general';
+
         const upsertResults = await Promise.all(
           batch.map(item =>
             withDeadlockRetry(() =>
-              this.upsertSkill(item.skill, item.hash, item.category, item.complexity),
+              this.upsertSkill(item.skill, item.hash, primaryCategory(item), item.complexity, item.completeness),
             ),
           ),
         );
-        nodesUpserted += upsertResults.filter(Boolean).length;
+        const batchUpserted = upsertResults.filter(Boolean).length;
+        nodesUpserted += batchUpserted;
+        skillsUpsertedCount += batchUpserted;
 
-        for (const item of batch) {
-          const relCount = await withDeadlockRetry(() =>
-            this.syncRelationshipsBatched(
-              item.skill.card.metadata.name,
-              item.tools,
-              item.category,
-              allDomains.get(item.category)!,
-              item.deps,
-              item.relatedSkills,
+        for (let r = 0; r < batch.length; r += REL_CONCURRENCY) {
+          const relBatch = batch.slice(r, r + REL_CONCURRENCY);
+          const relCounts = await Promise.all(
+            relBatch.map(item =>
+              withDeadlockRetry(() =>
+                this.syncRelationshipsBatched(
+                  item.skill.card.metadata.name,
+                  item.tools,
+                  item.categories,
+                  allDomains,
+                  item.deps,
+                  item.relatedSkills,
+                ),
+              ),
             ),
           );
-          relationshipsCreated += relCount;
+          for (const c of relCounts) relationshipsCreated += c;
+        }
+
+        for (const item of batch) {
+          const skillTags = item.skill.card.metadata.tags ?? [];
+          if (skillTags.length > 0) {
+            const tc = await withDeadlockRetry(() =>
+              this.syncSkillTags(item.skill.card.metadata.name, skillTags),
+            );
+            tagsCreated += tc;
+          }
         }
       }
 
@@ -283,10 +352,35 @@ export class SkillGraphSyncService {
 
       if (this.kagenti) {
         try {
-          const agents = await this.kagenti.listAgentsParsed();
+          const agents = await this.kagenti.listAgentsWithCards();
+          const agentKeys: string[] = [];
           for (const agent of agents) {
-            await this.upsertAgent(agent);
+            await withDeadlockRetry(() => this.upsertAgent(agent));
+            agentKeys.push(`${agent.name}/${agent.namespace}`);
             nodesUpserted++;
+
+            if (agent.agentCard?.skills && agent.agentCard.skills.length > 0) {
+              const capResult = await withDeadlockRetry(() =>
+                this.syncAgentCapabilities(agent),
+              );
+              agentCapabilitiesCreated += capResult.capsCreated;
+              relationshipsCreated += capResult.exposesCreated;
+              tagsCreated += capResult.tagsCreated;
+            }
+          }
+
+          if (agentKeys.length > 0) {
+            await this.cleanStaleAgents(agentKeys);
+            await this.cleanStaleCapabilities(agentKeys);
+          }
+
+          for (const agent of agents) {
+            if (agent.agentCard?.skills && agent.agentCard.skills.length > 0) {
+              const matchCount = await withDeadlockRetry(() =>
+                this.matchCapabilitiesToSkills(agent.name, agent.namespace),
+              );
+              implementedByEdges += matchCount;
+            }
           }
         } catch (err) {
           this.logger.warn(`Agent sync failed: ${(err as Error).message}`);
@@ -300,11 +394,26 @@ export class SkillGraphSyncService {
         }
       }
 
+      await this.cleanOrphanTags();
       this.neo4j.invalidateCache();
 
       const durationMs = Date.now() - start;
+
+      let gapsFound = 0;
+      try {
+        gapsFound = await this.neo4j.countCatalogGaps();
+      } catch { /* best-effort */ }
+
+      await this.recordSyncEvent({
+        skillsUpserted: skillsUpsertedCount,
+        capabilitiesCreated: agentCapabilitiesCreated,
+        matchesCreated: implementedByEdges,
+        gapsFound,
+        durationMs,
+      });
+
       this.logger.info(
-        `Graph sync complete: ${nodesUpserted} upserted, ${relationshipsCreated} rels, ${nodesRemoved} removed, ${embeddingsGenerated} embeddings in ${durationMs}ms`,
+        `Graph sync complete: ${nodesUpserted} upserted, ${relationshipsCreated} rels, ${nodesRemoved} removed, ${embeddingsGenerated} embeddings, ${agentCapabilitiesCreated} capabilities, ${tagsCreated} tags, ${implementedByEdges} implemented-by, ${gapsFound} gaps in ${durationMs}ms`,
       );
       return {
         ok: true,
@@ -313,6 +422,9 @@ export class SkillGraphSyncService {
         nodesRemoved,
         durationMs,
         embeddingsGenerated,
+        agentCapabilitiesCreated,
+        tagsCreated,
+        implementedByEdges,
       };
     } catch (err) {
       this.logger.error(`Graph sync failed: ${(err as Error).message}`);
@@ -323,6 +435,9 @@ export class SkillGraphSyncService {
         nodesRemoved,
         durationMs: Date.now() - start,
         embeddingsGenerated,
+        agentCapabilitiesCreated,
+        tagsCreated,
+        implementedByEdges,
       };
     }
   }
@@ -332,6 +447,7 @@ export class SkillGraphSyncService {
     hash: string,
     category: string,
     complexity: string,
+    completeness: number = 0,
   ): Promise<boolean> {
     const m = skill.card.metadata;
     const authorsStr = m.authors
@@ -339,35 +455,16 @@ export class SkillGraphSyncService {
       .join(', ') ?? '';
     const tagsArr = m.tags ?? [];
 
+    const prompt = (skill.card.spec?.prompt || '').slice(0, 2000);
+    const examples = skill.card.spec?.examples
+      ? JSON.stringify(skill.card.spec.examples).slice(0, 2000)
+      : '';
+    const compatibility = m.compatibility || '';
+
     const session = await this.neo4j.getHealthySession();
     try {
       const result = await session.run(
-        `MERGE (s:Skill {name: $name})
-         ON CREATE SET
-           s.namespace = $namespace, s.version = $version,
-           s.description = $description, s.author = $author,
-           s.license = $license, s.ociReference = $ociReference,
-           s.category = $category, s.complexity = $complexity,
-           s.contentHash = $hash,
-           s.plugin = $category, s.pluginColor = $pluginColor,
-           s.tags = $tags, s.displayName = $displayName,
-           s.lifecycleState = $lifecycleState,
-           s.provenanceSource = $provenanceSource,
-           s.provenanceCommit = $provenanceCommit,
-           s.createdAt = datetime()
-         ON MATCH SET
-           s.namespace = $namespace, s.version = $version,
-           s.description = $description, s.author = $author,
-           s.license = $license, s.ociReference = $ociReference,
-           s.category = $category, s.complexity = $complexity,
-           s.contentHash = $hash,
-           s.plugin = $category, s.pluginColor = $pluginColor,
-           s.tags = $tags, s.displayName = $displayName,
-           s.lifecycleState = $lifecycleState,
-           s.provenanceSource = $provenanceSource,
-           s.provenanceCommit = $provenanceCommit,
-           s.updatedAt = datetime()
-         RETURN s.contentHash AS oldHash`,
+        this.sq('sync.upsertSkill'),
         {
           name: m.name,
           namespace: m.namespace || 'default',
@@ -385,6 +482,10 @@ export class SkillGraphSyncService {
           lifecycleState: skill.lifecycleState || 'draft',
           provenanceSource: skill.card.provenance?.source || '',
           provenanceCommit: skill.card.provenance?.commit || '',
+          prompt,
+          examples,
+          compatibility,
+          completeness,
         },
       );
       return result.records.length > 0;
@@ -395,9 +496,9 @@ export class SkillGraphSyncService {
 
   private async syncRelationshipsBatched(
     skillName: string,
-    tools: string[],
-    domain: string,
-    domainColor: string,
+    tools: Array<{ name: string; description: string; docsUrl: string; version: string; deprecated: boolean }>,
+    categories: CategoryAssignment[],
+    allDomains: Map<string, string>,
     deps: Array<{ name: string; version: string }>,
     relatedSkills: { name: string; description?: string }[],
   ): Promise<number> {
@@ -406,60 +507,46 @@ export class SkillGraphSyncService {
     try {
       await session.executeWrite(async tx => {
         if (tools.length > 0) {
-          await tx.run(
-            `MATCH (s:Skill {name: $skillName})-[r:USES_TOOL]->() DELETE r`,
-            { skillName },
-          );
-          await tx.run(
-            `MATCH (s:Skill {name: $skillName})
-             UNWIND $tools AS tool
-             MERGE (t:Tool {name: tool})
-             MERGE (s)-[:USES_TOOL]->(t)`,
-            { skillName, tools },
-          );
+          await tx.run(this.sq('sync.deleteUsesToolEdges'), { skillName });
+          await tx.run(this.sq('sync.mergeUsesTool'), { skillName, tools });
           count += tools.length;
         }
 
-        await tx.run(
-          `MATCH (s:Skill {name: $skillName})-[r:BELONGS_TO]->() DELETE r`,
-          { skillName },
-        );
-        await tx.run(
-          `MATCH (s:Skill {name: $skillName})
-           MERGE (d:Domain {name: $domain})
-           ON CREATE SET d.color = $color, d.description = $domain
-           MERGE (s)-[:BELONGS_TO]->(d)`,
-          { skillName, domain, color: domainColor },
-        );
-        count++;
+        await tx.run(this.sq('sync.deleteBelongsToEdges'), { skillName });
+        for (const cat of categories) {
+          const taxEntry = this.domainTaxonomy[cat.domain];
+          await tx.run(this.sq('sync.mergeBelongsToDomain'), {
+            skillName,
+            domain: cat.domain,
+            color: allDomains.get(cat.domain) ?? getPluginColor(cat.domain),
+            description: taxEntry?.description ?? '',
+            owner: taxEntry?.owner ?? '',
+            primary: cat.primary,
+          });
+          count++;
+
+          if (taxEntry?.parent) {
+            await tx.run(this.sq('sync.mergeDomainParent'), {
+              child: cat.domain,
+              parent: taxEntry.parent,
+            });
+            count++;
+          }
+        }
 
         if (deps.length > 0) {
+          await tx.run(this.sq('sync.deleteDependsOnEdges'), { skillName });
           await tx.run(
-            `MATCH (s:Skill {name: $skillName})-[r:DEPENDS_ON]->() DELETE r`,
-            { skillName },
-          );
-          await tx.run(
-            `MATCH (s:Skill {name: $skillName})
-             UNWIND $deps AS dep
-             MERGE (d:Skill {name: dep.name})
-             MERGE (s)-[r:DEPENDS_ON]->(d)
-             SET r.version = dep.version`,
+            this.sq('sync.mergeDependsOn'),
             { skillName, deps: deps.map(d => ({ name: d.name, version: d.version })) },
           );
           count += deps.length;
         }
 
         if (relatedSkills.length > 0) {
+          await tx.run(this.sq('sync.deleteRelatedToEdges'), { skillName });
           await tx.run(
-            `MATCH (s:Skill {name: $skillName})-[r:RELATED_TO]->() DELETE r`,
-            { skillName },
-          );
-          await tx.run(
-            `MATCH (s:Skill {name: $skillName})
-             UNWIND $rels AS rel
-             MERGE (t:Skill {name: rel.name})
-             MERGE (s)-[r:RELATED_TO]->(t)
-             SET r.description = rel.description`,
+            this.sq('sync.mergeRelatedTo'),
             {
               skillName,
               rels: relatedSkills.map(r => ({
@@ -478,29 +565,342 @@ export class SkillGraphSyncService {
     }
   }
 
-  private async upsertAgent(agent: {
-    name: string;
-    namespace: string;
-    status: string;
-    description: string;
-    labels: { framework: string; protocol: string[] };
-    workloadType: string;
-  }): Promise<void> {
+  private async upsertAgent(agent: import('@red-hat-developer-hub/backstage-plugin-skill-marketplace-common').KagentiAgent): Promise<void> {
+    const card = agent.agentCard;
     const session = await this.neo4j.getHealthySession();
     try {
       await session.run(
-        `MERGE (a:Agent {name: $name, namespace: $namespace})
-         SET a.status = $status, a.description = $description,
-             a.framework = $framework, a.workloadType = $workloadType`,
+        this.sq('sync.upsertAgent'),
         {
           name: agent.name,
           namespace: agent.namespace,
           status: agent.status,
-          description: agent.description,
+          description: card?.description || agent.description,
           framework: agent.labels.framework || '',
           workloadType: agent.workloadType,
+          url: card?.url || '',
+          version: card?.version || '',
+          documentationUrl: card?.documentationUrl || '',
+          provider: card?.provider?.organization || '',
+          providerUrl: card?.provider?.url || '',
+          streaming: card?.capabilities?.streaming ?? false,
+          pushNotifications: card?.capabilities?.pushNotifications ?? false,
+          stateTransitionHistory: card?.capabilities?.stateTransitionHistory ?? false,
+          authSchemes: card?.authentication?.schemes ?? [],
+          defaultInputModes: card?.defaultInputModes ?? ['text/plain'],
+          defaultOutputModes: card?.defaultOutputModes ?? ['text/plain'],
+          protocol: agent.labels.protocol ?? [],
+          skillCount: card?.skills?.length ?? 0,
+          completeness: computeAgentCompleteness(agent),
         },
       );
+    } finally {
+      await session.close();
+    }
+  }
+
+  private async syncSkillTags(skillName: string, tags: string[]): Promise<number> {
+    const session = await this.neo4j.getHealthySession();
+    let count = 0;
+    try {
+      await session.run(this.sq('sync.deleteSkillTaggedWith'), { skillName });
+      for (const rawTag of tags) {
+        const tag = rawTag.toLowerCase().trim();
+        if (!tag) continue;
+        try {
+          await session.run(this.sq('sync.mergeSkillTaggedWith'), { skillName, tag });
+          count++;
+        } catch (err) {
+          this.logger.debug(`Tag sync failed for ${skillName}/${tag}: ${(err as Error).message}`);
+        }
+      }
+    } finally {
+      await session.close();
+    }
+    return count;
+  }
+
+  private async syncAgentCapabilities(
+    agent: import('@red-hat-developer-hub/backstage-plugin-skill-marketplace-common').KagentiAgent,
+  ): Promise<{ capsCreated: number; exposesCreated: number; tagsCreated: number }> {
+    const card = agent.agentCard;
+    if (!card?.skills || card.skills.length === 0) {
+      return { capsCreated: 0, exposesCreated: 0, tagsCreated: 0 };
+    }
+
+    const session = await this.neo4j.getHealthySession();
+    let capsCreated = 0;
+    let exposesCreated = 0;
+    let tagsCreated = 0;
+    try {
+      await session.run(this.sq('sync.deleteAgentCapabilities'), {
+        agentName: agent.name,
+        agentNamespace: agent.namespace,
+      });
+
+      for (const skill of card.skills) {
+        try {
+          await session.run(this.sq('sync.upsertAgentCapability'), {
+            skillId: skill.id,
+            agentName: agent.name,
+            agentNamespace: agent.namespace,
+            name: skill.name,
+            description: skill.description || '',
+            tags: skill.tags ?? [],
+            examples: skill.examples ?? [],
+            inputModes: skill.inputModes ?? card.defaultInputModes ?? [],
+            outputModes: skill.outputModes ?? card.defaultOutputModes ?? [],
+            completeness: computeCapabilityCompleteness(skill),
+          });
+          capsCreated++;
+
+          await session.run(this.sq('sync.mergeAgentExposes'), {
+            agentName: agent.name,
+            agentNamespace: agent.namespace,
+            skillId: skill.id,
+          });
+          exposesCreated++;
+
+          for (const rawTag of skill.tags ?? []) {
+            const tag = rawTag.toLowerCase().trim();
+            if (!tag) continue;
+            try {
+              await session.run(this.sq('sync.mergeCapabilityTaggedWith'), {
+                skillId: skill.id,
+                agentName: agent.name,
+                agentNamespace: agent.namespace,
+                tag,
+              });
+              tagsCreated++;
+            } catch {
+              /* tag sync best-effort */
+            }
+          }
+        } catch (err) {
+          this.logger.debug(`Capability sync failed for ${agent.name}/${skill.id}: ${(err as Error).message}`);
+        }
+      }
+    } finally {
+      await session.close();
+    }
+    return { capsCreated, exposesCreated, tagsCreated };
+  }
+
+  private async matchCapabilitiesToSkills(
+    agentName: string,
+    agentNamespace: string,
+  ): Promise<number> {
+    const session = await this.neo4j.getHealthySession();
+    let matchCount = 0;
+    try {
+      await session.run(this.sq('sync.deleteCapabilityImplementedBy'), {
+        agentName,
+        agentNamespace,
+      });
+
+      const capsResult = await session.run(
+        this.sq('read.listAgentCapabilities'),
+        { agentName, agentNamespace },
+      );
+
+      const allSkillsResult = await session.run(
+        'MATCH (s:Skill) RETURN s.name AS name, s.tags AS tags',
+      );
+      const skillMap = new Map<string, { name: string; tags: string[] }>();
+      const normalizedSkillMap = new Map<string, { name: string; tags: string[] }>();
+      const normalizedCollisions = new Set<string>();
+      for (const r of allSkillsResult.records) {
+        const sn = r.get('name') as string;
+        const tags = (r.get('tags') as string[]) ?? [];
+        skillMap.set(sn.toLowerCase(), { name: sn, tags });
+        const nn = normalizeName(sn);
+        if (normalizedSkillMap.has(nn)) {
+          normalizedCollisions.add(nn);
+        } else {
+          normalizedSkillMap.set(nn, { name: sn, tags });
+        }
+      }
+      for (const collision of normalizedCollisions) {
+        normalizedSkillMap.delete(collision);
+      }
+
+      const tagDocFreq = new Map<string, number>();
+      const totalSkills = skillMap.size;
+      for (const [, skill] of skillMap) {
+        const seen = new Set<string>();
+        for (const t of skill.tags) {
+          const lt = t.toLowerCase();
+          if (!seen.has(lt)) {
+            seen.add(lt);
+            tagDocFreq.set(lt, (tagDocFreq.get(lt) ?? 0) + 1);
+          }
+        }
+      }
+
+      for (const capRec of capsResult.records) {
+        const capName = (capRec.get('name') as string) || '';
+        const capTags: string[] = (capRec.get('tags') as string[]) ?? [];
+        const capSkillId = capRec.get('skillId') as string;
+
+        let bestMatch: { skillName: string; confidence: number; matchType: string } | null = null;
+
+        const exactMatch = skillMap.get(capName.toLowerCase());
+        if (exactMatch) {
+          bestMatch = { skillName: exactMatch.name, confidence: 1.0, matchType: 'name' };
+        }
+
+        if (!bestMatch) {
+          const fuzzyMatch = normalizedSkillMap.get(normalizeName(capName));
+          if (fuzzyMatch) {
+            bestMatch = { skillName: fuzzyMatch.name, confidence: 0.95, matchType: 'name_fuzzy' };
+          }
+        }
+
+        if (!bestMatch && this.embeddingService) {
+          const capDescription = (capRec.get('description') as string) || capName;
+          try {
+            const embedding = await this.embeddingService.generate(`${capName}: ${capDescription}`);
+            if (embedding) {
+              const vecResult = await session.run(
+                "CALL db.index.vector.queryNodes('skill_embedding', $topK, $embedding) YIELD node, score WHERE score >= $threshold RETURN node.name AS name, score ORDER BY score DESC LIMIT 1",
+                { topK: 5, embedding, threshold: 0.85 },
+              );
+              if (vecResult.records.length > 0) {
+                const rec = vecResult.records[0];
+                bestMatch = {
+                  skillName: rec.get('name') as string,
+                  confidence: Number(rec.get('score')),
+                  matchType: 'semantic',
+                };
+              }
+            }
+          } catch {
+            this.logger.debug(`High-confidence semantic matching skipped for capability ${capName}`);
+          }
+        }
+
+        if (!bestMatch && capTags.length > 0 && totalSkills > 0) {
+          const normalizedCapTags = capTags.map(t => t.toLowerCase());
+          let bestTagScore = 0;
+          let bestTagSkill: string | null = null;
+          for (const [, skill] of skillMap) {
+            const skillTagsLower = skill.tags.map(t => t.toLowerCase());
+            let idfScore = 0;
+            let maxPossible = 0;
+            for (const ct of normalizedCapTags) {
+              const idf = Math.log((totalSkills + 1) / ((tagDocFreq.get(ct) ?? 0) + 1));
+              maxPossible += idf;
+              if (skillTagsLower.includes(ct)) {
+                idfScore += idf;
+              }
+            }
+            const score = maxPossible > 0 ? idfScore / maxPossible : 0;
+            if (score > bestTagScore) {
+              bestTagScore = score;
+              bestTagSkill = skill.name;
+            }
+          }
+          if (bestTagSkill && bestTagScore >= this.matchThreshold) {
+            bestMatch = { skillName: bestTagSkill, confidence: bestTagScore, matchType: 'tag' };
+          }
+        }
+
+        if (!bestMatch && this.embeddingService) {
+          const capDescription = (capRec.get('description') as string) || capName;
+          try {
+            const embedding = await this.embeddingService.generate(`${capName}: ${capDescription}`);
+            if (embedding) {
+              const vecResult = await session.run(
+                "CALL db.index.vector.queryNodes('skill_embedding', $topK, $embedding) YIELD node, score WHERE score >= $threshold RETURN node.name AS name, score ORDER BY score DESC LIMIT 1",
+                { topK: 5, embedding, threshold: this.semanticThreshold },
+              );
+              if (vecResult.records.length > 0) {
+                const rec = vecResult.records[0];
+                bestMatch = {
+                  skillName: rec.get('name') as string,
+                  confidence: Number(rec.get('score')),
+                  matchType: 'semantic_weak',
+                };
+              }
+            }
+          } catch {
+            this.logger.debug(`Weak semantic matching skipped for capability ${capName}`);
+          }
+        }
+
+        if (bestMatch) {
+          try {
+            await session.run(this.sq('sync.mergeImplementedBy'), {
+              skillId: capSkillId,
+              agentName,
+              agentNamespace,
+              skillName: bestMatch.skillName,
+              confidence: bestMatch.confidence,
+              matchType: bestMatch.matchType,
+            });
+            matchCount++;
+          } catch (err) {
+            this.logger.debug(`IMPLEMENTED_BY failed for ${capName}->${bestMatch.skillName}: ${(err as Error).message}`);
+          }
+        }
+      }
+    } finally {
+      await session.close();
+    }
+    return matchCount;
+  }
+
+  private async cleanStaleCapabilities(currentAgentKeys: string[]): Promise<void> {
+    const session = await this.neo4j.getHealthySession();
+    try {
+      const result = await session.run(
+        this.sq('sync.deleteStaleCapabilities'),
+        { keys: currentAgentKeys },
+      );
+      const removed = result.records[0]?.get('removed');
+      if (removed && Number(removed) > 0) {
+        this.logger.info(`Removed ${removed} stale agent capability nodes`);
+      }
+    } finally {
+      await session.close();
+    }
+  }
+
+  private async cleanOrphanTags(): Promise<void> {
+    const session = await this.neo4j.getHealthySession();
+    try {
+      await session.run(this.sq('sync.deleteOrphanTags'));
+    } finally {
+      await session.close();
+    }
+  }
+
+  private async migrateRemoveUsesSkill(): Promise<void> {
+    const session = await this.neo4j.getHealthySession();
+    try {
+      const result = await session.run(this.sq('sync.migrateRemoveUsesSkill'));
+      const removed = result.records[0]?.get('removed');
+      if (removed && Number(removed) > 0) {
+        this.logger.info(`Migration: removed ${removed} legacy USES_SKILL relationships`);
+      }
+    } catch {
+      /* migration is best-effort if USES_SKILL relationships don't exist */
+    } finally {
+      await session.close();
+    }
+  }
+
+  private async cleanStaleAgents(currentKeys: string[]): Promise<void> {
+    const session = await this.neo4j.getHealthySession();
+    try {
+      const result = await session.run(
+        this.sq('sync.deleteStaleAgents'),
+        { keys: currentKeys },
+      );
+      const removed = result.records[0]?.get('removed');
+      if (removed && Number(removed) > 0) {
+        this.logger.info(`Removed ${removed} stale agent nodes`);
+      }
     } finally {
       await session.close();
     }
@@ -512,17 +912,14 @@ export class SkillGraphSyncService {
     const session = await this.neo4j.getHealthySession();
     try {
       const result = await session.run(
-        `MATCH (s:Skill) WHERE NOT s.name IN $names
-         DETACH DELETE s RETURN count(s) AS removed`,
+        this.sq('sync.deleteStaleSkills'),
         { names: Array.from(currentSkills) },
       );
       const removed =
         result.records[0]?.get('removed')?.toNumber?.() ??
         Number(result.records[0]?.get('removed') ?? 0);
 
-      await session.run(
-        `MATCH (t:Tool) WHERE NOT (t)<-[:USES_TOOL]-() DETACH DELETE t`,
-      );
+      await session.run(this.sq('sync.deleteOrphanTools'));
       return removed;
     } finally {
       await session.close();
@@ -532,12 +929,8 @@ export class SkillGraphSyncService {
   private async cleanOrphanedNodes(): Promise<void> {
     const session = await this.neo4j.getHealthySession();
     try {
-      await session.run(
-        `MATCH (t:Tool) WHERE NOT (t)<-[:USES_TOOL]-() DETACH DELETE t`,
-      );
-      await session.run(
-        `MATCH (d:Domain) WHERE NOT (d)<-[:BELONGS_TO]-() DETACH DELETE d`,
-      );
+      await session.run(this.sq('sync.deleteOrphanTools'));
+      await session.run(this.sq('sync.deleteOrphanDomains'));
     } finally {
       await session.close();
     }
@@ -554,8 +947,7 @@ export class SkillGraphSyncService {
       let batchCount = 0;
       try {
         const result = await session.run(
-          `MATCH (s:Skill) WHERE s.embedding IS NULL
-           RETURN s.name AS name, s.description AS description LIMIT $limit`,
+          this.sq('sync.listMissingEmbeddings'),
           { limit: BATCH_SIZE },
         );
         if (result.records.length === 0) break;
@@ -568,7 +960,7 @@ export class SkillGraphSyncService {
           );
           if (embedding) {
             await session.run(
-              `MATCH (s:Skill {name: $name}) SET s.embedding = $embedding`,
+              this.sq('sync.setSkillEmbedding'),
               { name, embedding },
             );
             batchCount++;
@@ -588,32 +980,56 @@ export class SkillGraphSyncService {
     return totalCount;
   }
 
+  private async recordSyncEvent(event: {
+    skillsUpserted: number;
+    capabilitiesCreated: number;
+    matchesCreated: number;
+    gapsFound: number;
+    durationMs: number;
+  }): Promise<void> {
+    const session = await this.neo4j.getHealthySession();
+    try {
+      await session.run(this.sq('sync.createSyncEvent'), {
+        skillsUpserted: event.skillsUpserted,
+        capabilitiesCreated: event.capabilitiesCreated,
+        matchesCreated: event.matchesCreated,
+        gapsFound: event.gapsFound,
+        durationMs: event.durationMs,
+      });
+      await session.run(this.sq('sync.pruneSyncEvents'), {
+        retention: this.syncEventRetention,
+      });
+    } catch (err) {
+      this.logger.debug(`SyncEvent recording failed: ${(err as Error).message}`);
+    } finally {
+      await session.close();
+    }
+  }
+
   private async computeSimilarityRelationships(): Promise<void> {
     if (!this.embeddingService) return;
     const session = await this.neo4j.getHealthySession();
     try {
-      await session.run(`MATCH ()-[r:SIMILAR_TO]->() DELETE r`);
+      const touchedPairs = new Set<string>();
 
       try {
         const result = await session.run(
-          `MATCH (s:Skill) WHERE s.embedding IS NOT NULL RETURN s.name AS name`,
+          this.sq('sync.listEmbeddedSkillNames'),
         );
         for (const record of result.records) {
           const name = record.get('name') as string;
           try {
-            await session.run(
-              `MATCH (a:Skill {name: $name}) WHERE a.embedding IS NOT NULL
-               CALL db.index.vector.queryNodes('skill_embedding', $topK, a.embedding)
-               YIELD node AS b, score
-               WHERE b.name <> a.name AND score >= $threshold
-               MERGE (a)-[r:SIMILAR_TO]->(b)
-               SET r.score = score`,
+            const simResult = await session.run(
+              this.sq('sync.mergeSimilarTo'),
               {
                 name,
                 topK: this.similarityTopK,
                 threshold: this.similarityThreshold,
               },
             );
+            for (const rec of simResult.records) {
+              touchedPairs.add(`${rec.get('from')}::${rec.get('to')}`);
+            }
           } catch {
             break;
           }
@@ -622,7 +1038,12 @@ export class SkillGraphSyncService {
         this.logger.debug(
           'Vector-based similarity computation skipped (index may not be available)',
         );
+        return;
       }
+
+      await session.run(this.sq('sync.deleteUnsyncedSimilarTo'));
+      await session.run(this.sq('sync.removeSimilarToSyncedFlag'));
+      this.logger.debug(`Similarity: ${touchedPairs.size} relationships maintained`);
     } finally {
       await session.close();
     }

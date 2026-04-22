@@ -21,6 +21,7 @@ import { getToolRegistry, getToolByName, type ToolContext } from './tools';
 import type { Neo4jService } from './Neo4jService';
 import type { OciRegistryService } from './OciRegistryService';
 import type { EmbeddingService } from './EmbeddingService';
+import type { CypherQueryCatalog } from './CypherQueryCatalog';
 
 export interface AgenticRagConfig {
   maxIterations: number;
@@ -47,6 +48,7 @@ export class AgenticRagService {
     embedding?: EmbeddingService;
     logger: LoggerService;
     config?: Partial<AgenticRagConfig>;
+    queryCatalog?: CypherQueryCatalog;
   }) {
     this.llm = options.llm;
     this.neo4j = options.neo4j;
@@ -58,6 +60,7 @@ export class AgenticRagService {
       ociRegistry: options.ociRegistry,
       embedding: options.embedding,
       logger: options.logger,
+      queryCatalog: options.queryCatalog,
     };
   }
 
