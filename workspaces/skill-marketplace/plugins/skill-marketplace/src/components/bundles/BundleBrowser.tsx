@@ -135,14 +135,19 @@ export default function BundleBrowser() {
             Curated collections of skills for specific use cases. Browse, fork, or create your own.
           </p>
         </div>
-        <button className="bb-cart-btn" onClick={toggleDrawer}>
-          <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2}>
-            <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
-            <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
-          </svg>
-          My Cart
-          {cartSkills.length > 0 && <span className="bb-cart-badge">{cartSkills.length}</span>}
-        </button>
+        <div className="bb-header-actions">
+          <button className="bb-btn bb-btn-primary" onClick={() => navigate(`${basePath}/skills`)}>
+            + Create Bundle
+          </button>
+          <button className="bb-cart-btn" onClick={toggleDrawer}>
+            <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
+            </svg>
+            My Cart
+            {cartSkills.length > 0 && <span className="bb-cart-badge">{cartSkills.length}</span>}
+          </button>
+        </div>
       </div>
 
       {(detailLoading || detailError || selectedBundle) ? (
@@ -195,10 +200,15 @@ export default function BundleBrowser() {
             <div className="bb-empty">
               <h3>No bundles yet</h3>
               <p>
-                Browse skills and click "Add to Bundle" to start curating a collection.
+                Browse skills and click &ldquo;Add to Bundle&rdquo; to start curating a collection.
                 Then save it from the cart to share with others.
               </p>
-              <button className="bb-btn bb-btn-primary" onClick={toggleDrawer}>Open Cart</button>
+              <div className="bb-empty-actions">
+                <button className="bb-btn bb-btn-primary" onClick={() => navigate(`${basePath}/skills`)}>
+                  + Create Bundle
+                </button>
+                <button className="bb-btn bb-btn-secondary" onClick={toggleDrawer}>Open Cart</button>
+              </div>
             </div>
           ) : (
             <div className="bb-grid">
@@ -232,7 +242,8 @@ const browserStyles = `
 @keyframes bb-fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 .bb-feedback-success { background: #10b98115; color: #059669; }
 .bb-feedback-error { background: #ef444415; color: #dc2626; }
-.bb-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+.bb-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 16px; }
+.bb-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .bb-title { font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
 .bb-subtitle { margin: 4px 0 0; font-size: 14px; color: var(--pf-t--global--text--color--subtle, #6a6e73); }
 .bb-cart-btn {
@@ -288,6 +299,7 @@ const browserStyles = `
 }
 .bb-empty h3 { font-size: 18px; font-weight: 600; margin: 0 0 8px; color: var(--pf-t--global--text--color--regular, #151515); }
 .bb-empty p { font-size: 14px; margin: 0 0 20px; max-width: 480px; margin-left: auto; margin-right: auto; }
+.bb-empty-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
 
 .bb-detail { }
 .bb-back {
