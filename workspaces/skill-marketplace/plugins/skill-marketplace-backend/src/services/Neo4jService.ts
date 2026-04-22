@@ -740,20 +740,28 @@ export class Neo4jService {
     try {
       const id = randomUUID();
       await session.run(
-        `CREATE (b:SkillBundle {id: $id, name: $name, description: $description, author: $author, skillCount: $skillCount, createdAt: datetime(), updatedAt: datetime()})`,
-        { id, name: params.name, description: params.description, author: params.author, skillCount: neo4j.int(params.skillSlugs.length) },
+        `CREATE (b:SkillBundle {id: $id, name: $name, description: $description, author: $author, skillCount: 0, createdAt: datetime(), updatedAt: datetime()})`,
+        { id, name: params.name, description: params.description, author: params.author },
       );
       for (const slug of params.skillSlugs) {
         await session.run(
           `MATCH (b:SkillBundle {id: $bundleId})
-           MATCH (s:Skill) WHERE s.name CONTAINS $slug OR s.category + '-' + s.name = $slug
+           MATCH (s:Skill) WHERE s.category + '-' + s.name = $slug OR s.name = $slug
            WITH b, s LIMIT 1
            MERGE (b)-[r:INCLUDES]->(s)
            SET r.addedBy = 'user', r.addedAt = datetime()`,
           { bundleId: id, slug },
         );
       }
-      return { id, name: params.name, description: params.description, author: params.author, skillCount: params.skillSlugs.length };
+      const countResult = await session.run(
+        `MATCH (b:SkillBundle {id: $id})-[:INCLUDES]->(s:Skill)
+         WITH b, count(s) AS cnt
+         SET b.skillCount = cnt
+         RETURN cnt`,
+        { id },
+      );
+      const skillCount = countResult.records.length > 0 ? toNumber(countResult.records[0].get('cnt')) : 0;
+      return { id, name: params.name, description: params.description, author: params.author, skillCount };
     } finally {
       await session.close();
     }
@@ -851,7 +859,7 @@ export class Neo4jService {
         for (const slug of params.skillSlugs) {
           await session.run(
             `MATCH (b:SkillBundle {id: $bundleId})
-             MATCH (s:Skill) WHERE s.name CONTAINS $slug OR s.category + '-' + s.name = $slug
+             MATCH (s:Skill) WHERE s.category + '-' + s.name = $slug OR s.name = $slug
              WITH b, s LIMIT 1
              MERGE (b)-[r:INCLUDES]->(s)
              SET r.addedBy = 'user', r.addedAt = datetime()`,
@@ -873,10 +881,11 @@ export class Neo4jService {
     }
   }
 
-  async deleteBundle(id: string): Promise<void> {
+  async deleteBundle(id: string): Promise<boolean> {
     const session = await this.getHealthySession();
     try {
-      await session.run(`MATCH (b:SkillBundle {id: $id}) DETACH DELETE b`, { id });
+      const result = await session.run(`MATCH (b:SkillBundle {id: $id}) DETACH DELETE b`, { id });
+      return (result.summary.counters.updates().nodesDeleted ?? 0) > 0;
     } finally {
       await session.close();
     }

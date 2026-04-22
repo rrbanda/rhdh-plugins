@@ -84,6 +84,18 @@ export function registerBundleRoutes(
       return;
     }
     const { name, description, skillSlugs } = req.body ?? {};
+    if (name !== undefined && typeof name !== 'string') {
+      res.status(400).json({ error: 'name must be a string' });
+      return;
+    }
+    if (description !== undefined && typeof description !== 'string') {
+      res.status(400).json({ error: 'description must be a string' });
+      return;
+    }
+    if (skillSlugs !== undefined && (!Array.isArray(skillSlugs) || !skillSlugs.every((s: unknown) => typeof s === 'string'))) {
+      res.status(400).json({ error: 'skillSlugs must be an array of strings' });
+      return;
+    }
     try {
       const bundle = await neo4j.updateBundle(req.params.id, { name, description, skillSlugs });
       if (!bundle) {
@@ -103,7 +115,11 @@ export function registerBundleRoutes(
       return;
     }
     try {
-      await neo4j.deleteBundle(req.params.id);
+      const deleted = await neo4j.deleteBundle(req.params.id);
+      if (!deleted) {
+        res.status(404).json({ error: 'Bundle not found' });
+        return;
+      }
       res.json({ ok: true });
     } catch (err) {
       logger.error(`DELETE /graph/bundles/:id failed: ${err instanceof Error ? err.message : err}`);
@@ -162,8 +178,9 @@ export function registerBundleRoutes(
       }
       const author = (req as any).user?.identity?.userEntityRef ?? 'anonymous';
       const origSkills = (original.skills ?? []) as Array<{ slug: string }>;
+      const ts = new Date().toISOString().slice(0, 16).replace('T', ' ');
       const forked = await neo4j.createBundle({
-        name: `${original.name} (fork)`,
+        name: `${original.name} (fork ${ts})`,
         description: String(original.description ?? ''),
         skillSlugs: origSkills.map(s => s.slug),
         author,

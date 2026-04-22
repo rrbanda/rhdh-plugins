@@ -106,7 +106,8 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
       .then(data => {
         if (!cancelled) setResolved(data as ResolvedData);
       })
-      .catch(() => {
+      .catch(err => {
+        console.warn('useBundle: dependency resolution failed', err);
         if (!cancelled) setResolved(null);
       })
       .finally(() => {
@@ -120,7 +121,7 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
       if (prev.some(s => s.name === skill.name)) return prev;
       return [...prev, { ...skill, addedBy: 'user' as const }];
     });
-    setDrawerOpen(true);
+    setDrawerOpen(prev => prev || true);
   }, []);
 
   const removeSkill = useCallback((name: string) => {

@@ -90,7 +90,8 @@ export default function BundleBrowser() {
     }
   }, [api, loadBundles, showFeedback]);
 
-  const handleDelete = useCallback(async (id: string) => {
+  const handleDelete = useCallback(async (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
     try {
       await api.deleteBundle(id);
       if (selectedBundle?.id === id) setSelectedBundle(null);
@@ -179,7 +180,7 @@ export default function BundleBrowser() {
                   </button>
                   <button className="bb-btn bb-btn-secondary" onClick={() => handleFork(selectedBundle.id)}>Fork</button>
                   <button className="bb-btn bb-btn-secondary" onClick={() => handleExport(selectedBundle.id)}>Export JSON</button>
-                  <button className="bb-btn bb-btn-ghost" onClick={() => handleDelete(selectedBundle.id)}>Delete</button>
+                  <button className="bb-btn bb-btn-ghost" onClick={() => handleDelete(selectedBundle.id, selectedBundle.name)}>Delete</button>
                 </div>
               </div>
               <div className="bb-skill-list">
