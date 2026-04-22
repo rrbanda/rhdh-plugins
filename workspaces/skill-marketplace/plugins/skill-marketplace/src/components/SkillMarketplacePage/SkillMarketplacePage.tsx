@@ -28,7 +28,6 @@ import SkillsPage from '../skills/SkillsPage';
 import SkillDetailPage from '../skills/SkillDetailPage';
 import GraphPage from '../graph/GraphPage';
 import BuilderStudio from '../builder/BuilderStudio';
-import GapsExplorer from '../graph/GapsExplorer';
 import AnalyticsPage from '../graph/AnalyticsPage';
 import SkillsPlayground from '../agents/AgentsPage';
 import BundleBrowser from '../bundles/BundleBrowser';
@@ -61,7 +60,6 @@ const SkillMarketplacePageInner = () => {
     { label: 'Overview', path: '' },
     { label: 'Skills', path: 'skills' },
     { label: 'Bundles', path: 'bundles' },
-    { label: 'Gaps', path: 'gaps' },
     { label: 'Skill Graph', path: 'graph' },
     { label: 'Analytics', path: 'analytics' },
     { label: 'Skill Builder', path: 'builder' },
@@ -140,7 +138,6 @@ const SkillMarketplacePageInner = () => {
             <Route path="skills" element={<SkillsPage />} />
             <Route path="skills/:slug" element={<SkillDetailPage />} />
             <Route path="bundles" element={<BundleBrowser />} />
-            <Route path="gaps" element={<GapsExplorer />} />
             <Route path="graph" element={<GraphPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="builder" element={<BuilderStudio />} />

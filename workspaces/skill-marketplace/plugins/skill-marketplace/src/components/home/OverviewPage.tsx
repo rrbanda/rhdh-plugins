@@ -13,10 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApi } from '@backstage/core-plugin-api';
-import { skillMarketplaceApiRef } from '../../api';
 import { useSkills, useBundle } from '../../hooks';
 import {
   humanize,
@@ -72,14 +70,6 @@ function selectFeatured(skills: SkillData[], max: number): SkillData[] {
 export default function OverviewPage() {
   const { skills, marketplace, loading, error } = useSkills();
   const navigate = useNavigate();
-  const api = useApi(skillMarketplaceApiRef);
-  const [gapCount, setGapCount] = useState(0);
-
-  useEffect(() => {
-    api.getCatalogGapsCount()
-      .then(r => setGapCount(r.count))
-      .catch(err => console.warn('OverviewPage: failed to fetch catalog gap count', err));
-  }, [api]);
 
   const featured = useMemo(() => selectFeatured(skills, 3), [skills]);
 
@@ -123,20 +113,6 @@ export default function OverviewPage() {
           </div>
         </div>
       </div>
-
-      {/* Alerts */}
-      {gapCount > 0 && (
-        <div className="ov-alerts">
-          <button className="ov-alert ov-alert-warn" onClick={() => navigate('gaps')}>
-            <span className="ov-alert-icon">!</span>
-            <span className="ov-alert-text">
-              <strong>{gapCount} agent {gapCount === 1 ? 'capability has' : 'capabilities have'} no matching skill.</strong>
-              {' '}Author new skills to close the gap.
-            </span>
-            <span className="ov-alert-action">View gaps &rarr;</span>
-          </button>
-        </div>
-      )}
 
       {/* Featured Skills */}
       <div className="ov-section">
@@ -514,59 +490,6 @@ const styles = `
   }
   .ov-how-t { font-size: 15px; font-weight: 700; line-height: 1.3; }
   .ov-how-d { font-size: 13px; color: var(--pf-t--global--text--color--subtle, #6a6e73); line-height: 1.5; }
-
-  /* Alerts */
-  .ov-alerts {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin: 0 32px 20px;
-  }
-  .ov-alert {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 18px;
-    border-radius: 10px;
-    border: 1px solid;
-    cursor: pointer;
-    font-family: inherit;
-    text-align: left;
-    transition: all 0.15s;
-    width: 100%;
-  }
-  .ov-alert:hover { filter: brightness(0.97); }
-  .ov-alert-warn {
-    background: rgba(245,158,11,0.05);
-    border-color: rgba(245,158,11,0.3);
-    color: #92400e;
-  }
-  .ov-alert-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: 800;
-    flex-shrink: 0;
-    background: rgba(245,158,11,0.15);
-    color: #d97706;
-  }
-  .ov-alert-text {
-    flex: 1;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .ov-alert-text strong { font-weight: 700; }
-  .ov-alert-action {
-    flex-shrink: 0;
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-    color: #d97706;
-  }
 
   /* Responsive */
   @media (max-width: 768px) {

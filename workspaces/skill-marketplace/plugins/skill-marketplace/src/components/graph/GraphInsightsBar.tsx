@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../../api';
 
@@ -26,7 +25,6 @@ interface InsightsData {
 
 export default function GraphInsightsBar() {
   const api = useApi(skillMarketplaceApiRef);
-  const navigate = useNavigate();
   const [data, setData] = useState<InsightsData>({ quality: null, gaps: 0, syncHistory: [] });
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -125,10 +123,10 @@ export default function GraphInsightsBar() {
           )}
 
           {data.gaps > 0 && (
-            <button className="gi-warning" onClick={() => navigate('../gaps')}>
+            <span className="gi-warning" title={`${data.gaps} agent capabilities have no matching skill`}>
               <span className="gi-warning-icon">!</span>
               {data.gaps} unmatched
-            </button>
+            </span>
           )}
 
           {!lastSyncOk && (
