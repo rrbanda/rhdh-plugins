@@ -28,7 +28,6 @@ import SkillsPage from '../skills/SkillsPage';
 import SkillDetailPage from '../skills/SkillDetailPage';
 import GraphPage from '../graph/GraphPage';
 import BuilderStudio from '../builder/BuilderStudio';
-import AnalyticsPage from '../graph/AnalyticsPage';
 import SkillsPlayground from '../agents/AgentsPage';
 import BundleBrowser from '../bundles/BundleBrowser';
 import BundleCart from '../bundles/BundleCart';
@@ -61,7 +60,6 @@ const SkillMarketplacePageInner = () => {
     { label: 'Skills', path: 'skills' },
     { label: 'Bundles', path: 'bundles' },
     { label: 'Skill Graph', path: 'graph' },
-    { label: 'Analytics', path: 'analytics' },
     { label: 'Skill Builder', path: 'builder' },
     { label: 'Skills Playground', path: 'playground' },
   ];
@@ -139,7 +137,6 @@ const SkillMarketplacePageInner = () => {
             <Route path="skills/:slug" element={<SkillDetailPage />} />
             <Route path="bundles" element={<BundleBrowser />} />
             <Route path="graph" element={<GraphPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="builder" element={<BuilderStudio />} />
             <Route path="playground" element={<SkillsPlayground />} />
           </Routes>
