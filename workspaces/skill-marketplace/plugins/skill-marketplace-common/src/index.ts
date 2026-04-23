@@ -16,3 +16,4 @@
 
 export * from './permissions';
 export * from './types';
+export { parseSkillContent } from './parseSkillContent';

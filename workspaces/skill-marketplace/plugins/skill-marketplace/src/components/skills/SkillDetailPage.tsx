@@ -234,6 +234,31 @@ export default function SkillDetailPage() {
             <div style={{ marginTop: 16 }}>
               <Grid hasGutter>
                 <GridItem md={8}>
+                  <Card isCompact style={{ marginBottom: 16 }}>
+                    <CardTitle>About this Skill</CardTitle>
+                    <CardBody>
+                      <Content component={ContentVariants.p} style={{ lineHeight: 1.7 }}>
+                        {skill.description}
+                      </Content>
+                    </CardBody>
+                  </Card>
+
+                  {skill.sections.whenToUse && (
+                    <Card isCompact style={{ marginBottom: 16 }}>
+                      <CardTitle>
+                        <span className="sm-section-title" style={{ margin: 0 }}>
+                          <InfoCircleIcon color="var(--pf-t--global--color--brand--default)" />
+                          When to Use
+                        </span>
+                      </CardTitle>
+                      <CardBody>
+                        <Content component={ContentVariants.p} style={{ lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                          {skill.sections.whenToUse}
+                        </Content>
+                      </CardBody>
+                    </Card>
+                  )}
+
                   {skill.sections.prerequisites &&
                     skill.sections.prerequisites.length > 0 && (
                       <Card isCompact style={{ marginBottom: 16 }}>
@@ -259,7 +284,7 @@ export default function SkillDetailPage() {
                         <CardTitle>
                           <span className="sm-section-title" style={{ margin: 0 }}>
                             <ExclamationTriangleIcon color="var(--pf-t--global--color--status--danger--default)" />
-                            Critical Rules
+                            Rules
                           </span>
                         </CardTitle>
                         <CardBody>
@@ -283,7 +308,7 @@ export default function SkillDetailPage() {
                     )}
 
                   {skill.sections.workflow.length > 0 && (
-                    <Card isCompact>
+                    <Card isCompact style={{ marginBottom: 16 }}>
                       <CardTitle>
                         <span className="sm-section-title" style={{ margin: 0 }}>
                           <ListIcon />

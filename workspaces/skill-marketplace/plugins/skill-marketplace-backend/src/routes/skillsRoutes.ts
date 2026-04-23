@@ -22,9 +22,8 @@ import type {
   Skill,
   MarketplaceData,
   PluginEntry,
-  ParsedSections,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import { getPluginColor } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import { getPluginColor, parseSkillContent } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 const CATEGORY_KEYWORDS: [string, string[]][] = [
   ['human-resources', ['resume', 'hr', 'candidate', 'hiring', 'recruit']],
@@ -65,12 +64,10 @@ function ociToSkillData(skill: Skill): SkillData {
 
   const body = skill.content || bodyParts;
 
-  const sections: ParsedSections = {
-    title: m.name,
-    workflow: [],
-    prerequisites: [],
-    relatedSkills: [],
-  };
+  const sections = parseSkillContent(body);
+  if (!sections.title) {
+    sections.title = m['display-name'] || m.name;
+  }
 
   const plugin: PluginEntry = {
     name: cat,
@@ -332,6 +329,9 @@ export function registerSkillsRoutes(
       if (content) {
         match.rawContent = content;
         match.body = content;
+        const reparsed = parseSkillContent(content);
+        if (!reparsed.title) reparsed.title = match.sections.title;
+        match.sections = reparsed;
       }
       res.json(match);
     } catch (err) {
