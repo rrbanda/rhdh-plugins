@@ -41,8 +41,11 @@ const ANNOTATION_LIFECYCLE_STATUS = 'io.skillimage.status';
 const ANNOTATION_TAGS = 'io.skillimage.tags';
 const ANNOTATION_ALLOWED_TOOLS = 'io.skillimage.allowed-tools';
 const ANNOTATION_DISPLAY_NAME = 'io.skillimage.display-name';
+const ANNOTATION_WORDCOUNT = 'io.skillimage.wordcount';
+const ANNOTATION_COMPATIBILITY = 'io.skillimage.compatibility';
 
 const IMAGE_LAYER_MEDIA_TYPE = 'application/vnd.oci.image.layer.v1.tar+gzip';
+const REDHAT_LAYER_MEDIA_TYPE = 'application/vnd.redhat.agentskill.layer.v1.tar+gzip';
 
 interface OciManifest {
   schemaVersion: number;
@@ -317,7 +320,7 @@ export class OciRegistryService {
       created: ann[ANNOTATION_CREATED],
       version: ann[ANNOTATION_VERSION],
       title: ann[ANNOTATION_TITLE],
-      description: ann[ANNOTATION_DESCRIPTION],
+      description: ann[ANNOTATION_DESCRIPTION]?.trim(),
       licenses: ann[ANNOTATION_LICENSES],
       authors: ann[ANNOTATION_AUTHORS],
       vendor: ann[ANNOTATION_VENDOR],
@@ -327,16 +330,42 @@ export class OciRegistryService {
       tags: ann[ANNOTATION_TAGS],
       allowedTools: ann[ANNOTATION_ALLOWED_TOOLS],
       displayName: ann[ANNOTATION_DISPLAY_NAME],
+      wordCount: ann[ANNOTATION_WORDCOUNT],
+      compatibility: ann[ANNOTATION_COMPATIBILITY],
     };
+  }
+
+  /**
+   * Parse tags from either JSON array format (skillctl) or comma-separated
+   * format (legacy seed push). Handles both `["a","b"]` and `a,b`.
+   */
+  private static parseTags(raw: string): string[] {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map(String).filter(Boolean);
+        }
+      } catch {
+        // fall through to comma-split
+      }
+    }
+    return trimmed.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  private static findTarLayer(manifest: OciManifest) {
+    return manifest.layers.find(
+      l => l.mediaType === IMAGE_LAYER_MEDIA_TYPE ||
+           l.mediaType === REDHAT_LAYER_MEDIA_TYPE,
+    );
   }
 
   async extractSkillCard(
     registry: OciRegistryConfig,
     manifest: OciManifest,
   ): Promise<SkillCard | null> {
-    const tarLayer = manifest.layers.find(
-      l => l.mediaType === IMAGE_LAYER_MEDIA_TYPE,
-    );
+    const tarLayer = OciRegistryService.findTarLayer(manifest);
     if (!tarLayer) return null;
 
     const blob = await this.getBlob(registry, tarLayer.digest);
@@ -453,7 +482,7 @@ export class OciRegistryService {
             ? annotations.authors.split(',').map(a => ({ name: a.trim() }))
             : undefined,
           tags: annotations.tags
-            ? annotations.tags.split(',').map(t => t.trim()).filter(Boolean)
+            ? OciRegistryService.parseTags(annotations.tags)
             : undefined,
           'allowed-tools': annotations.allowedTools || undefined,
         },
@@ -791,9 +820,7 @@ export class OciRegistryService {
     const manifest = await this.getManifest(refRegistry, tag);
     if (!manifest) return null;
 
-    const tarLayer = manifest.layers.find(
-      l => l.mediaType === IMAGE_LAYER_MEDIA_TYPE,
-    );
+    const tarLayer = OciRegistryService.findTarLayer(manifest);
     if (!tarLayer) return null;
 
     const blob = await this.getBlob(refRegistry, tarLayer.digest);
@@ -920,13 +947,20 @@ export class OciRegistryService {
     if (authorsStr) annotations[ANNOTATION_AUTHORS] = authorsStr;
     if (m.namespace) annotations[ANNOTATION_VENDOR] = m.namespace;
     if (m.tags && m.tags.length > 0) {
-      annotations[ANNOTATION_TAGS] = m.tags.join(',');
+      annotations[ANNOTATION_TAGS] = JSON.stringify(m.tags);
     }
     if (m['allowed-tools']) {
       annotations[ANNOTATION_ALLOWED_TOOLS] = m['allowed-tools'];
     }
     if (m['display-name']) {
       annotations[ANNOTATION_DISPLAY_NAME] = m['display-name'];
+    }
+    if (m.compatibility) {
+      annotations[ANNOTATION_COMPATIBILITY] = m.compatibility;
+    }
+    const wc = skillContent.split(/\s+/).filter(Boolean).length;
+    if (wc > 0) {
+      annotations[ANNOTATION_WORDCOUNT] = String(wc);
     }
     if (skillCard.provenance?.source) {
       annotations[ANNOTATION_SOURCE] = skillCard.provenance.source;

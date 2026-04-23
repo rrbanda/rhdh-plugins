@@ -140,12 +140,22 @@ export function SkillCard({ skill }: SkillCardProps) {
               </span>
             )}
 
-            {skill.model && (
+            {(skill.model || skill.compatibility) && (
               <span className="sm-card-meta-badge">
                 <svg width={12} height={12} viewBox="0 0 16 16" fill="currentColor" opacity={0.5}>
                   <path d="M6 12.5a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3a.5.5 0 01-.5-.5zM3 8.06a.5.5 0 01.5-.5h9a.5.5 0 010 1h-9a.5.5 0 01-.5-.5zm-2-4a.5.5 0 01.5-.5h13a.5.5 0 010 1H1.5a.5.5 0 01-.5-.5z" />
                 </svg>
-                {skill.model}
+                {skill.compatibility || skill.model}
+              </span>
+            )}
+
+            {skill.wordCount != null && skill.wordCount > 0 && (
+              <span className="sm-card-meta-badge">
+                <svg width={12} height={12} viewBox="0 0 16 16" fill="currentColor" opacity={0.5}>
+                  <path d="M2 2a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V2zm2-1a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V2a1 1 0 00-1-1H4z" />
+                  <path d="M5 4h6v1H5V4zm0 3h6v1H5V7zm0 3h4v1H5v-1z" />
+                </svg>
+                {skill.wordCount} words
               </span>
             )}
           </div>

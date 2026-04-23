@@ -83,6 +83,15 @@ function ociToSkillData(skill: Skill): SkillData {
     ?.map(a => (a.email ? `${a.name} <${a.email}>` : a.name))
     .join(', ');
 
+  const ann = skill.ociAnnotations;
+  const annWc = ann?.wordCount ? parseInt(ann.wordCount, 10) : undefined;
+  // Only use the OCI annotation word count. When skill.content is not loaded
+  // (catalog listing), the body is a synthetic stub and computing from it
+  // would produce a misleadingly low number. For skills that lack the
+  // annotation, wordCount stays undefined and the UI hides the badge.
+  const wordCount = Number.isFinite(annWc) ? annWc : undefined;
+  const compatibility = ann?.compatibility || m.compatibility || undefined;
+
   return {
     slug,
     pluginName: cat,
@@ -100,6 +109,8 @@ function ociToSkillData(skill: Skill): SkillData {
     tags: m.tags,
     authors: authorsStr,
     displayName: m['display-name'],
+    wordCount: Number.isFinite(wordCount) ? wordCount : undefined,
+    compatibility,
   };
 }
 
@@ -332,6 +343,10 @@ export function registerSkillsRoutes(
         const reparsed = parseSkillContent(content);
         if (!reparsed.title) reparsed.title = match.sections.title;
         match.sections = reparsed;
+        if (match.wordCount == null) {
+          const wc = content.split(/\s+/).filter(Boolean).length;
+          if (wc > 0) match.wordCount = wc;
+        }
       }
       res.json(match);
     } catch (err) {

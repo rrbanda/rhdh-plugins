@@ -177,9 +177,9 @@ export default function SkillDetailPage() {
                 {complexity}
               </Label>
               {skill.version && <Label color="grey">v{skill.version}</Label>}
-              {skill.model && (
+              {(skill.model || skill.compatibility) && (
                 <Label color="purple" icon={<CodeIcon />}>
-                  {skill.model}
+                  {skill.compatibility || skill.model}
                 </Label>
               )}
               {skill.sections.workflow.length > 0 && (
@@ -395,6 +395,32 @@ export default function SkillDetailPage() {
                                 Version
                               </Content>
                               <div style={{ marginTop: 4 }}>v{skill.version}</div>
+                            </div>
+                          </>
+                        )}
+                        {skill.compatibility && (
+                          <>
+                            <Divider />
+                            <div>
+                              <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                                Compatibility
+                              </Content>
+                              <div style={{ marginTop: 4 }}>
+                                <Label color="purple" icon={<CodeIcon />}>
+                                  {skill.compatibility}
+                                </Label>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {skill.wordCount != null && skill.wordCount > 0 && (
+                          <>
+                            <Divider />
+                            <div>
+                              <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                                Word Count
+                              </Content>
+                              <div style={{ marginTop: 4 }}>{skill.wordCount.toLocaleString()} words</div>
                             </div>
                           </>
                         )}

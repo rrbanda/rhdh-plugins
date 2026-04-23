@@ -115,12 +115,16 @@ export interface OciAnnotations {
   revision?: string;
   /** io.skillimage.status — lifecycle state annotation */
   lifecycleStatus?: string;
-  /** io.skillimage.tags — comma-separated skill tags */
+  /** io.skillimage.tags — JSON array or comma-separated skill tags */
   tags?: string;
   /** io.skillimage.allowed-tools — space-separated tool names */
   allowedTools?: string;
   /** io.skillimage.display-name — human-friendly display name */
   displayName?: string;
+  /** io.skillimage.wordcount — word count of the SKILL.md content */
+  wordCount?: string;
+  /** io.skillimage.compatibility — recommended model compatibility */
+  compatibility?: string;
 }
 
 /** @public */
@@ -285,6 +289,8 @@ export interface SkillData {
   tags?: string[];
   authors?: string;
   displayName?: string;
+  wordCount?: number;
+  compatibility?: string;
 }
 
 /** @public */

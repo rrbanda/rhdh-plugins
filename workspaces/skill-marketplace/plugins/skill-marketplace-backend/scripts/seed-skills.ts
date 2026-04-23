@@ -697,6 +697,19 @@ async function pushSkillToOci(
   if (authorsStr) annotations['org.opencontainers.image.authors'] = authorsStr;
   if (m.namespace) annotations['org.opencontainers.image.vendor'] = m.namespace;
   if (card.provenance?.source) annotations['org.opencontainers.image.source'] = card.provenance.source;
+  if (m.tags && m.tags.length > 0) {
+    annotations['io.skillimage.tags'] = JSON.stringify(m.tags);
+  }
+  if (m['display-name']) {
+    annotations['io.skillimage.display-name'] = m['display-name'];
+  }
+  if (m['allowed-tools']) {
+    annotations['io.skillimage.allowed-tools'] = m['allowed-tools'];
+  }
+  const wc = content.split(/\s+/).filter(Boolean).length;
+  if (wc > 0) {
+    annotations['io.skillimage.wordcount'] = String(wc);
+  }
 
   const manifest = {
     schemaVersion: 2,
