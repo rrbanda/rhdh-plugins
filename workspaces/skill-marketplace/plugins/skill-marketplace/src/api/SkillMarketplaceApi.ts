@@ -28,7 +28,6 @@ import type {
   GraphRAGResult,
   GraphSyncResult,
   AgenticQuery,
-  AgenticResult,
   LifecycleState,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
@@ -44,7 +43,6 @@ export interface SkillMarketplaceApi {
   triggerSync(): Promise<GraphSyncResult>;
   getSyncStatus(): Promise<{ available: boolean }>;
   queryRAG(query: GraphRAGQuery): Promise<GraphRAGResult>;
-  agenticQuery(query: AgenticQuery): Promise<AgenticResult>;
   agenticQueryStreamUrl(query: AgenticQuery): Promise<{ url: string; body: string; headers: Record<string, string> }>;
 
   getLifecycleState(ref: string): Promise<{ ref: string; lifecycleState: LifecycleState; version: string; name: string }>;
@@ -58,7 +56,6 @@ export interface SkillMarketplaceApi {
   getAgentLogs(namespace: string, name: string, tail?: number): Promise<unknown>;
   getAgentCard(namespace?: string, agentName?: string): Promise<unknown>;
   chatWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string, activeSkill?: string): Promise<unknown>;
-  streamWithAgent(message: string, sessionId?: string, namespace?: string, agentName?: string, activeSkill?: string): Promise<Response>;
   listAgentNamespaces(): Promise<{ namespaces: string[] }>;
   getHealth(): Promise<Record<string, unknown>>;
 
@@ -173,13 +170,6 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
 
   async queryRAG(query: GraphRAGQuery): Promise<GraphRAGResult> {
     return this.request('/graph/rag', {
-      method: 'POST',
-      body: JSON.stringify(query),
-    });
-  }
-
-  async agenticQuery(query: AgenticQuery): Promise<AgenticResult> {
-    return this.request('/graph/agentic-rag', {
       method: 'POST',
       body: JSON.stringify(query),
     });
@@ -356,24 +346,6 @@ export class SkillMarketplaceApiClient implements SkillMarketplaceApi {
   ): Promise<unknown> {
     return this.request('/kagenti/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, sessionId, namespace, agentName, activeSkill }),
-    });
-  }
-
-  async streamWithAgent(
-    message: string,
-    sessionId?: string,
-    namespace?: string,
-    agentName?: string,
-    activeSkill?: string,
-  ): Promise<Response> {
-    const baseUrl = await this.getBaseUrl();
-    return this.streamingFetch(`${baseUrl}/kagenti/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
       body: JSON.stringify({ message, sessionId, namespace, agentName, activeSkill }),
     });
   }

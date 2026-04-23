@@ -75,6 +75,7 @@ export async function createRouter(
       builderAgentConfigured: !!builderProxy,
       kagentiConfigured: !!kagenti,
       ociRegistryConfigured: !!ociRegistry,
+      agenticConfigured: !!agenticService,
       kagenti: kagentiDefaults
         ? { namespace: kagentiDefaults.namespace, agentName: kagentiDefaults.agentName }
         : undefined,

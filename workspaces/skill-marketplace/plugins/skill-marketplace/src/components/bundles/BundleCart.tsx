@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRouteRef } from '@backstage/core-plugin-api';
 import { rootRouteRef } from '../../routes';
-import { useBundle, useSkills, useSkillAdvisor, useBundleValidator } from '../../hooks';
+import { useBundle, useSkills, useSkillAdvisor, useBundleValidator, useAgenticAvailable } from '../../hooks';
+
+const AI_COOLDOWN_MS = 10_000;
 
 export default function BundleCart() {
   const { skills, resolved, resolving, drawerOpen, setDrawerOpen, removeSkill, clearCart, saveBundle, exportBundle, addSkill, hasSkill } = useBundle();
@@ -26,6 +28,7 @@ export default function BundleCart() {
   const validator = useBundleValidator();
   const navigate = useNavigate();
   const basePath = useRouteRef(rootRouteRef)();
+  const agenticAvailable = useAgenticAvailable();
 
   const [saving, setSaving] = useState(false);
   const [bundleName, setBundleName] = useState('');
@@ -35,6 +38,14 @@ export default function BundleCart() {
   const [saveError, setSaveError] = useState('');
   const [advisorInput, setAdvisorInput] = useState('');
   const [activePanel, setActivePanel] = useState<'none' | 'advisor' | 'validator'>('none');
+
+  const advisorCooldownRef = useRef<number>(0);
+  const validatorCooldownRef = useRef<number>(0);
+  const [, forceUpdate] = useState(0);
+
+  const isAdvisorCooling = Date.now() - advisorCooldownRef.current < AI_COOLDOWN_MS;
+  const isValidatorCooling = Date.now() - validatorCooldownRef.current < AI_COOLDOWN_MS;
+  const aiUnavailable = agenticAvailable === false;
 
   useEffect(() => {
     if (!drawerOpen) return undefined;
@@ -71,12 +82,17 @@ export default function BundleCart() {
   };
 
   const handleAdvisorAsk = () => {
-    if (!advisorInput.trim()) return;
+    if (!advisorInput.trim() || isAdvisorCooling) return;
+    advisorCooldownRef.current = Date.now();
+    setTimeout(() => forceUpdate(n => n + 1), AI_COOLDOWN_MS);
     const cartNames = skills.map(s => s.name);
     advisor.ask(advisorInput.trim(), cartNames);
   };
 
   const handleValidate = () => {
+    if (isValidatorCooling) return;
+    validatorCooldownRef.current = Date.now();
+    setTimeout(() => forceUpdate(n => n + 1), AI_COOLDOWN_MS);
     const names = skills.map(s => s.name);
     const deps = resolved?.dependencies?.map(d => (d as { name: string }).name) ?? [];
     const tools = resolved?.tools?.map(t => (t as { name: string }).name) ?? [];
@@ -107,11 +123,22 @@ export default function BundleCart() {
           <div className="bc-toast bc-toast-error">{saveError}</div>
         )}
 
+        {aiUnavailable && (
+          <div className="bc-ai-banner">
+            <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" />
+            </svg>
+            AI features require backend configuration. Advisor and Validation are unavailable.
+          </div>
+        )}
+
         {/* AI Action Bar */}
         <div className="bc-ai-bar">
           <button
             className={`bc-ai-tab ${activePanel === 'advisor' ? 'bc-ai-tab-active' : ''}`}
             onClick={() => setActivePanel(activePanel === 'advisor' ? 'none' : 'advisor')}
+            disabled={aiUnavailable}
+            title={aiUnavailable ? 'AI Advisor requires agentic backend configuration' : 'Get AI skill recommendations'}
           >
             <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93L12 10l-.75-.07A4.001 4.001 0 0112 2z" />
@@ -122,8 +149,8 @@ export default function BundleCart() {
           <button
             className={`bc-ai-tab ${activePanel === 'validator' ? 'bc-ai-tab-active' : ''}`}
             onClick={() => { setActivePanel(activePanel === 'validator' ? 'none' : 'validator'); }}
-            disabled={skills.length < 2}
-            title={skills.length < 2 ? 'Add at least 2 skills to validate' : 'Validate bundle completeness'}
+            disabled={skills.length < 2 || aiUnavailable}
+            title={aiUnavailable ? 'Validation requires agentic backend configuration' : skills.length < 2 ? 'Add at least 2 skills to validate' : 'Validate bundle completeness'}
           >
             <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="10" />
@@ -134,12 +161,12 @@ export default function BundleCart() {
             <button
               className="bc-ai-tab"
               onClick={handleTestBundle}
-              title="Test this bundle in the Skills Playground"
+              title="Test these skills in the Skills Playground"
             >
               <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
-              Test
+              Test in Playground
             </button>
           )}
         </div>
@@ -159,9 +186,10 @@ export default function BundleCart() {
               <button
                 className="bc-btn bc-btn-primary bc-advisor-btn"
                 onClick={handleAdvisorAsk}
-                disabled={!advisorInput.trim() || advisor.status === 'thinking' || advisor.status === 'searching'}
+                disabled={!advisorInput.trim() || advisor.status === 'thinking' || advisor.status === 'searching' || isAdvisorCooling}
+                title={isAdvisorCooling ? 'Please wait before asking again' : undefined}
               >
-                {advisor.status === 'thinking' || advisor.status === 'searching' ? '...' : 'Ask'}
+                {advisor.status === 'thinking' || advisor.status === 'searching' ? '...' : isAdvisorCooling ? 'Wait...' : 'Ask'}
               </button>
             </div>
             {advisor.status !== 'idle' && advisor.statusText && (
@@ -205,8 +233,8 @@ export default function BundleCart() {
             {validator.status === 'idle' && (
               <div className="bc-validator-start">
                 <p>AI will analyze your {skills.length} skills for completeness, redundancy, and gaps.</p>
-                <button className="bc-btn bc-btn-primary" onClick={handleValidate}>
-                  Run Validation
+                <button className="bc-btn bc-btn-primary" onClick={handleValidate} disabled={isValidatorCooling} title={isValidatorCooling ? 'Please wait before validating again' : undefined}>
+                  {isValidatorCooling ? 'Wait...' : 'Run Validation'}
                 </button>
               </div>
             )}
@@ -366,6 +394,18 @@ export default function BundleCart() {
 }
 
 const cartStyles = `
+.bc-ai-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #92400e;
+  background: #fef3c720;
+  border-bottom: 1px solid #fde68a40;
+  line-height: 1.4;
+}
 .bc-overlay {
   position: fixed;
   inset: 0;

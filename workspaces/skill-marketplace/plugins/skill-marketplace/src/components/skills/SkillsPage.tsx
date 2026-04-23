@@ -221,7 +221,9 @@ export default function SkillsPage() {
             <>
               <div className="ss-results-meta">
                 {semantic.results.length} results
-                {semantic.queryEmbeddingUsed && <span className="ss-embedding-badge">Vector search active</span>}
+                <span className={`ss-search-chip ${semantic.queryEmbeddingUsed ? 'ss-search-chip-vector' : 'ss-search-chip-fulltext'}`}>
+                  {semantic.queryEmbeddingUsed ? 'AI Vector Search' : 'Fulltext Search'}
+                </span>
               </div>
               <div className="ss-results-grid">
                 {semantic.results.map(hit => (
@@ -718,15 +720,21 @@ const skillsPageStyles = `
     font-size: 13px;
     color: var(--pf-t--global--text--color--subtle, #6a6e73);
   }
-  .ss-embedding-badge {
+  .ss-search-chip {
     display: inline-flex;
     align-items: center;
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 600;
-    background: #8b5cf620;
-    color: #7c3aed;
+  }
+  .ss-search-chip-vector {
+    background: #3b82f620;
+    color: #2563eb;
+  }
+  .ss-search-chip-fulltext {
+    background: #6b728020;
+    color: #6b7280;
   }
   .ss-results-grid {
     display: grid;

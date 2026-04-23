@@ -36,7 +36,7 @@ export default function SkillsPlayground() {
   const preloadSkill = searchParams.get('skill') || '';
   const preloadSkills = searchParams.get('skills') || '';
   const bundleSkillNames = preloadSkills ? preloadSkills.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const initialSkill = preloadSkill || (bundleSkillNames.length === 1 ? bundleSkillNames[0] : '');
+  const initialSkill = preloadSkill || (bundleSkillNames.length > 0 ? bundleSkillNames[0] : '');
   const [selectedSkill, setSelectedSkill] = useState(initialSkill);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -45,6 +45,7 @@ export default function SkillsPlayground() {
   const [agentStatus, setAgentStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [agentNs, setAgentNs] = useState<string | undefined>();
   const [agentName, setAgentName] = useState<string | undefined>();
+  const [agentCapabilities, setAgentCapabilities] = useState<string[]>(['skill_context', 'exec', 'web_fetch', 'read_file', 'write_file']);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -63,7 +64,16 @@ export default function SkillsPlayground() {
       return api.getAgentCard(ns, name);
     }).then(data => {
       if (!cancelled) {
-        setAgentStatus(data && typeof data === 'object' ? 'online' : 'offline');
+        if (data && typeof data === 'object') {
+          setAgentStatus('online');
+          const card = data as Record<string, unknown>;
+          const caps = (card.capabilities ?? card.skills ?? card.tools) as string[] | undefined;
+          if (Array.isArray(caps) && caps.length > 0) {
+            setAgentCapabilities(caps.map(c => typeof c === 'string' ? c : String((c as Record<string, unknown>).name ?? c)));
+          }
+        } else {
+          setAgentStatus('offline');
+        }
       }
     }).catch(() => {
       if (!cancelled) setAgentStatus('offline');
@@ -197,7 +207,10 @@ export default function SkillsPlayground() {
           )}
           {bundleSkillNames.length > 1 && (
             <div className="pg-bundle-context">
-              <label className="pg-label" style={{ marginTop: 12 }}>Bundle Skills ({bundleSkillNames.length})</label>
+              <div className="pg-bundle-header">
+                Testing {bundleSkillNames.length} skills from bundle
+              </div>
+              <label className="pg-label" style={{ marginTop: 8 }}>Bundle Skills</label>
               <div className="pg-bundle-chips">
                 {bundleSkillNames.map(name => (
                   <button
@@ -210,7 +223,7 @@ export default function SkillsPlayground() {
                 ))}
               </div>
               <span className="pg-skill-hint">
-                Click a skill chip to set it as the active context, or send a message to test the full bundle.
+                Click a skill chip to switch the active context. Each skill is tested individually.
               </span>
             </div>
           )}
@@ -219,7 +232,7 @@ export default function SkillsPlayground() {
         <div className="pg-tools">
           <label className="pg-label">Agent Capabilities</label>
           <div className="pg-tool-list">
-            {['skill_context', 'exec', 'web_fetch', 'read_file', 'write_file'].map(t => (
+            {agentCapabilities.map(t => (
               <span key={t} className="pg-tool-badge">{t}</span>
             ))}
           </div>
@@ -403,6 +416,15 @@ const playgroundStyles = `
     background: var(--pf-t--global--color--brand--default, #0066cc);
     border-color: var(--pf-t--global--color--brand--default, #0066cc);
     color: #fff;
+  }
+  .pg-bundle-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--pf-t--global--color--brand--default, #0066cc);
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: #0066cc08;
+    border: 1px solid #0066cc20;
   }
 
   .pg-tool-list { display: flex; flex-wrap: wrap; gap: 4px; }

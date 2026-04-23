@@ -25,3 +25,4 @@ export { useSkillAdvisor } from './useSkillAdvisor';
 export type { AdvisorSuggestion, AdvisorState } from './useSkillAdvisor';
 export { useBundleValidator } from './useBundleValidator';
 export type { ValidationFinding, ValidationSeverity, ValidationState } from './useBundleValidator';
+export { useAgenticAvailable } from './useAgenticAvailable';

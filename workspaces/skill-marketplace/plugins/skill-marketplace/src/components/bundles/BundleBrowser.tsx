@@ -176,7 +176,7 @@ export default function BundleBrowser() {
                       navigate(`${basePath}/playground?skills=${encodeURIComponent(skillNames)}`);
                     }}
                   >
-                    Test Bundle
+                    Test Skills in Playground
                   </button>
                   <button className="bb-btn bb-btn-secondary" onClick={() => handleFork(selectedBundle.id)}>Fork</button>
                   <button className="bb-btn bb-btn-secondary" onClick={() => handleExport(selectedBundle.id)}>Export JSON</button>

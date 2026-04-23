@@ -55,6 +55,7 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'logs'>('overview');
+  const [agentStatus, setAgentStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -82,6 +83,28 @@ export default function AgentDetailPage() {
           setError(err.message || 'Failed to load agent');
           setLoading(false);
         }
+      });
+    return () => { cancelled = true; };
+  }, [api, namespace, name]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getHealth()
+      .then((health: Record<string, unknown>) => {
+        if (cancelled) return;
+        const kagenti = health.kagenti as { namespace?: string; agentName?: string } | undefined;
+        return api.getAgentCard(
+          (namespace || kagenti?.namespace) ?? undefined,
+          (name || kagenti?.agentName) ?? undefined,
+        );
+      })
+      .then(data => {
+        if (!cancelled) {
+          setAgentStatus(data && typeof data === 'object' ? 'online' : 'offline');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAgentStatus('offline');
       });
     return () => { cancelled = true; };
   }, [api, namespace, name]);
@@ -262,20 +285,25 @@ export default function AgentDetailPage() {
             )}
             <div ref={chatEndRef} />
           </div>
+          {agentStatus === 'offline' && (
+            <div className="ad-offline-bar">
+              Agent is currently offline. Check your Kagenti connection to enable chat.
+            </div>
+          )}
           <div className="ad-chat-input-row">
             <input
               type="text"
               className="ad-chat-input"
-              placeholder="Type a message..."
+              placeholder={agentStatus === 'offline' ? 'Agent is offline...' : 'Type a message...'}
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendChat()}
-              disabled={chatLoading}
+              disabled={chatLoading || agentStatus === 'offline'}
             />
             <button
               className="ad-chat-send"
               onClick={sendChat}
-              disabled={chatLoading || !chatInput.trim()}
+              disabled={chatLoading || !chatInput.trim() || agentStatus === 'offline'}
             >
               Send
             </button>
@@ -362,6 +390,15 @@ const detailStyles = `
     font-size: 14px; font-weight: 600; cursor: pointer;
   }
   .ad-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ad-offline-bar {
+    padding: 8px 16px;
+    background: #ef444412;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    border-top: 1px solid #ef444430;
+  }
 
   .ad-logs { border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); border-radius: 12px; overflow: hidden; }
   .ad-logs-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); }

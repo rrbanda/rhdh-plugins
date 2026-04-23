@@ -18,7 +18,7 @@ import { InteractiveNvlWrapper } from '@neo4j-nvl/react';
 import type { Node, Relationship, HitTargets, NVL } from '@neo4j-nvl/base';
 import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../../api';
-import { useGraphData } from '../../hooks';
+import { useGraphData, useAgenticAvailable } from '../../hooks';
 import type {
   NvlNode,
   NvlRelationship,
@@ -100,6 +100,7 @@ const HIDDEN_PROPS = new Set([
 export default function GraphPage() {
   const api = useApi(skillMarketplaceApiRef);
   const { data, loading, error, refetch } = useGraphData(GRAPH_DEFAULTS.INITIAL_GRAPH_LIMIT);
+  const agenticAvailable = useAgenticAvailable();
   const nvlRef = useRef<NVL | null>(null);
   const triggerSync = useCallback(() => { api.triggerSync().catch(() => {}); }, [api]);
 
@@ -639,9 +640,10 @@ export default function GraphPage() {
 
             {/* Actions */}
             <button
-              onClick={() => { setAiPanelOpen(v => !v); if (!aiPanelOpen) { setDetailNode(null); setSelectedNodeId(null); } }}
+              onClick={() => { if (agenticAvailable === false) return; setAiPanelOpen(v => !v); if (!aiPanelOpen) { setDetailNode(null); setSelectedNodeId(null); } }}
               className={`action-btn ai-toggle-btn ${aiPanelOpen ? 'active' : ''}`}
-              title="Ask the Knowledge Graph"
+              disabled={agenticAvailable === false}
+              title={agenticAvailable === false ? 'Knowledge Graph Q&A requires AI backend configuration' : 'Ask the Knowledge Graph'}
             >
               <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
