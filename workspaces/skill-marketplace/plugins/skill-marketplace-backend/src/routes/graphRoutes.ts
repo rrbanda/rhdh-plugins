@@ -79,16 +79,18 @@ export function registerGraphRoutes(
       res.status(503).json({ error: 'Neo4j not configured' });
       return;
     }
-    const { nodeId, depth: rawDepth, limit: rawLimit } = req.body ?? {};
-    if (typeof nodeId !== 'string' || !nodeId.trim()) {
+    const { nodeId: rawNodeId, depth: rawDepth, limit: rawLimit } = req.body ?? {};
+    if (typeof rawNodeId !== 'string' || !rawNodeId.trim()) {
       res.status(400).json({ error: 'nodeId is required and must be a string' });
       return;
     }
+    const nodeId = rawNodeId.trim();
     const depth = typeof rawDepth === 'number' && Number.isInteger(rawDepth) && rawDepth > 0
-      ? rawDepth
+      ? Math.min(rawDepth, 5)
       : 2;
+    const MAX_NEIGHBORHOOD_LIMIT = 200;
     const limit = typeof rawLimit === 'number' && Number.isInteger(rawLimit) && rawLimit > 0
-      ? rawLimit
+      ? Math.min(rawLimit, MAX_NEIGHBORHOOD_LIMIT)
       : undefined;
     try {
       const data = await neo4j.fetchNeighborhood(nodeId, depth, limit);

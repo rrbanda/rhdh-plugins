@@ -390,7 +390,7 @@ export class Neo4jService {
 
     const session = await this.getHealthySession();
     try {
-      const safeDepth = Math.min(depth, 5);
+      const safeDepth = Math.floor(Math.min(Math.max(depth, 1), 5));
 
       const result = await session.run(
         this.q('read.fetchNeighborhood', { depth: safeDepth }),

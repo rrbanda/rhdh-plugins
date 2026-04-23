@@ -125,6 +125,8 @@ export default function GraphPage() {
   const nodesRef = useRef<Node[]>([]);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
+  const [exploringNodeId, setExploringNodeId] = useState<string | null>(null);
+  const [exploreFeedback, setExploreFeedback] = useState<{ type: 'info' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const handle = setInterval(refetch, GRAPH_DEFAULTS.AUTO_REFRESH_MS);
@@ -143,33 +145,54 @@ export default function GraphPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!exploreFeedback) return undefined;
+    const timer = setTimeout(() => setExploreFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [exploreFeedback]);
+
   const handleExploreNeighborhood = useCallback(async (nodeId: string) => {
+    setExploringNodeId(nodeId);
+    setExploreFeedback(null);
     try {
       const result = await api.getNeighborhood(
         nodeId,
         GRAPH_DEFAULTS.NEIGHBORHOOD_DEPTH,
         GRAPH_DEFAULTS.NEIGHBORHOOD_LIMIT,
       );
-      if (result.nodes.length > 0) {
-        setOverlayNodes(prev => {
-          const existingIds = new Set([
-            ...(dataRef.current?.nodes.map(n => n.id) ?? []),
-            ...prev.map(n => n.id),
-          ]);
-          const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
-          return newNodes.length > 0 ? [...prev, ...newNodes] : prev;
-        });
-        setOverlayRels(prev => {
-          const existingIds = new Set([
-            ...(dataRef.current?.relationships.map(r => r.id) ?? []),
-            ...prev.map(r => r.id),
-          ]);
-          const newRels = result.relationships.filter(r => !existingIds.has(r.id));
-          return newRels.length > 0 ? [...prev, ...newRels] : prev;
-        });
+      if (result.nodes.length === 0) {
+        setExploreFeedback({ type: 'info', message: 'No additional connections found.' });
+        return;
+      }
+
+      let addedNodes = 0;
+      let addedRels = 0;
+      setOverlayNodes(prev => {
+        const existingIds = new Set([
+          ...(dataRef.current?.nodes.map(n => n.id) ?? []),
+          ...prev.map(n => n.id),
+        ]);
+        const newNodes = result.nodes.filter(n => !existingIds.has(n.id));
+        addedNodes = newNodes.length;
+        return newNodes.length > 0 ? [...prev, ...newNodes] : prev;
+      });
+      setOverlayRels(prev => {
+        const existingIds = new Set([
+          ...(dataRef.current?.relationships.map(r => r.id) ?? []),
+          ...prev.map(r => r.id),
+        ]);
+        const newRels = result.relationships.filter(r => !existingIds.has(r.id));
+        addedRels = newRels.length;
+        return newRels.length > 0 ? [...prev, ...newRels] : prev;
+      });
+
+      if (addedNodes === 0 && addedRels === 0) {
+        setExploreFeedback({ type: 'info', message: 'All neighbors already visible.' });
       }
     } catch {
-      /* neighborhood expansion is best-effort */
+      setExploreFeedback({ type: 'error', message: 'Failed to load neighborhood.' });
+    } finally {
+      setExploringNodeId(null);
     }
   }, [api]);
 
@@ -718,6 +741,8 @@ export default function GraphPage() {
               setDetailNode(null);
             }}
             onExplore={handleExploreNeighborhood}
+            exploringNodeId={exploringNodeId}
+            exploreFeedback={exploreFeedback}
           />
         )}
 
@@ -760,6 +785,8 @@ interface DetailPanelProps {
   labels: { name: string; color: string; count: number }[];
   onClose: () => void;
   onExplore: (nodeId: string) => void;
+  exploringNodeId: string | null;
+  exploreFeedback: { type: 'info' | 'error'; message: string } | null;
 }
 
 function DetailPanel({
@@ -769,6 +796,8 @@ function DetailPanel({
   labels,
   onClose,
   onExplore,
+  exploringNodeId,
+  exploreFeedback,
 }: DetailPanelProps) {
   const labelColorMap = new Map(labels.map(l => [l.name, l.color]));
   const connections = relationships.filter(
@@ -850,9 +879,6 @@ function DetailPanel({
                 <span className="skill-meta-value">{String(node.properties.author)}</span>
               </div>
             ) : null}
-            <button className="explore-btn" onClick={() => onExplore(node.id)}>
-              Explore Neighborhood
-            </button>
             <AddToBundleGraphBtn node={node} />
           </div>
         )}
@@ -889,18 +915,6 @@ function DetailPanel({
                 ))}
               </div>
             )}
-            <button className="explore-btn" onClick={() => onExplore(node.id)}>
-              Explore Neighborhood
-            </button>
-          </div>
-        )}
-
-        {/* Tag-specific metadata */}
-        {node.labels.includes('Tag') && (
-          <div className="detail-section">
-            <button className="explore-btn" onClick={() => onExplore(node.id)}>
-              Explore Neighborhood
-            </button>
           </div>
         )}
 
@@ -951,9 +965,6 @@ function DetailPanel({
                 </span>
               </div>
             )}
-            <button className="explore-btn" onClick={() => onExplore(node.id)}>
-              Explore Neighborhood
-            </button>
           </div>
         )}
 
@@ -1022,6 +1033,27 @@ function DetailPanel({
             )}
           </div>
         )}
+
+        {/* Explore Neighborhood -- available for all node types */}
+        <div className="detail-section">
+          <button
+            className="explore-btn"
+            disabled={exploringNodeId === node.id}
+            aria-label={`Explore neighborhood of ${node.caption}`}
+            onClick={() => onExplore(node.id)}
+          >
+            {exploringNodeId === node.id ? (
+              <><span className="explore-spinner" /> Exploring&hellip;</>
+            ) : (
+              'Explore Neighborhood'
+            )}
+          </button>
+          {exploreFeedback && (
+            <div className={`explore-feedback explore-feedback--${exploreFeedback.type}`}>
+              {exploreFeedback.message}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1610,7 +1642,40 @@ const graphPageStyles = `
     cursor: pointer;
     transition: all 0.15s;
   }
-  .explore-btn:hover {
+  .explore-btn:hover:not(:disabled) {
     background: rgba(0, 102, 204, 0.12);
+  }
+  .explore-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .explore-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: explore-spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes explore-spin {
+    to { transform: rotate(360deg); }
+  }
+  .explore-feedback {
+    margin-top: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+  }
+  .explore-feedback--info {
+    background: rgba(0, 102, 204, 0.08);
+    color: #0066cc;
+  }
+  .explore-feedback--error {
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
   }
 `;
