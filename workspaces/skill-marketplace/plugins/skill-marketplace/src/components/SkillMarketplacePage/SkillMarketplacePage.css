@@ -96,16 +96,16 @@
  * inherit --sm-* tokens and don't leak into other Backstage pages.
  */
 
-/* Page sections */
+/* Page sections — override PF internal variable */
 .skill-marketplace-plugin-root .pf-v6-c-page__main-section,
 .skill-marketplace-plugin-root [class*="pf-v6-c-page__main-section"] {
-  background-color: var(--sm-surface-primary);
+  --pf-v6-c-page__main-section--BackgroundColor: var(--sm-surface-primary);
   color: var(--sm-text-primary);
 }
 
-/* Cards */
+/* Cards — override PF's internal CSS variable, not just the property */
 .skill-marketplace-plugin-root .pf-v6-c-card {
-  background-color: var(--sm-surface-card);
+  --pf-v6-c-card--BackgroundColor: var(--sm-surface-card);
   color: var(--sm-text-primary);
   box-shadow: var(--sm-shadow);
 }
@@ -116,56 +116,197 @@
   color: var(--sm-text-primary);
 }
 
-/* Tabs */
+/* Tabs — override PF internal variables */
 .skill-marketplace-plugin-root .pf-v6-c-tabs__link {
-  color: var(--sm-text-secondary);
+  --pf-v6-c-tabs__link--Color: var(--sm-text-secondary);
+  --pf-v6-c-tabs__link--BackgroundColor: transparent;
 }
 .skill-marketplace-plugin-root .pf-v6-c-tabs__link::after {
   background-color: var(--sm-brand);
 }
 .skill-marketplace-plugin-root .pf-v6-c-tabs__item.pf-m-current .pf-v6-c-tabs__link {
-  color: var(--sm-brand);
+  --pf-v6-c-tabs__link--Color: var(--sm-brand);
 }
 
-/* Breadcrumbs */
+/* Breadcrumbs — override PF internal variables */
 .skill-marketplace-plugin-root .pf-v6-c-breadcrumb__link {
-  color: var(--sm-text-link);
+  --pf-v6-c-breadcrumb__link--Color: var(--sm-text-link);
 }
 .skill-marketplace-plugin-root .pf-v6-c-breadcrumb__link:hover {
-  color: var(--sm-brand);
+  --pf-v6-c-breadcrumb__link--Color: var(--sm-brand);
 }
 .skill-marketplace-plugin-root .pf-v6-c-breadcrumb__item {
   color: var(--sm-text-secondary);
 }
 
-/* Titles / Content */
+/* Titles / Content — override PF internal variables */
 .skill-marketplace-plugin-root .pf-v6-c-title {
   color: var(--sm-text-primary);
 }
 .skill-marketplace-plugin-root .pf-v6-c-content {
-  color: var(--sm-text-primary);
+  --pf-v6-c-content--Color: var(--sm-text-primary);
+}
+.skill-marketplace-plugin-root .pf-v6-c-content small {
+  --pf-v6-c-content--small--Color: var(--sm-text-secondary);
 }
 
-/* Code blocks */
+/* Code blocks — override PF internal variable */
 .skill-marketplace-plugin-root .pf-v6-c-code-block {
-  background-color: var(--sm-chat-code-bg);
+  --pf-v6-c-code-block--BackgroundColor: var(--sm-chat-code-bg);
   border: 1px solid var(--sm-border-default);
 }
 .skill-marketplace-plugin-root .pf-v6-c-code-block__content {
   color: var(--sm-text-primary);
 }
 
-/* Dividers */
+/* Dividers — override PF internal variable */
 .skill-marketplace-plugin-root .pf-v6-c-divider {
-  background-color: var(--sm-border-subtle);
+  --pf-v6-c-divider--Color: var(--sm-border-subtle);
 }
 
-/* Buttons — outlined variant */
+/* Buttons — override PF internal variables */
 .skill-marketplace-plugin-root .pf-v6-c-button.pf-m-link {
-  color: var(--sm-text-link);
+  --pf-v6-c-button--Color: var(--sm-text-link);
 }
 
 /* Expandable section */
 .skill-marketplace-plugin-root .pf-v6-c-expandable-section__toggle-text {
+  color: var(--sm-text-primary);
+}
+.skill-marketplace-plugin-root .pf-v6-c-expandable-section {
+  --pf-v6-c-expandable-section__toggle-icon--Color: var(--sm-text-secondary);
+}
+
+/*
+ * PatternFly v6 Label dark-mode overrides.
+ * PF labels use light pastel backgrounds in the default theme which become
+ * near-white on a dark surface. Override each color variant to use
+ * dark-friendly tinted backgrounds with contrasting text.
+ */
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label {
+  --pf-v6-c-label--BackgroundColor: #3a3a3a;
+  --pf-v6-c-label--Color: #e0e0e0;
+  --pf-v6-c-label__icon--Color: #a3a3a3;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-blue {
+  --pf-v6-c-label--BackgroundColor: rgba(77, 157, 224, 0.2);
+  --pf-v6-c-label--Color: #93c5fd;
+  --pf-v6-c-label__icon--Color: #93c5fd;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-green {
+  --pf-v6-c-label--BackgroundColor: rgba(16, 185, 129, 0.2);
+  --pf-v6-c-label--Color: #86efac;
+  --pf-v6-c-label__icon--Color: #86efac;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-orange {
+  --pf-v6-c-label--BackgroundColor: rgba(245, 158, 11, 0.2);
+  --pf-v6-c-label--Color: #fbbf24;
+  --pf-v6-c-label__icon--Color: #fbbf24;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-red {
+  --pf-v6-c-label--BackgroundColor: rgba(239, 68, 68, 0.2);
+  --pf-v6-c-label--Color: #fca5a5;
+  --pf-v6-c-label__icon--Color: #fca5a5;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-purple {
+  --pf-v6-c-label--BackgroundColor: rgba(139, 92, 246, 0.2);
+  --pf-v6-c-label--Color: #c4b5fd;
+  --pf-v6-c-label__icon--Color: #c4b5fd;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-yellow {
+  --pf-v6-c-label--BackgroundColor: rgba(234, 179, 8, 0.2);
+  --pf-v6-c-label--Color: #fde047;
+  --pf-v6-c-label__icon--Color: #fde047;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-teal {
+  --pf-v6-c-label--BackgroundColor: rgba(20, 184, 166, 0.2);
+  --pf-v6-c-label--Color: #5eead4;
+  --pf-v6-c-label__icon--Color: #5eead4;
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-outline {
+  --pf-v6-c-label--BackgroundColor: transparent;
+  --pf-v6-c-label--Color: var(--sm-text-primary);
+  border-color: var(--sm-border-default);
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-outline.pf-m-blue {
+  --pf-v6-c-label--Color: #93c5fd;
+  border-color: rgba(77, 157, 224, 0.4);
+}
+
+/* LabelGroup overflow ("N more") button */
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-label.pf-m-overflow {
+  --pf-v6-c-label--BackgroundColor: var(--sm-surface-secondary);
+  --pf-v6-c-label--Color: var(--sm-text-link);
+}
+
+/* Tabs — dark-mode bar background and inactive item contrast */
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-tabs {
+  --pf-v6-c-tabs--BackgroundColor: var(--sm-surface-card);
+  border-color: var(--sm-border-default);
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-tabs__link {
+  color: var(--sm-text-secondary);
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-tabs__item.pf-m-current .pf-v6-c-tabs__link {
+  color: var(--sm-brand);
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-tabs__link:hover {
+  color: var(--sm-text-primary);
+}
+
+/* Content/small variant (used for detail sidebar labels) */
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-content small,
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-content--small {
+  color: var(--sm-text-secondary);
+}
+
+/* PF Button plain variant (back arrow, close buttons) */
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-button.pf-m-plain {
+  color: var(--sm-text-secondary);
+}
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-button.pf-m-plain:hover {
+  color: var(--sm-text-primary);
+}
+
+/* PF Button primary variant */
+.skill-marketplace-plugin-root[data-theme="dark"] .pf-v6-c-button.pf-m-primary {
+  background-color: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+
+/*
+ * Portaled PF component overrides (MUI Drawer, dialogs, etc.).
+ * These render outside the plugin root, so scope via :root[data-sm-theme].
+ */
+:root[data-sm-theme="dark"] .pf-v6-c-label {
+  --pf-v6-c-label--BackgroundColor: #3a3a3a;
+  --pf-v6-c-label--Color: #e0e0e0;
+  --pf-v6-c-label__icon--Color: #a3a3a3;
+}
+:root[data-sm-theme="dark"] .pf-v6-c-label.pf-m-blue {
+  --pf-v6-c-label--BackgroundColor: rgba(77, 157, 224, 0.2);
+  --pf-v6-c-label--Color: #93c5fd;
+}
+:root[data-sm-theme="dark"] .pf-v6-c-label.pf-m-green {
+  --pf-v6-c-label--BackgroundColor: rgba(16, 185, 129, 0.2);
+  --pf-v6-c-label--Color: #86efac;
+}
+:root[data-sm-theme="dark"] .pf-v6-c-label.pf-m-orange {
+  --pf-v6-c-label--BackgroundColor: rgba(245, 158, 11, 0.2);
+  --pf-v6-c-label--Color: #fbbf24;
+}
+:root[data-sm-theme="dark"] .pf-v6-c-label.pf-m-red {
+  --pf-v6-c-label--BackgroundColor: rgba(239, 68, 68, 0.2);
+  --pf-v6-c-label--Color: #fca5a5;
+}
+:root[data-sm-theme="dark"] .pf-v6-c-label.pf-m-purple {
+  --pf-v6-c-label--BackgroundColor: rgba(139, 92, 246, 0.2);
+  --pf-v6-c-label--Color: #c4b5fd;
+}
+:root[data-sm-theme="dark"] .pf-v6-c-card {
+  --pf-v6-c-card--BackgroundColor: var(--sm-surface-card);
+  color: var(--sm-text-primary);
+}
+:root[data-sm-theme="dark"] .pf-v6-c-content {
   color: var(--sm-text-primary);
 }

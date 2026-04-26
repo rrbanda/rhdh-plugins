@@ -39,3 +39,5 @@ export type {
 } from './useAgentAvailability';
 export { useSkillCatalog } from './useSkillCatalog';
 export type { CatalogFilters, SkillCatalogState } from './useSkillCatalog';
+export { useOverviewStats } from './useOverviewStats';
+export type { OverviewStats } from './useOverviewStats';

@@ -154,8 +154,10 @@ const SkillMarketplacePageInner = () => {
     const root = document.documentElement;
     const keys = Object.keys(vars);
     keys.forEach(k => root.style.setProperty(k, vars[k]));
+    root.setAttribute('data-sm-theme', isDark ? 'dark' : 'light');
     return () => {
       keys.forEach(k => root.style.removeProperty(k));
+      root.removeAttribute('data-sm-theme');
     };
   }, [isDark]);
 
@@ -211,6 +213,7 @@ const SkillMarketplacePageInner = () => {
         <div
           className={`${smLayoutStyles.smRoot} skill-marketplace-plugin-root`}
           style={themeStyle}
+          data-theme={isDark ? 'dark' : 'light'}
         >
           <div
             className={smLayoutStyles.smContent}
@@ -225,6 +228,7 @@ const SkillMarketplacePageInner = () => {
       <div
         className={`${smLayoutStyles.smRoot} skill-marketplace-plugin-root`}
         style={themeStyle}
+        data-theme={isDark ? 'dark' : 'light'}
       >
         <div className={smLayoutStyles.smContent}>
           <SkillIntro
@@ -243,6 +247,7 @@ const SkillMarketplacePageInner = () => {
     <div
       className={`${smLayoutStyles.smRoot} skill-marketplace-plugin-root`}
       style={themeStyle}
+      data-theme={isDark ? 'dark' : 'light'}
     >
       <nav
         className={smLayoutStyles.smTopnav}
