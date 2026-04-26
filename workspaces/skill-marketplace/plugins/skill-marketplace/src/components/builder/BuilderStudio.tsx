@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import type { ChatMessage } from './types';
 import { useBuilderChat } from './hooks/useBuilderChat';
 import { useBuilderSession } from './hooks/useBuilderSession';
@@ -45,18 +45,6 @@ export default function BuilderStudio() {
     onRestore: handleRestore,
   });
 
-  const allEvents = useMemo(() => {
-    const fromMessages = chat.messages.flatMap(m => m.events ?? []);
-    const liveEvents = chat.events;
-    const seen = new Set<number>();
-    const combined = [...fromMessages, ...liveEvents].filter(e => {
-      if (seen.has(e.ts)) return false;
-      seen.add(e.ts);
-      return true;
-    });
-    return combined;
-  }, [chat.messages, chat.events]);
-
   return (
     <div className={styles.studio}>
       <div className={styles.toolbar}>
@@ -77,8 +65,6 @@ export default function BuilderStudio() {
       <div className={styles.chat}>
         <ChatPanel
           messages={chat.messages}
-          events={chat.events}
-          currentAgent={chat.currentAgent}
           isGenerating={chat.isGenerating}
           hasContent={!!chat.generatedContent}
           onSend={chat.send}
@@ -88,7 +74,7 @@ export default function BuilderStudio() {
         />
       </div>
 
-      {(chat.generatedContent || chat.isGenerating) && (
+      {chat.generatedContent && (
         <div className={styles.artifact}>
           <ArtifactPanel
             generatedContent={chat.generatedContent}
@@ -102,7 +88,7 @@ export default function BuilderStudio() {
       <InspectorDrawer
         open={inspectorOpen}
         onClose={() => setInspectorOpen(false)}
-        events={allEvents}
+        events={[]}
         contextId={chat.contextId}
         messageCount={chat.messages.length}
       />

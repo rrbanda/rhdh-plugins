@@ -52,9 +52,17 @@
   }
 }
 
+.graphHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-shrink: 0;
+}
 .graphHeader {
   padding: 0.5rem 0.25rem 0.75rem;
   flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 .graphHeaderTop {
   display: flex;
@@ -88,8 +96,7 @@
   flex: 1 1 0;
   min-height: 0;
   display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  flex-direction: column;
   padding: 0;
   gap: 0;
   border-radius: 12px;
@@ -101,6 +108,15 @@
     var(--sm-border-subtle) 8%
   );
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sm-text-primary) 4%, transparent);
+}
+
+/* Canvas row: graph + optional side panel */
+.canvasRow {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
 }
 
 .graphMain {
@@ -118,34 +134,23 @@
   margin-right: 0;
 }
 
-/* Frosted-glass floating toolbar (content row; position from .graphToolbar) */
+/* Controls toolbar — sits in the header row, right-aligned */
 .graphToolbar {
-  position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
-  right: 0.75rem;
-  z-index: 10;
-  background: var(--sm-graph-toolbar-bg, rgba(255, 255, 255, 0.85));
-  backdrop-filter: blur(12px) saturate(1.1);
-  -webkit-backdrop-filter: blur(12px) saturate(1.1);
-  border: 1px solid var(--sm-graph-toolbar-border, rgba(0, 0, 0, 0.08));
-  border-radius: 12px;
-  padding: 0.5rem 0.75rem;
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--sm-text-primary) 6%, transparent);
-  pointer-events: auto;
-}
-
-/* Controls row: layout inside floating toolbar */
-.graphControls {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0;
-  background: none;
-  border: none;
-  backdrop-filter: none;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card, #fff);
+  margin-top: 0.4rem;
+}
+
+.graphControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   overflow-x: auto;
   scrollbar-width: thin;
 }
@@ -354,31 +359,40 @@
   background: var(--sm-surface-hover);
 }
 
-/* Relationship legend — floats under toolbar */
-.relLegend {
-  position: absolute;
-  left: 0.75rem;
-  right: 0.75rem;
-  top: 3.6rem;
-  z-index: 9;
+/* ───── Legend bar (static, above canvas) ───── */
+.legendBar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0.35rem 0.65rem;
-  border-radius: 8px;
-  border: 1px solid var(--sm-graph-toolbar-border, var(--sm-border-default));
-  background: var(--sm-graph-toolbar-bg, color-mix(in srgb, var(--sm-surface-card) 88%, rgba(255, 255, 255, 0.7)));
-  backdrop-filter: blur(10px) saturate(1.05);
-  -webkit-backdrop-filter: blur(10px) saturate(1.05);
-  font-size: 0.75rem;
-  box-shadow: 0 1px 8px color-mix(in srgb, var(--sm-text-primary) 4%, transparent);
-}
-.relLegendTitle {
+  gap: 6px;
+  padding: 6px 14px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border-bottom: 1px solid var(--sm-graph-main-border);
+  background: var(--sm-surface-card, #fff);
   font-size: 12px;
+}
+.legendSection {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.legendDivider {
+  width: 1px;
+  height: 16px;
+  margin: 0 6px;
+  background: var(--sm-border-default);
+  flex-shrink: 0;
+}
+.legendSectionTitle {
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--sm-text-secondary);
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 .relLegendItem {
   display: flex;
@@ -575,4 +589,84 @@
   font-size: 14px;
   cursor: pointer;
   font-family: inherit;
+}
+
+/* ───── Chat bar (wide input at bottom of graph body) ───── */
+.graphChatBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--sm-graph-main-border);
+  background: var(--sm-surface-card, #fff);
+}
+.chatBarIcon {
+  flex-shrink: 0;
+  color: var(--sm-brand);
+  opacity: 0.7;
+}
+.chatBarInputWrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.chatBarInput {
+  width: 100%;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-secondary, #f5f5f5);
+  font-size: 14px;
+  outline: none;
+  color: var(--sm-text-primary);
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.chatBarInput:focus {
+  border-color: var(--sm-brand);
+  background: var(--sm-surface-card, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sm-brand) 12%, transparent);
+}
+.chatBarInput:disabled {
+  opacity: 0.6;
+}
+.chatBarSend {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: none;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.chatBarSend:hover:not(:disabled) {
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--sm-brand) 30%, transparent);
+}
+.chatBarSend:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.chatBarMsgCount {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--sm-brand-tint);
+  color: var(--sm-brand);
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.chatBarMsgCount:hover {
+  background: var(--sm-brand-hover);
 }

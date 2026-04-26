@@ -20,18 +20,18 @@ import type {
   LoggerService,
   PermissionsService,
 } from '@backstage/backend-plugin-api';
-import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { skillMarketplaceAccessPermission } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import type {
-  GraphRAGQuery,
-  GraphRAGResult,
-  GraphRAGSkill,
-  RagSkillHit,
+import {
+  skillMarketplaceAccessPermission,
+  type GraphRAGQuery,
+  type GraphRAGResult,
+  type GraphRAGSkill,
+  type RagSkillHit,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { Neo4jService } from '../services/Neo4jService';
 import type { SkillGraphSyncService } from '../services/SkillGraphSyncService';
 import type { CypherQueryCatalog } from '../services/CypherQueryCatalog';
 import { toNumber, resolveId, escapeLucene } from '../services/neo4jUtils';
+import { requirePermission } from './authUtils';
 import { getRequestAbortSignal } from './requestSignal';
 
 export interface RagConfig {
@@ -174,6 +174,7 @@ export function registerRagRoutes(
   permissions?: PermissionsService,
   ragConfig?: Partial<RagConfig>,
   queryCatalog?: CypherQueryCatalog,
+  securityMode?: string,
 ) {
   const cfg = { ...RAG_DEFAULTS, ...ragConfig };
   const rq = (key: string) => {
@@ -184,19 +185,13 @@ export function registerRagRoutes(
 
   router.post('/graph/rag', async (req, res) => {
     try {
-      if (httpAuth && permissions) {
-        const credentials = await httpAuth.credentials(req, {
-          allow: ['user'],
-        });
-        const decision = await permissions.authorize(
-          [{ permission: skillMarketplaceAccessPermission }],
-          { credentials },
-        );
-        if (decision[0].result !== AuthorizeResult.ALLOW) {
-          res.status(403).json({ error: 'Insufficient permissions' });
-          return;
-        }
-      }
+      const allowed = await requirePermission(
+        req,
+        res,
+        skillMarketplaceAccessPermission,
+        { httpAuth, permissions, securityMode },
+      );
+      if (!allowed) return;
 
       if (!neo4jService) {
         res.status(503).json({ error: 'Neo4j not configured' });

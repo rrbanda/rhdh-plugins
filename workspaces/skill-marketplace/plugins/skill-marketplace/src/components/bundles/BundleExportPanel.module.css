@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 .formatRow {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
 }
 
 .formatToggle {
@@ -28,14 +28,15 @@
 }
 
 .formatOption {
-  padding: 6px 10px;
+  padding: 7px 12px;
   font-size: 12px;
   font-weight: 600;
   border: none;
-  background: var(--sm-surface-card);
+  background: var(--sm-surface-primary, #ffffff);
   color: var(--sm-text-secondary);
   cursor: pointer;
   font-family: inherit;
+  transition: background 0.12s, color 0.12s;
 }
 
 .formatOption + .formatOption {
@@ -48,6 +49,6 @@
 }
 
 .formatOptionActive {
-  background: var(--sm-surface-secondary);
-  color: var(--sm-text-primary);
+  background: var(--sm-brand-tint);
+  color: var(--sm-brand);
 }

@@ -194,41 +194,43 @@ export default function BundleCart() {
           </div>
         )}
 
-        <BundleCartAiBar
-          activePanel={activePanel}
-          setActivePanel={setActivePanel}
-          aiUnavailable={aiUnavailable}
-          skillCount={skills.length}
-          onTestInPlayground={handleTestBundle}
-        />
-
-        {activePanel === 'advisor' && (
-          <BundleAdvisorTab
-            advisor={advisor}
-            advisorInput={advisorInput}
-            setAdvisorInput={setAdvisorInput}
-            isAdvisorCooling={isAdvisorCooling}
-            onAdvisorAsk={handleAdvisorAsk}
+        <div className={styles.body}>
+          <BundleDependencyTree
+            skills={skills}
+            onRemoveSkill={removeSkill}
+            onReorderSkill={reorderSkill}
+            resolved={resolved}
+            resolving={resolving}
+            resolveError={resolveError}
           />
-        )}
 
-        {activePanel === 'validator' && (
-          <BundleValidatorTab
-            validator={validator}
+          <BundleCartAiBar
+            activePanel={activePanel}
+            setActivePanel={setActivePanel}
+            aiUnavailable={aiUnavailable}
             skillCount={skills.length}
-            isValidatorCooling={isValidatorCooling}
-            onValidate={handleValidate}
+            onTestInPlayground={handleTestBundle}
           />
-        )}
 
-        <BundleDependencyTree
-          skills={skills}
-          onRemoveSkill={removeSkill}
-          onReorderSkill={reorderSkill}
-          resolved={resolved}
-          resolving={resolving}
-          resolveError={resolveError}
-        />
+          {activePanel === 'advisor' && (
+            <BundleAdvisorTab
+              advisor={advisor}
+              advisorInput={advisorInput}
+              setAdvisorInput={setAdvisorInput}
+              isAdvisorCooling={isAdvisorCooling}
+              onAdvisorAsk={handleAdvisorAsk}
+            />
+          )}
+
+          {activePanel === 'validator' && (
+            <BundleValidatorTab
+              validator={validator}
+              skillCount={skills.length}
+              isValidatorCooling={isValidatorCooling}
+              onValidate={handleValidate}
+            />
+          )}
+        </div>
 
         <BundleExportPanel
           skillCount={skills.length}

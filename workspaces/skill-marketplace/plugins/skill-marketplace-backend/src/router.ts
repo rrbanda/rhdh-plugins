@@ -153,6 +153,7 @@ export async function createRouter(
     permissions,
     ragConfig,
     queryCatalog,
+    securityMode,
   );
   registerAgenticRoutes(
     router,

@@ -65,20 +65,17 @@ export function BundleDependencyTree({
 
   if (skills.length === 0) {
     return (
-      <div className={styles.body}>
-        <div className={styles.empty}>
-          <p>Your bundle is empty.</p>
-          <p className={styles.emptyHint}>
-            Click &quot;Add to Bundle&quot; on any skill, or use the AI Advisor
-            above.
-          </p>
-        </div>
+      <div className={styles.empty}>
+        <p>Your bundle is empty.</p>
+        <p className={styles.emptyHint}>
+          Click &quot;Add to Bundle&quot; on any skill to get started.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className={styles.body}>
+    <>
       <BundleSkillList
         skills={skills}
         onRemoveSkill={onRemoveSkill}
@@ -200,6 +197,6 @@ export function BundleDependencyTree({
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }

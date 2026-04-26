@@ -23,7 +23,13 @@ export type BuilderEvent =
       args: Record<string, unknown>;
       ts: number;
     }
-  | { type: 'tool_result'; agent: string; tool: string; result: string; ts: number }
+  | {
+      type: 'tool_result';
+      agent: string;
+      tool: string;
+      result: string;
+      ts: number;
+    }
   | { type: 'agent_output'; agent: string; text: string; ts: number }
   | {
       type: 'complete';
@@ -40,8 +46,5 @@ export interface ChatMessage {
   role: 'user' | 'agent';
   text: string;
   timestamp: number;
-  events?: BuilderEvent[];
   isError?: boolean;
-  validation?: string;
 }
-

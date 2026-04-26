@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 .tree {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   padding: 0;
   list-style: none;
 }
 
-/* Visual indent for top-level “Tools” / “Similar” trees (section label stays flush). */
 .treeIndent {
-  border-left: 1px solid var(--sm-border-subtle);
-  margin: 0 0 0 0.4rem;
-  padding: 0 0 0 8px;
+  border-left: 2px solid var(--sm-border-subtle);
+  margin: 0 0 0 6px;
+  padding: 0 0 0 12px;
 }
 
 .branch {
@@ -31,20 +31,34 @@
 }
 
 .details {
-  border-bottom: 1px solid var(--sm-border-subtle);
+  border: 1px solid var(--sm-border-subtle);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.details:hover {
+  border-color: var(--sm-border-default);
+}
+.details[open] {
+  border-color: var(--sm-border-default);
 }
 
 .summary {
   list-style: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  min-height: 40px;
-  padding: 4px 0;
+  min-height: 44px;
+  padding: 6px 12px;
   box-sizing: border-box;
   cursor: pointer;
   font: inherit;
+  transition: background 0.12s;
+}
+.summary:hover {
+  background: var(--sm-surface-hover);
 }
 
 .summary::-webkit-details-marker {
@@ -53,41 +67,50 @@
 
 .chevron {
   font-size: 10px;
-  width: 1.1em;
+  width: 1.2em;
   flex-shrink: 0;
   line-height: 1;
   color: var(--sm-text-secondary);
   user-select: none;
+  transition: color 0.12s;
 }
 
 .chevronSpacer {
   display: inline-block;
-  width: 1.1em;
+  width: 1.2em;
   flex-shrink: 0;
 }
 
 .nested {
-  border-left: 1px solid var(--sm-border-subtle);
-  margin: 0 0 0 0.4rem;
-  padding: 0 0 8px 10px;
+  border-top: 1px solid var(--sm-border-subtle, #eee);
+  margin: 0;
+  padding: 8px 12px 10px 28px;
+  background: var(--sm-surface-secondary, #f5f5f5);
 }
 
 .depsGroupLabel {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--sm-text-secondary);
-  margin: 0 0 4px;
+  margin: 0 0 6px;
 }
 
 .depItem {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--sm-border-subtle);
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-subtle);
+  background: var(--sm-surface-card);
   flex-wrap: wrap;
+  transition: border-color 0.15s;
+}
+.depItem:hover {
+  border-color: var(--sm-border-default);
 }
 
 .toolBranch {
@@ -98,10 +121,18 @@
 .simLeaf {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
-  padding: 6px 0 6px 4px;
-  border-bottom: 1px solid var(--sm-border-subtle);
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-subtle);
+  background: var(--sm-surface-card);
+  transition: border-color 0.15s;
+}
+.toolLeaf:hover,
+.simLeaf:hover {
+  border-color: var(--sm-border-default);
 }
 
 .toolLeaf {
@@ -114,13 +145,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--sm-border-subtle);
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--sm-border-subtle);
+  background: var(--sm-surface-card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.treeRowFlat:hover {
+  border-color: var(--sm-border-default);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--sm-text-primary) 6%, transparent);
 }
 
 .similarName {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .similarMeta {
@@ -128,35 +167,40 @@
   color: var(--sm-text-secondary);
 }
 
+/* ───── Skeleton loaders ───── */
 .skeletonContainer {
-  padding: 16px;
+  padding: 16px 0;
 }
 
 .skeletonHeader {
-  height: 16px;
+  height: 14px;
   width: 40%;
-  background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+  background: linear-gradient(90deg,
+    var(--sm-surface-secondary) 25%,
+    var(--sm-surface-hover) 50%,
+    var(--sm-surface-secondary) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-  border-radius: 4px;
+  border-radius: 6px;
   margin-bottom: 12px;
 }
 
 .skeletonRow {
   height: 12px;
   width: 100%;
-  background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+  background: linear-gradient(90deg,
+    var(--sm-surface-secondary) 25%,
+    var(--sm-surface-hover) 50%,
+    var(--sm-surface-secondary) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-  border-radius: 4px;
+  border-radius: 6px;
   margin-bottom: 8px;
 }
 
 @keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }

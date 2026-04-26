@@ -14,50 +14,20 @@
  * limitations under the License.
  */
 import { useMemo } from 'react';
-import type { ChatMessage, BuilderEvent } from '../types';
-import type { ChatMessageBase, ToolCall } from '../../chat/types';
+import type { ChatMessage } from '../types';
+import type { ChatMessageBase } from '../../chat/types';
 import { ChatMessageList, ChatComposer } from '../../chat';
 import { WelcomeHero } from './WelcomeHero';
-import { AgentActivityFeed } from './AgentActivityFeed';
 import styles from './ChatPanel.module.css';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
-  events: BuilderEvent[];
-  currentAgent: string;
   isGenerating: boolean;
   hasContent: boolean;
   onSend: (text: string) => void;
   onRetry: () => void;
   onClear: () => void;
   onAbort: () => void;
-}
-
-function builderEventsToToolCalls(events?: BuilderEvent[]): ToolCall[] {
-  if (!events) return [];
-  const results = new Map<
-    string,
-    Extract<BuilderEvent, { type: 'tool_result' }>
-  >();
-  for (const e of events) {
-    if (e.type === 'tool_result') results.set(`${e.agent}:${e.tool}`, e);
-  }
-  return events
-    .filter(
-      (e): e is Extract<BuilderEvent, { type: 'tool_call' }> =>
-        e.type === 'tool_call',
-    )
-    .map(tc => {
-      const result = results.get(`${tc.agent}:${tc.tool}`);
-      return {
-        name: tc.tool,
-        agent: tc.agent,
-        args: tc.args,
-        result: result?.result,
-        status: result ? ('complete' as const) : ('running' as const),
-        elapsed: result ? result.ts - tc.ts : undefined,
-      };
-    });
 }
 
 function toSharedMessages(messages: ChatMessage[]): ChatMessageBase[] {
@@ -68,15 +38,11 @@ function toSharedMessages(messages: ChatMessage[]): ChatMessageBase[] {
     timestamp: msg.timestamp,
     isError: msg.isError,
     agentName: msg.role === 'agent' ? 'Skill Builder' : undefined,
-    validation: msg.validation,
-    toolCalls: builderEventsToToolCalls(msg.events),
   }));
 }
 
 export function ChatPanel({
   messages,
-  events,
-  currentAgent,
   isGenerating,
   hasContent,
   onSend,
@@ -86,36 +52,16 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const sharedMessages = useMemo(() => toSharedMessages(messages), [messages]);
 
-  const lastAgentEvents = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'agent' && messages[i].events?.length) {
-        return messages[i].events!;
-      }
-    }
-    return [];
-  }, [messages]);
-
-  const feedEvents = isGenerating ? events : lastAgentEvents;
-  const showFeed = feedEvents.some(e => e.type === 'agent_start');
-
-  const emptyState = <WelcomeHero onSuggestionClick={onSend} />;
-
   return (
     <div className={styles.chat}>
       <ChatMessageList
         messages={sharedMessages}
-        isLoading={isGenerating && events.length === 0}
-        agentName={currentAgent}
+        isLoading={isGenerating}
+        agentName="skill-builder"
         onRetry={onRetry}
         isGenerating={isGenerating}
-        emptyState={emptyState}
+        emptyState={<WelcomeHero onSuggestionClick={onSend} />}
       />
-
-      {showFeed && (
-        <div className={styles.feedContainer}>
-          <AgentActivityFeed events={feedEvents} currentAgent={currentAgent} />
-        </div>
-      )}
 
       <ChatComposer
         onSend={onSend}

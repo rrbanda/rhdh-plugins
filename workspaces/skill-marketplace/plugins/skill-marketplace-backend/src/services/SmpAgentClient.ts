@@ -20,10 +20,40 @@ import {
   DefaultAgentCardResolver,
   createAuthenticatingFetchWithRetry,
   type AuthenticationHandler,
+  type AgentCardResolver,
   type Client,
 } from '@a2a-js/sdk/client';
-import type { MessageSendParams, Task, Message, TextPart } from '@a2a-js/sdk';
+import type {
+  AgentCard,
+  MessageSendParams,
+  Task,
+  Message,
+  TextPart,
+} from '@a2a-js/sdk';
 import type { KagentiService } from './KagentiService';
+
+/**
+ * Resolves the agent card from the remote URL but rewrites the `url` field
+ * so the A2A SDK sends JSON-RPC messages to the configured external route
+ * instead of the pod-internal address baked into the card.
+ */
+class UrlRewritingCardResolver implements AgentCardResolver {
+  private readonly inner = new DefaultAgentCardResolver();
+
+  async resolve(baseUrl: string, path?: string): Promise<AgentCard> {
+    const card = await this.inner.resolve(baseUrl, path);
+    const normalized = baseUrl.replace(/\/$/, '');
+    (card as AgentCard & { url?: string }).url = normalized;
+    if (Array.isArray((card as any).supportedInterfaces)) {
+      for (const iface of (card as any).supportedInterfaces) {
+        if (iface.url) {
+          iface.url = normalized;
+        }
+      }
+    }
+    return card;
+  }
+}
 
 export interface SmpAgentsConfig {
   skillAdvisorUrl?: string;
@@ -119,7 +149,7 @@ export class SmpAgentClient {
 
     this.clientFactory = new ClientFactory({
       transports: [new JsonRpcTransportFactory({ fetchImpl: authFetch })],
-      cardResolver: new DefaultAgentCardResolver(),
+      cardResolver: new UrlRewritingCardResolver(),
     });
 
     return this.clientFactory;

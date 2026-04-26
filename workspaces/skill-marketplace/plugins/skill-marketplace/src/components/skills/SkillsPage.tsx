@@ -695,7 +695,6 @@ export default function SkillsPage() {
                   selectionMode={selectionMode}
                   selected={selectedSlugs.has(skill.slug)}
                   onToggleSelect={toggleSelect}
-                  onOpenDetail={selectionMode ? undefined : openSkillDetail}
                 />
               ))}
             </div>

@@ -20,8 +20,6 @@ export interface GraphFocusOverlayProps {
   nodeCount: number;
   relCount: number;
   onClear: () => void;
-  /** When the relationship legend strip is visible, lower this bar so it does not cover it. */
-  offsetForLegend?: boolean;
 }
 
 export function GraphFocusOverlay({
@@ -29,16 +27,9 @@ export function GraphFocusOverlay({
   nodeCount,
   relCount,
   onClear,
-  offsetForLegend,
 }: GraphFocusOverlayProps) {
   return (
-    <div
-      className={`${styles.focusOverlay} ${
-        offsetForLegend ? styles.focusOverlayWithLegend : ''
-      }`}
-      role="status"
-      aria-live="polite"
-    >
+    <div className={styles.focusOverlay} role="status" aria-live="polite">
       <span className={styles.focusQueryLine}>
         Showing results for:{' '}
         <q className={styles.focusQueryText}>

@@ -71,28 +71,28 @@
   color: var(--sm-brand);
 }
 
-/* Fenced code blocks */
+/* Fenced code blocks — dark background to match github-dark hljs theme */
 .codeBlock {
   margin: 8px 0;
   border-radius: 10px;
-  border: 1px solid var(--sm-border-subtle);
+  border: 1px solid #30363d;
   overflow: hidden;
-  background: var(--sm-surface-secondary);
+  background: #0d1117;
 }
 .codeHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px 4px 12px;
-  background: var(--sm-surface-raised, var(--sm-surface-secondary));
-  border-bottom: 1px solid var(--sm-border-subtle);
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
 }
 .codeLang {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--sm-text-secondary);
+  color: #8b949e;
   font-family: var(--pf-t--global--font--family--mono, monospace);
 }
 .codeBlock pre {
@@ -101,12 +101,14 @@
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.5;
+  color: #c9d1d9;
   font-family: var(--pf-t--global--font--family--mono, 'Red Hat Mono', 'SF Mono', 'Menlo', monospace);
 }
 .codeBlock code {
   font-family: inherit;
   background: none;
   padding: 0;
+  color: inherit;
 }
 
 /* GFM tables */
@@ -135,8 +137,17 @@
   margin-right: 6px;
 }
 
-/* highlight.js theme overrides for dark/light compat */
+/* highlight.js theme overrides — inherit dark block background */
 .codeBlock pre code.hljs {
   background: transparent;
   padding: 0;
+  color: #c9d1d9;
+}
+
+/* Copy button inside dark code header needs light icon color */
+.codeHeader button {
+  color: #8b949e;
+}
+.codeHeader button:hover {
+  color: #c9d1d9;
 }

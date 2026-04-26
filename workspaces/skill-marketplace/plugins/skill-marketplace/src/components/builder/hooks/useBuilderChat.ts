@@ -16,7 +16,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../../../api';
-import type { BuilderEvent, ChatMessage } from '../types';
+import type { ChatMessage } from '../types';
 
 let msgIdCounter = 0;
 function nextMsgId(): string {
@@ -30,8 +30,6 @@ export interface UseBuilderChatReturn {
   generatedContent: string;
   publishContent: string;
   previousContent: string;
-  currentAgent: string;
-  events: BuilderEvent[];
   contextId: string;
   send: (text: string) => Promise<void>;
   retry: () => void;
@@ -44,8 +42,6 @@ export interface UseBuilderChatReturn {
   }) => void;
 }
 
-const MAX_RETRIES = 2;
-
 export function useBuilderChat(): UseBuilderChatReturn {
   const api = useApi(skillMarketplaceApiRef);
 
@@ -55,7 +51,6 @@ export function useBuilderChat(): UseBuilderChatReturn {
   const [publishContent, setPublishContent] = useState('');
   const [previousContent, setPreviousContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [events, setEvents] = useState<BuilderEvent[]>([]);
 
   const lastUserInputRef = useRef('');
   const abortRef = useRef<AbortController | null>(null);
@@ -77,7 +72,6 @@ export function useBuilderChat(): UseBuilderChatReturn {
         { id: nextMsgId(), role: 'user', text: trimmed, timestamp: Date.now() },
       ]);
       setIsGenerating(true);
-      setEvents([]);
 
       const isRefine = !!contextId && !!generatedContent;
       if (isRefine) setPreviousContent(generatedContent);
@@ -85,170 +79,60 @@ export function useBuilderChat(): UseBuilderChatReturn {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      let errorMsg: string | null = null;
-      let finalContent = '';
-      const localEvents: BuilderEvent[] = [];
+      try {
+        const prompt = isRefine
+          ? `Refine this skill based on feedback.\n\nCurrent skill:\n${generatedContent}\n\nFeedback: ${trimmed}`
+          : trimmed;
 
-      const startEvt: BuilderEvent = {
-        type: 'agent_start',
-        agent: 'skill-builder',
-        ts: Date.now(),
-      };
-      localEvents.push(startEvt);
-      setEvents([startEvt]);
+        const smpResult = (await api.askSmpAgent(
+          'builder',
+          prompt,
+          contextId || undefined,
+          controller.signal,
+        )) as { answer?: string; contextId?: string };
 
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        errorMsg = null;
-        try {
-          let result: { content: string; action: string };
+        if (controller.signal.aborted) return;
 
-          // Try smp-agents /agents/builder first for richer generation
-          let usedSmpAgent = false;
-          try {
-            const smpResult = (await api.askSmpAgent(
-              'builder',
-              isRefine
-                ? `Refine this skill based on feedback.\n\nCurrent skill:\n${generatedContent}\n\nFeedback: ${trimmed}`
-                : trimmed,
-              contextId || undefined,
-              controller.signal,
-            )) as { answer?: string; contextId?: string };
-            if (smpResult?.answer) {
-              if (smpResult.contextId) {
-                setContextId(smpResult.contextId);
-              } else if (!contextId) {
-                setContextId(globalThis.crypto.randomUUID());
-              }
-              result = {
-                content: smpResult.answer,
-                action: isRefine ? 'refine' : 'generate',
-              };
-              usedSmpAgent = true;
-            } else {
-              throw new Error('Empty response from smp-agent builder');
-            }
-          } catch (primaryErr: unknown) {
-            const p = primaryErr as {
-              response?: { status?: number };
-              status?: number;
-            };
-            const status = p?.response?.status ?? p?.status;
-            if (status === 403 || status === 401) {
-              throw primaryErr;
-            }
-            console.warn(
-              'Builder primary path failed, falling back:',
-              primaryErr instanceof Error ? primaryErr.message : primaryErr,
-            );
-          }
-
-          // Fall back to legacy /builder endpoint
-          if (!usedSmpAgent) {
-            if (isRefine) {
-              result = await api.refineSkillJson(
-                {
-                  prompt: trimmed,
-                  feedback: trimmed,
-                  currentSkill: generatedContent,
-                  context_id: contextId,
-                },
-                controller.signal,
-              );
-            } else {
-              const cid = contextId || `builder-${Date.now()}`;
-              if (!contextId) setContextId(cid);
-              result = await api.generateSkillJson(
-                {
-                  prompt: trimmed,
-                  description: trimmed,
-                  context_id: cid,
-                },
-                controller.signal,
-              );
-            }
-          }
-
-          if (controller.signal.aborted) return;
-
-          finalContent = result!.content;
-          const completeEvt: BuilderEvent = {
-            type: 'complete',
-            skillContent: result!.content,
-            fullOutput: result!.content,
-            validation: '',
-            ts: Date.now(),
-          };
-          localEvents.push(completeEvt);
-          setEvents([...localEvents]);
-          break;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Generation failed';
-          const isNetworkError =
-            msg.toLowerCase().includes('network') ||
-            msg.toLowerCase().includes('fetch') ||
-            msg.toLowerCase().includes('failed to fetch') ||
-            msg.toLowerCase().includes('aborted');
-
-          if (isNetworkError && attempt < MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-            continue;
-          }
-          errorMsg = isNetworkError
-            ? `Network error — could not reach the builder agent. Check that the backend is running and the builder agent URL is configured. Original error: ${msg}`
-            : msg;
+        if (!smpResult?.answer) {
+          throw new Error('Empty response from skill builder agent');
         }
-      }
 
-      setIsGenerating(false);
-      if (finalContent) {
-        setGeneratedContent(finalContent);
-        setPublishContent(finalContent);
-      }
+        if (smpResult.contextId) {
+          setContextId(smpResult.contextId);
+        } else if (!contextId) {
+          setContextId(globalThis.crypto.randomUUID());
+        }
 
-      if (errorMsg) {
-        const errEvt: BuilderEvent = {
-          type: 'error',
-          error: errorMsg,
-          ts: Date.now(),
-        };
-        localEvents.push(errEvt);
-        setEvents([...localEvents]);
+        const agentText = smpResult.answer;
+        setGeneratedContent(agentText);
+        setPublishContent(agentText);
+
         setMessages(prev => [
           ...prev,
           {
             id: nextMsgId(),
             role: 'agent',
-            text: errorMsg!,
+            text: agentText,
+            timestamp: Date.now(),
+          },
+        ]);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        const msg =
+          err instanceof Error ? err.message : 'Failed to reach agent';
+        setMessages(prev => [
+          ...prev,
+          {
+            id: nextMsgId(),
+            role: 'agent',
+            text: msg,
             timestamp: Date.now(),
             isError: true,
-            events: [...localEvents],
           },
         ]);
-      } else if (finalContent) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: nextMsgId(),
-            role: 'agent',
-            text: isRefine
-              ? 'Skill refined successfully. Check the updated preview.'
-              : 'Skill generated successfully. Review the preview and publish when ready.',
-            timestamp: Date.now(),
-            events: [...localEvents],
-          },
-        ]);
-      } else {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: nextMsgId(),
-            role: 'agent',
-            text: 'Generation completed with no output. Try describing the skill differently.',
-            timestamp: Date.now(),
-            isError: true,
-            events: [...localEvents],
-          },
-        ]);
+      } finally {
+        setIsGenerating(false);
+        abortRef.current = null;
       }
     },
     [api, isGenerating, contextId, generatedContent],
@@ -271,7 +155,6 @@ export function useBuilderChat(): UseBuilderChatReturn {
     setGeneratedContent('');
     setPublishContent('');
     setPreviousContent('');
-    setEvents([]);
   }, []);
 
   const restore = useCallback(
@@ -286,7 +169,6 @@ export function useBuilderChat(): UseBuilderChatReturn {
       setGeneratedContent(content);
       setPublishContent(content);
       setPreviousContent('');
-      setEvents([]);
     },
     [],
   );
@@ -297,8 +179,6 @@ export function useBuilderChat(): UseBuilderChatReturn {
     generatedContent,
     publishContent,
     previousContent,
-    currentAgent: 'skill-builder',
-    events,
     contextId,
     send,
     retry,

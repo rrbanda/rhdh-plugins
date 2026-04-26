@@ -95,7 +95,7 @@ export function ArtifactPanel({
     [api, effectivePublish],
   );
 
-  if (!generatedContent && !isGenerating) {
+  if (!generatedContent) {
     return null;
   }
 
@@ -156,26 +156,14 @@ export function ArtifactPanel({
         </div>
 
         <div className={styles.bldArtifactBody} ref={bodyRef}>
-          {generatedContent ? (
-            previewMode === 'diff' && previousContent ? (
-              <DiffViewer
-                oldText={previousContent}
-                newText={generatedContent}
-              />
-            ) : (
-              <SkillEditor
-                content={generatedContent}
-                streaming={isGenerating}
-                mode={previewMode === 'diff' ? 'raw' : previewMode}
-              />
-            )
+          {previewMode === 'diff' && previousContent ? (
+            <DiffViewer oldText={previousContent} newText={generatedContent} />
           ) : (
-            <div className={styles.bldArtifactGenerating}>
-              <span className={styles.bldArtifactGenSpinner} />
-              <span className={styles.bldArtifactGenText}>
-                Agent is generating content...
-              </span>
-            </div>
+            <SkillEditor
+              content={generatedContent}
+              streaming={isGenerating}
+              mode={previewMode === 'diff' ? 'raw' : previewMode}
+            />
           )}
         </div>
 

@@ -5666,7 +5666,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@material-ui/icons@npm:^4.9.1":
+"@material-ui/icons@npm:^4.11.3, @material-ui/icons@npm:^4.9.1":
   version: 4.11.3
   resolution: "@material-ui/icons@npm:4.11.3"
   dependencies:
@@ -7287,6 +7287,8 @@ __metadata:
     "@backstage/plugin-permission-react": "npm:^0.4.30"
     "@backstage/test-utils": "npm:^1.7.8"
     "@backstage/theme": "npm:^0.6.6"
+    "@material-ui/core": "npm:^4.12.2"
+    "@material-ui/icons": "npm:^4.11.3"
     "@neo4j-nvl/base": "npm:^1.1.0"
     "@neo4j-nvl/react": "npm:^1.1.0"
     "@patternfly/patternfly": "npm:^6.4.0"

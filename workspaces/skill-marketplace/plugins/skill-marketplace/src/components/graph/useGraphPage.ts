@@ -255,7 +255,7 @@ export function useGraphPage(options?: UseGraphPageOptions) {
           size: hi ? n.size * 1.35 : n.size,
           selected: n.id === selectedNodeId || hi,
           activated: hi && n.id !== selectedNodeId,
-          captionSize: 1.12,
+          captionSize: 2,
         };
       });
       const nvlRels: Relationship[] = filteredRels.map(r => ({
@@ -314,7 +314,7 @@ export function useGraphPage(options?: UseGraphPageOptions) {
         size: hi ? n.size * 1.35 : n.size,
         selected: n.id === selectedNodeId || hi,
         activated: hi && n.id !== selectedNodeId,
-        captionSize: 1.12,
+        captionSize: 2,
       };
     });
 

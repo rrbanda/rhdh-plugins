@@ -80,10 +80,8 @@ export default function AgenticPanel({
   onSelectNode,
   onClose,
 }: AgenticPanelProps) {
-  const [input, setInput] = useState('');
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const lastAssistantHighlightIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -91,10 +89,6 @@ export default function AgenticPanel({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, streaming]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -141,26 +135,6 @@ export default function AgenticPanel({
     [panelWidth],
   );
 
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!input.trim() || isLoading) return;
-      sendQuery(input.trim());
-      setInput('');
-    },
-    [input, isLoading, sendQuery],
-  );
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit(e);
-      }
-    },
-    [handleSubmit],
-  );
-
   return (
     <div className={styles.agenticRoot} style={{ width: panelWidth }}>
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- custom resize handle; keyboard resize below */}
@@ -202,7 +176,7 @@ export default function AgenticPanel({
               <path d="M7 22h10" />
               <circle cx="12" cy="6" r="1" fill="currentColor" stroke="none" />
             </svg>
-            <span>Ask the Knowledge Graph</span>
+            <span>Knowledge Graph Chat</span>
           </div>
           <div className={styles.agenticHeaderActions}>
             {messages.length > 0 && (
@@ -257,7 +231,7 @@ export default function AgenticPanel({
               </div>
               <p className={styles.agenticWelcomeText}>
                 Ask questions about skills, tools, and relationships in the
-                knowledge graph.
+                knowledge graph using the input below.
               </p>
               <div className={styles.agenticSuggestionGroup}>
                 <p className={styles.agenticSuggestionLabel}>Try asking</p>
@@ -267,10 +241,7 @@ export default function AgenticPanel({
                       key={i}
                       className={styles.agenticSuggestion}
                       type="button"
-                      onClick={() => {
-                        setInput(s);
-                        sendQuery(s);
-                      }}
+                      onClick={() => sendQuery(s)}
                       aria-label={`Use suggestion: ${s}`}
                     >
                       {s}
@@ -291,36 +262,6 @@ export default function AgenticPanel({
 
           {isLoading && <TypingIndicator state={streaming} />}
         </div>
-
-        <form className={styles.agenticInputArea} onSubmit={handleSubmit}>
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about skills, tools, dependencies..."
-            aria-label="Ask the knowledge graph"
-            className={styles.agenticInput}
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            className={styles.agenticSendBtn}
-            aria-label="Send query"
-            disabled={isLoading || !input.trim()}
-          >
-            <svg
-              viewBox="0 0 16 16"
-              width={14}
-              height={14}
-              fill="currentColor"
-              aria-hidden
-            >
-              <path d="M15.854.146a.5.5 0 01.11.54l-5.819 14.547a.75.75 0 01-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 01.124-1.33L15.315.037a.5.5 0 01.539.11zM6.636 10.07l2.761 4.338L14.13 2.576 6.636 10.07zm6.787-8.201L1.591 6.602l4.339 2.76 7.494-7.493z" />
-            </svg>
-          </button>
-        </form>
       </div>
     </div>
   );
