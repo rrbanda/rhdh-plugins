@@ -116,7 +116,8 @@ const SOURCES: SkillSource[] = [
     url: 'https://github.com/agent-skills-hub/agent-skills-hub.git',
     license: 'MIT',
     skillsSubdir: 'skills',
-    provenanceBase: 'https://github.com/agent-skills-hub/agent-skills-hub/tree/main/skills',
+    provenanceBase:
+      'https://github.com/agent-skills-hub/agent-skills-hub/tree/main/skills',
   },
   {
     name: 'addyosmani-agent-skills',
@@ -124,7 +125,8 @@ const SOURCES: SkillSource[] = [
     url: 'https://github.com/addyosmani/agent-skills.git',
     license: 'MIT',
     skillsSubdir: 'skills',
-    provenanceBase: 'https://github.com/addyosmani/agent-skills/tree/main/skills',
+    provenanceBase:
+      'https://github.com/addyosmani/agent-skills/tree/main/skills',
   },
   {
     name: 'kubectl-mcp-k8s',
@@ -132,7 +134,8 @@ const SOURCES: SkillSource[] = [
     url: 'https://github.com/rohitg00/kubectl-mcp-server.git',
     license: 'Apache-2.0',
     skillsSubdir: 'kubernetes-skills',
-    provenanceBase: 'https://github.com/rohitg00/kubectl-mcp-server/tree/main/kubernetes-skills',
+    provenanceBase:
+      'https://github.com/rohitg00/kubectl-mcp-server/tree/main/kubernetes-skills',
   },
   {
     name: 'fluxcd-agent-skills',
@@ -163,7 +166,8 @@ const SOURCES: SkillSource[] = [
     type: 'git',
     url: 'https://github.com/sickn33/antigravity-awesome-skills.git',
     license: 'MIT',
-    provenanceBase: 'https://github.com/sickn33/antigravity-awesome-skills/tree/main',
+    provenanceBase:
+      'https://github.com/sickn33/antigravity-awesome-skills/tree/main',
     maxSkills: 500,
   },
   {
@@ -171,7 +175,8 @@ const SOURCES: SkillSource[] = [
     type: 'git',
     url: 'https://github.com/JackyST0/awesome-agent-skills.git',
     license: 'MIT',
-    provenanceBase: 'https://github.com/JackyST0/awesome-agent-skills/tree/main',
+    provenanceBase:
+      'https://github.com/JackyST0/awesome-agent-skills/tree/main',
   },
 ];
 
@@ -180,20 +185,213 @@ const SOURCES: SkillSource[] = [
 // ---------------------------------------------------------------------------
 
 const CATEGORY_RULES: Array<{ namespace: string; keywords: string[] }> = [
-  { namespace: 'security', keywords: ['security', 'vulnerability', 'owasp', 'pentest', 'penetration', 'exploit', 'cve', 'xss', 'sql-injection', 'csrf', 'secrets', 'authentication', 'authorization', 'cryptograph', 'threat', 'attack', 'burp', 'metasploit', 'reversing', 'fuzzing', 'bug-bounty', 'sast', 'dast', 'rbac', 'pci-compliance'] },
-  { namespace: 'testing', keywords: ['test', 'playwright', 'cypress', 'jest', 'coverage', 'assertion', 'mock', 'spec', 'e2e', 'integration-test', 'unit-test', 'bats', 'selenium'] },
-  { namespace: 'devops', keywords: ['ci-cd', 'cicd', 'docker', 'kubernetes', 'k8s', 'helm', 'terraform', 'ansible', 'deploy', 'pipeline', 'github-actions', 'gitlab', 'jenkins', 'argocd', 'infrastructure', 'container', 'bazel', 'workflow-automate', 'openshift', 'rhel', 'operator', 'kubectl', 'gitops', 'flux', 'kustomize'] },
-  { namespace: 'api', keywords: ['api-design', 'openapi', 'swagger', 'rest-api', 'graphql', 'grpc', 'api-document', 'api-pattern', 'api-testing', 'api-mock'] },
-  { namespace: 'frontend', keywords: ['react', 'vue', 'angular', 'frontend', 'css', 'tailwind', 'next.js', 'nextjs', 'ui-ux', 'accessibility', 'responsive', 'svelte', 'web-component'] },
-  { namespace: 'backend', keywords: ['backend', 'database', 'sql', 'nosql', 'redis', 'postgres', 'mysql', 'mongodb', 'microservice', 'server', 'express', 'fastapi', 'django', 'spring', 'node', 'bullmq', 'queue'] },
-  { namespace: 'docs', keywords: ['documentation', 'markdown', 'readme', 'changelog', 'adr', 'architecture-decision', 'technical-writing', 'api-documenter', 'jsdoc'] },
-  { namespace: 'observability', keywords: ['monitoring', 'observability', 'logging', 'metrics', 'tracing', 'alerting', 'sentry', 'datadog', 'grafana', 'prometheus', 'opentelemetry'] },
-  { namespace: 'ai-agents', keywords: ['agent', 'autonomous', 'llm', 'prompt', 'rag', 'embedding', 'langchain', 'ai-engineer', 'mcp', 'tool-calling', 'skill-creator'] },
-  { namespace: 'engineering', keywords: ['code-review', 'architect', 'refactor', 'clean-code', 'solid', 'design-pattern', 'commit', 'git', 'brainstorm', 'planning', 'coding-standard', 'performance', 'debug', 'error'] },
+  {
+    namespace: 'security',
+    keywords: [
+      'security',
+      'vulnerability',
+      'owasp',
+      'pentest',
+      'penetration',
+      'exploit',
+      'cve',
+      'xss',
+      'sql-injection',
+      'csrf',
+      'secrets',
+      'authentication',
+      'authorization',
+      'cryptograph',
+      'threat',
+      'attack',
+      'burp',
+      'metasploit',
+      'reversing',
+      'fuzzing',
+      'bug-bounty',
+      'sast',
+      'dast',
+      'rbac',
+      'pci-compliance',
+    ],
+  },
+  {
+    namespace: 'testing',
+    keywords: [
+      'test',
+      'playwright',
+      'cypress',
+      'jest',
+      'coverage',
+      'assertion',
+      'mock',
+      'spec',
+      'e2e',
+      'integration-test',
+      'unit-test',
+      'bats',
+      'selenium',
+    ],
+  },
+  {
+    namespace: 'devops',
+    keywords: [
+      'ci-cd',
+      'cicd',
+      'docker',
+      'kubernetes',
+      'k8s',
+      'helm',
+      'terraform',
+      'ansible',
+      'deploy',
+      'pipeline',
+      'github-actions',
+      'gitlab',
+      'jenkins',
+      'argocd',
+      'infrastructure',
+      'container',
+      'bazel',
+      'workflow-automate',
+      'openshift',
+      'rhel',
+      'operator',
+      'kubectl',
+      'gitops',
+      'flux',
+      'kustomize',
+    ],
+  },
+  {
+    namespace: 'api',
+    keywords: [
+      'api-design',
+      'openapi',
+      'swagger',
+      'rest-api',
+      'graphql',
+      'grpc',
+      'api-document',
+      'api-pattern',
+      'api-testing',
+      'api-mock',
+    ],
+  },
+  {
+    namespace: 'frontend',
+    keywords: [
+      'react',
+      'vue',
+      'angular',
+      'frontend',
+      'css',
+      'tailwind',
+      'next.js',
+      'nextjs',
+      'ui-ux',
+      'accessibility',
+      'responsive',
+      'svelte',
+      'web-component',
+    ],
+  },
+  {
+    namespace: 'backend',
+    keywords: [
+      'backend',
+      'database',
+      'sql',
+      'nosql',
+      'redis',
+      'postgres',
+      'mysql',
+      'mongodb',
+      'microservice',
+      'server',
+      'express',
+      'fastapi',
+      'django',
+      'spring',
+      'node',
+      'bullmq',
+      'queue',
+    ],
+  },
+  {
+    namespace: 'docs',
+    keywords: [
+      'documentation',
+      'markdown',
+      'readme',
+      'changelog',
+      'adr',
+      'architecture-decision',
+      'technical-writing',
+      'api-documenter',
+      'jsdoc',
+    ],
+  },
+  {
+    namespace: 'observability',
+    keywords: [
+      'monitoring',
+      'observability',
+      'logging',
+      'metrics',
+      'tracing',
+      'alerting',
+      'sentry',
+      'datadog',
+      'grafana',
+      'prometheus',
+      'opentelemetry',
+    ],
+  },
+  {
+    namespace: 'ai-agents',
+    keywords: [
+      'agent',
+      'autonomous',
+      'llm',
+      'prompt',
+      'rag',
+      'embedding',
+      'langchain',
+      'ai-engineer',
+      'mcp',
+      'tool-calling',
+      'skill-creator',
+    ],
+  },
+  {
+    namespace: 'engineering',
+    keywords: [
+      'code-review',
+      'architect',
+      'refactor',
+      'clean-code',
+      'solid',
+      'design-pattern',
+      'commit',
+      'git',
+      'brainstorm',
+      'planning',
+      'coding-standard',
+      'performance',
+      'debug',
+      'error',
+    ],
+  },
 ];
 
-function categorize(slug: string, description: string, content: string): { namespace: string; tags: string[] } {
-  const haystack = `${slug} ${description} ${content.slice(0, 2000)}`.toLowerCase();
+function categorize(
+  slug: string,
+  description: string,
+  content: string,
+): { namespace: string; tags: string[] } {
+  const haystack =
+    `${slug} ${description} ${content.slice(0, 2000)}`.toLowerCase();
   const tags: string[] = [];
   let bestNamespace = 'general';
   let bestScore = 0;
@@ -222,21 +420,59 @@ function categorize(slug: string, description: string, content: string): { names
 // ---------------------------------------------------------------------------
 
 const EXCLUDE_PATTERNS = [
-  /^(2d|3d)-game/, /game-development/, /latex/, /biopy/, /bioserv/, /biorxiv/,
-  /^alphafold/, /^chembl/, /^brenda/, /metabolom/, /^anndata/, /^gget/,
-  /^astropy/, /clinical/, /treatment-plan/, /research-grant/,
-  /^imaging-data/, /^venue-template/, /^literature-review/, /^peer-review/,
-  /^citation-management/, /^iso-13485/, /protein/, /genomic/,
-  /churn-prevention/, /^ad-creative/,
-  /^app-store-optimization/, /^ai-seo/, /^marketing-psychology/,
-  /^startup-business/, /^automate-whatsapp/,
-  /^backtesting/, /^alpha-vantage/, /^binance/, /cryptocurrency/,
-  /^avalonia/, /^adaptyv/, /^benchling/, /^timesfm/,
-  /^loki-mode/, /^track-management/,
-  /^pptx-official/, /^docx-official/, /^pdf-official/, /^xlsx-official/,
-  /^document-skills/, /^internal-comms/, /^brand-guidelines/,
-  /^canvas-design/, /^theme-factory/, /^web-artifacts/,
-  /^hugging-face-jobs/, /^aeon$/,
+  /^(2d|3d)-game/,
+  /game-development/,
+  /latex/,
+  /biopy/,
+  /bioserv/,
+  /biorxiv/,
+  /^alphafold/,
+  /^chembl/,
+  /^brenda/,
+  /metabolom/,
+  /^anndata/,
+  /^gget/,
+  /^astropy/,
+  /clinical/,
+  /treatment-plan/,
+  /research-grant/,
+  /^imaging-data/,
+  /^venue-template/,
+  /^literature-review/,
+  /^peer-review/,
+  /^citation-management/,
+  /^iso-13485/,
+  /protein/,
+  /genomic/,
+  /churn-prevention/,
+  /^ad-creative/,
+  /^app-store-optimization/,
+  /^ai-seo/,
+  /^marketing-psychology/,
+  /^startup-business/,
+  /^automate-whatsapp/,
+  /^backtesting/,
+  /^alpha-vantage/,
+  /^binance/,
+  /cryptocurrency/,
+  /^avalonia/,
+  /^adaptyv/,
+  /^benchling/,
+  /^timesfm/,
+  /^loki-mode/,
+  /^track-management/,
+  /^pptx-official/,
+  /^docx-official/,
+  /^pdf-official/,
+  /^xlsx-official/,
+  /^document-skills/,
+  /^internal-comms/,
+  /^brand-guidelines/,
+  /^canvas-design/,
+  /^theme-factory/,
+  /^web-artifacts/,
+  /^hugging-face-jobs/,
+  /^aeon$/,
 ];
 
 function isExcluded(slug: string): boolean {
@@ -285,7 +521,10 @@ function scoreSkill(entry: SkillEntry): number {
 // Frontmatter parser
 // ---------------------------------------------------------------------------
 
-function parseFrontmatter(raw: string): { frontmatter: Frontmatter; body: string } {
+function parseFrontmatter(raw: string): {
+  frontmatter: Frontmatter;
+  body: string;
+} {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!match) return { frontmatter: {}, body: raw };
 
@@ -300,7 +539,7 @@ function parseFrontmatter(raw: string): { frontmatter: Frontmatter; body: string
   for (const line of yamlBlock.split('\n')) {
     if (inMultiline) {
       if (/^\s/.test(line)) {
-        currentValue += ' ' + line.trim();
+        currentValue += ` ${line.trim()}`;
         continue;
       }
       fm[currentKey] = currentValue.trim();
@@ -349,10 +588,35 @@ function toDisplayName(slug: string): string {
 function inferTools(content: string): string | undefined {
   const tools: string[] = [];
   const lower = content.toLowerCase();
-  if (lower.includes('read_file') || lower.includes('read file') || lower.includes('analyze') || lower.includes('review')) tools.push('read_file');
-  if (lower.includes('write_file') || lower.includes('write file') || lower.includes('create') || lower.includes('generate')) tools.push('write_file');
-  if (lower.includes('exec') || lower.includes('bash') || lower.includes('command') || lower.includes('terminal') || lower.includes('shell')) tools.push('exec');
-  if (lower.includes('web_fetch') || lower.includes('fetch') || lower.includes('http') || lower.includes('api call')) tools.push('web_fetch');
+  if (
+    lower.includes('read_file') ||
+    lower.includes('read file') ||
+    lower.includes('analyze') ||
+    lower.includes('review')
+  )
+    tools.push('read_file');
+  if (
+    lower.includes('write_file') ||
+    lower.includes('write file') ||
+    lower.includes('create') ||
+    lower.includes('generate')
+  )
+    tools.push('write_file');
+  if (
+    lower.includes('exec') ||
+    lower.includes('bash') ||
+    lower.includes('command') ||
+    lower.includes('terminal') ||
+    lower.includes('shell')
+  )
+    tools.push('exec');
+  if (
+    lower.includes('web_fetch') ||
+    lower.includes('fetch') ||
+    lower.includes('http') ||
+    lower.includes('api call')
+  )
+    tools.push('web_fetch');
   return tools.length > 0 ? tools.join(' ') : undefined;
 }
 
@@ -380,7 +644,9 @@ function resolveSourceDir(source: SkillSource): string | null {
     try {
       rootDir = cloneRepo(source);
     } catch (err) {
-      console.warn(`  ⚠ Failed to clone ${source.url}: ${(err as Error).message}`);
+      console.warn(
+        `  ⚠ Failed to clone ${source.url}: ${(err as Error).message}`,
+      );
       return null;
     }
   }
@@ -459,12 +725,17 @@ function processSkill(
   if (wordCount < MIN_CONTENT_WORDS) return;
 
   const content = body.slice(0, MAX_CONTENT_CHARS);
-  const description = ((frontmatter.description as string) || '').trim()
+  const description = ((frontmatter.description as string) || '')
+    .trim()
     .replace(/\n/g, ' ')
     .replace(/\s+/g, ' ');
   if (!description || description.length < MIN_DESCRIPTION_LEN) return;
 
-  const { namespace: detectedNamespace, tags } = categorize(slug, description, content);
+  const { namespace: detectedNamespace, tags } = categorize(
+    slug,
+    description,
+    content,
+  );
   const namespace = explicitNamespace || detectedNamespace;
   const tools = inferTools(content);
   const version = (frontmatter.version as string) || '1.0.0';
@@ -473,8 +744,12 @@ function processSkill(
   let authorName = 'community';
   if (frontmatter.author) {
     authorName = frontmatter.author as string;
-  } else if (frontmatter.metadata && (frontmatter.metadata as Record<string, unknown>).author) {
-    authorName = (frontmatter.metadata as Record<string, unknown>).author as string;
+  } else if (
+    frontmatter.metadata &&
+    (frontmatter.metadata as Record<string, unknown>).author
+  ) {
+    authorName = (frontmatter.metadata as Record<string, unknown>)
+      .author as string;
   }
 
   const provenanceSource = source.provenanceBase
@@ -553,7 +828,9 @@ function buildTarGzipLayer(
     Buffer.from('0000000\0', 'utf-8').copy(header, 116);
     const sizeOctal = entry.data.length.toString(8).padStart(11, '0');
     Buffer.from(`${sizeOctal}\0`, 'utf-8').copy(header, 124);
-    const mtime = Math.floor(Date.now() / 1000).toString(8).padStart(11, '0');
+    const mtime = Math.floor(Date.now() / 1000)
+      .toString(8)
+      .padStart(11, '0');
     Buffer.from(`${mtime}\0`, 'utf-8').copy(header, 136);
     Buffer.from('        ', 'utf-8').copy(header, 148);
     header[156] = 48;
@@ -602,7 +879,9 @@ function buildRegistryUrl(registryUrl: string, urlPath: string): string {
 function buildAuthHeaders(auth?: CLIArgs['auth']): Record<string, string> {
   if (!auth) return {};
   if ('token' in auth) return { Authorization: `Bearer ${auth.token}` };
-  const encoded = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
+  const encoded = Buffer.from(`${auth.username}:${auth.password}`).toString(
+    'base64',
+  );
   return { Authorization: `Basic ${encoded}` };
 }
 
@@ -627,7 +906,9 @@ async function uploadBlob(
 
   if (!initRes.ok && initRes.status !== 202) {
     const body = await initRes.text();
-    throw new Error(`Failed to initiate blob upload (${initRes.status}): ${body}`);
+    throw new Error(
+      `Failed to initiate blob upload (${initRes.status}): ${body}`,
+    );
   }
 
   let putUrl = initRes.headers.get('location');
@@ -653,7 +934,9 @@ async function uploadBlob(
 
   if (!putRes.ok && putRes.status !== 201) {
     const body = await putRes.text();
-    throw new Error(`Failed to upload blob ${digest} (${putRes.status}): ${body}`);
+    throw new Error(
+      `Failed to upload blob ${digest} (${putRes.status}): ${body}`,
+    );
   }
 }
 
@@ -664,12 +947,17 @@ async function pushSkillToOci(
   authHeaders: Record<string, string>,
 ): Promise<string> {
   const skillName = card.metadata.name;
-  const repoName = skillName.startsWith('skill-') ? skillName : `skill-${skillName}`;
+  const repoName = skillName.startsWith('skill-')
+    ? skillName
+    : `skill-${skillName}`;
   const repoUrl = `${registryUrl.replace(/\/$/, '')}/${repoName}`;
   const tag = card.metadata.version || '1.0.0';
 
   const cardYaml = jsonToYaml(card);
-  const { compressed: tarLayer, uncompressedDigest } = buildTarGzipLayer(cardYaml, content);
+  const { compressed: tarLayer, uncompressedDigest } = buildTarGzipLayer(
+    cardYaml,
+    content,
+  );
   const layerDigest = sha256Digest(tarLayer);
 
   await uploadBlob(repoUrl, tarLayer, layerDigest, authHeaders);
@@ -696,7 +984,8 @@ async function pushSkillToOci(
   if (m.license) annotations['org.opencontainers.image.licenses'] = m.license;
   if (authorsStr) annotations['org.opencontainers.image.authors'] = authorsStr;
   if (m.namespace) annotations['org.opencontainers.image.vendor'] = m.namespace;
-  if (card.provenance?.source) annotations['org.opencontainers.image.source'] = card.provenance.source;
+  if (card.provenance?.source)
+    annotations['org.opencontainers.image.source'] = card.provenance.source;
   if (m.tags && m.tags.length > 0) {
     annotations['io.skillimage.tags'] = JSON.stringify(m.tags);
   }
@@ -719,11 +1008,13 @@ async function pushSkillToOci(
       digest: configDigest,
       size: configBuf.length,
     },
-    layers: [{
-      mediaType: 'application/vnd.oci.image.layer.v1.tar+gzip',
-      digest: layerDigest,
-      size: tarLayer.length,
-    }],
+    layers: [
+      {
+        mediaType: 'application/vnd.oci.image.layer.v1.tar+gzip',
+        digest: layerDigest,
+        size: tarLayer.length,
+      },
+    ],
     annotations,
   };
 
@@ -741,7 +1032,9 @@ async function pushSkillToOci(
 
   if (!res.ok && res.status !== 201) {
     const text = await res.text();
-    throw new Error(`Failed to push manifest for ${skillName} (${res.status}): ${text}`);
+    throw new Error(
+      `Failed to push manifest for ${skillName} (${res.status}): ${text}`,
+    );
   }
 
   return `${repoUrl}:${tag}`;
@@ -760,7 +1053,12 @@ function jsonToYaml(obj: Record<string, unknown>, indent: number = 0): string {
       } else if (typeof value[0] === 'object') {
         lines.push(`${prefix}${key}:`);
         for (const item of value) {
-          const itemLines = jsonToYaml(item as Record<string, unknown>, indent + 1).split('\n').filter(Boolean);
+          const itemLines = jsonToYaml(
+            item as Record<string, unknown>,
+            indent + 1,
+          )
+            .split('\n')
+            .filter(Boolean);
           if (itemLines.length > 0) {
             lines.push(`${prefix}- ${itemLines[0].trim()}`);
             for (let i = 1; i < itemLines.length; i++) {
@@ -832,7 +1130,9 @@ async function pushBatch(
 
     idx += batch.length;
     if (idx % 50 === 0 || idx >= total) {
-      console.log(`  Progress: ${idx}/${total} (${pushed} pushed, ${failed} failed)`);
+      console.log(
+        `  Progress: ${idx}/${total} (${pushed} pushed, ${failed} failed)`,
+      );
     }
   }
 
@@ -885,7 +1185,9 @@ function parseArgs(): CLIArgs {
       case '--parallel': {
         const pVal = args[i + 1];
         if (!pVal || pVal.startsWith('-')) {
-          console.warn('--parallel requires a positive integer value, using default 10');
+          console.warn(
+            '--parallel requires a positive integer value, using default 10',
+          );
         } else {
           i++;
           result.parallel = Math.max(1, parseInt(pVal, 10) || 10);
@@ -988,7 +1290,12 @@ async function main() {
 
     if (source.type === 'git' && dir.startsWith('/tmp/')) {
       const cloneRoot = source.skillsSubdir
-        ? dir.replace(new RegExp(`/${source.skillsSubdir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '')
+        ? dir.replace(
+            new RegExp(
+              `/${source.skillsSubdir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+            ),
+            '',
+          )
         : dir;
       if (!tmpDirsToClean.includes(cloneRoot)) {
         tmpDirsToClean.push(cloneRoot);
@@ -1015,7 +1322,9 @@ async function main() {
     }
 
     statsPerSource.set(source.name, filtered.length);
-    console.log(`[${source.name}] Added ${filtered.length} skills (${allEntries.length} total)${sourceEntries.length !== filtered.length ? ` [${sourceEntries.length} candidates, ${sourceEntries.length - filtered.length} filtered]` : ''}\n`);
+    console.log(
+      `[${source.name}] Added ${filtered.length} skills (${allEntries.length} total)${sourceEntries.length !== filtered.length ? ` [${sourceEntries.length} candidates, ${sourceEntries.length - filtered.length} filtered]` : ''}\n`,
+    );
   }
 
   for (const tmpDir of tmpDirsToClean) {
@@ -1029,7 +1338,9 @@ async function main() {
   allEntries.sort((a, b) => b.score - a.score);
 
   if (args.max && allEntries.length > args.max) {
-    console.log(`Capping to --max ${args.max} skills (from ${allEntries.length})`);
+    console.log(
+      `Capping to --max ${args.max} skills (from ${allEntries.length})`,
+    );
     allEntries.length = args.max;
   }
 
@@ -1056,7 +1367,9 @@ async function main() {
   }
 
   // Push to OCI
-  console.log(`\n=== Pushing ${allEntries.length} skills to ${args.registry} ===\n`);
+  console.log(
+    `\n=== Pushing ${allEntries.length} skills to ${args.registry} ===\n`,
+  );
   const authHeaders = buildAuthHeaders(args.auth);
   const { pushed, failed, errors } = await pushBatch(
     allEntries,

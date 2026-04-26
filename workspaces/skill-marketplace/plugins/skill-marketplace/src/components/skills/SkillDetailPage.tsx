@@ -61,7 +61,7 @@ import {
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
-import { useBundle } from '../../hooks';
+import AddToBundleButton from '../shared/AddToBundleButton';
 
 export default function SkillDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -72,10 +72,11 @@ export default function SkillDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const { addSkill, hasSkill } = useBundle();
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug) {
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
     api
@@ -92,7 +93,9 @@ export default function SkillDetailPage() {
           setLoading(false);
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [api, slug]);
 
   if (loading) return <LoadingSpinner message="Loading skill details..." />;
@@ -100,15 +103,15 @@ export default function SkillDetailPage() {
   if (!skill) return <ErrorMessage message="Skill not found" />;
 
   const complexity = getComplexity(skill.rawContent.split('\n').length);
-  const title = skill.sections.title || skill.name.split(':').pop() || skill.name;
+  const title =
+    skill.sections.title || skill.name.split(':').pop() || skill.name;
 
-  const complexityColor: Record<string, 'blue' | 'green' | 'orange' | 'red'> =
-    {
-      Simple: 'green',
-      Medium: 'blue',
-      Complex: 'orange',
-      Advanced: 'red',
-    };
+  const complexityColor: Record<string, 'blue' | 'green' | 'orange' | 'red'> = {
+    Simple: 'green',
+    Medium: 'blue',
+    Complex: 'orange',
+    Advanced: 'red',
+  };
 
   const hasAssets =
     skill.assets.references.length > 0 ||
@@ -156,21 +159,32 @@ export default function SkillDetailPage() {
             <LabelGroup style={{ marginTop: 12 }}>
               <Label
                 style={{
-                  backgroundColor: skill.plugin.color || '#6b7280',
-                  color: '#fff',
+                  backgroundColor:
+                    skill.plugin.color || 'var(--sm-surface-secondary)',
+                  color: skill.plugin.color
+                    ? 'var(--sm-text-on-brand)'
+                    : 'var(--sm-text-primary)',
                   borderColor: 'transparent',
                 }}
               >
                 {skill.pluginName}
               </Label>
               {skill.lifecycleState && (
-                <Label color={
-                  skill.lifecycleState === 'published' ? 'green' :
-                  skill.lifecycleState === 'testing' ? 'blue' :
-                  skill.lifecycleState === 'deprecated' ? 'orange' :
-                  skill.lifecycleState === 'archived' ? 'grey' : 'yellow'
-                }>
-                  {skill.lifecycleState.charAt(0).toUpperCase() + skill.lifecycleState.slice(1)}
+                <Label
+                  color={
+                    skill.lifecycleState === 'published'
+                      ? 'green'
+                      : skill.lifecycleState === 'testing'
+                        ? 'blue'
+                        : skill.lifecycleState === 'deprecated'
+                          ? 'orange'
+                          : skill.lifecycleState === 'archived'
+                            ? 'grey'
+                            : 'yellow'
+                  }
+                >
+                  {skill.lifecycleState.charAt(0).toUpperCase() +
+                    skill.lifecycleState.slice(1)}
                 </Label>
               )}
               <Label color={complexityColor[complexity] ?? 'blue'}>
@@ -187,30 +201,27 @@ export default function SkillDetailPage() {
                   {skill.sections.workflow.length} steps
                 </Label>
               )}
-              {skill.authors && (
-                <Label color="grey">{skill.authors}</Label>
-              )}
+              {skill.authors && <Label color="grey">{skill.authors}</Label>}
             </LabelGroup>
             {skill.tags && skill.tags.length > 0 && (
               <LabelGroup style={{ marginTop: 8 }}>
                 {skill.tags.map(t => (
-                  <Label key={t} color="blue" variant="outline">{t}</Label>
+                  <Label key={t} color="blue" variant="outline">
+                    {t}
+                  </Label>
                 ))}
               </LabelGroup>
             )}
             <div style={{ marginTop: 12 }}>
-              <Button
-                variant={hasSkill(skill.skillName) ? 'secondary' : 'primary'}
-                isDisabled={hasSkill(skill.skillName)}
-                onClick={() => addSkill({
+              <AddToBundleButton
+                skill={{
                   name: skill.skillName,
                   slug: skill.slug,
                   category: skill.pluginName,
                   description: skill.description,
-                })}
-              >
-                {hasSkill(skill.skillName) ? 'In Bundle' : 'Add to Bundle'}
-              </Button>
+                }}
+                variant="full"
+              />
             </div>
           </SplitItem>
         </Split>
@@ -226,7 +237,9 @@ export default function SkillDetailPage() {
             eventKey={0}
             title={
               <>
-                <TabTitleIcon><InfoCircleIcon /></TabTitleIcon>
+                <TabTitleIcon>
+                  <InfoCircleIcon />
+                </TabTitleIcon>
                 <TabTitleText>Overview</TabTitleText>
               </>
             }
@@ -237,7 +250,10 @@ export default function SkillDetailPage() {
                   <Card isCompact style={{ marginBottom: 16 }}>
                     <CardTitle>About this Skill</CardTitle>
                     <CardBody>
-                      <Content component={ContentVariants.p} style={{ lineHeight: 1.7 }}>
+                      <Content
+                        component={ContentVariants.p}
+                        style={{ lineHeight: 1.7 }}
+                      >
                         {skill.description}
                       </Content>
                     </CardBody>
@@ -246,13 +262,19 @@ export default function SkillDetailPage() {
                   {skill.sections.whenToUse && (
                     <Card isCompact style={{ marginBottom: 16 }}>
                       <CardTitle>
-                        <span className="sm-section-title" style={{ margin: 0 }}>
-                          <InfoCircleIcon color="var(--pf-t--global--color--brand--default)" />
+                        <span
+                          className="sm-section-title"
+                          style={{ margin: 0 }}
+                        >
+                          <InfoCircleIcon color="var(--sm-brand)" />
                           When to Use
                         </span>
                       </CardTitle>
                       <CardBody>
-                        <Content component={ContentVariants.p} style={{ lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                        <Content
+                          component={ContentVariants.p}
+                          style={{ lineHeight: 1.7, whiteSpace: 'pre-line' }}
+                        >
                           {skill.sections.whenToUse}
                         </Content>
                       </CardBody>
@@ -263,8 +285,11 @@ export default function SkillDetailPage() {
                     skill.sections.prerequisites.length > 0 && (
                       <Card isCompact style={{ marginBottom: 16 }}>
                         <CardTitle>
-                          <span className="sm-section-title" style={{ margin: 0 }}>
-                            <ExclamationTriangleIcon color="var(--pf-t--global--color--status--warning--default)" />
+                          <span
+                            className="sm-section-title"
+                            style={{ margin: 0 }}
+                          >
+                            <ExclamationTriangleIcon color="var(--sm-warning)" />
                             Prerequisites
                           </span>
                         </CardTitle>
@@ -282,8 +307,11 @@ export default function SkillDetailPage() {
                     skill.sections.criticalRules.length > 0 && (
                       <Card isCompact style={{ marginBottom: 16 }}>
                         <CardTitle>
-                          <span className="sm-section-title" style={{ margin: 0 }}>
-                            <ExclamationTriangleIcon color="var(--pf-t--global--color--status--danger--default)" />
+                          <span
+                            className="sm-section-title"
+                            style={{ margin: 0 }}
+                          >
+                            <ExclamationTriangleIcon color="var(--sm-danger)" />
                             Rules
                           </span>
                         </CardTitle>
@@ -294,8 +322,8 @@ export default function SkillDetailPage() {
                               style={{
                                 padding: '8px 12px',
                                 marginBottom: 8,
-                                borderLeft: '3px solid var(--pf-t--global--color--status--danger--default)',
-                                backgroundColor: 'var(--pf-t--global--color--status--danger--default--clicked)',
+                                borderLeft: '3px solid var(--sm-danger)',
+                                backgroundColor: 'var(--sm-surface-secondary)',
                                 borderRadius: '0 4px 4px 0',
                                 fontSize: '0.9rem',
                               }}
@@ -310,29 +338,36 @@ export default function SkillDetailPage() {
                   {skill.sections.workflow.length > 0 && (
                     <Card isCompact style={{ marginBottom: 16 }}>
                       <CardTitle>
-                        <span className="sm-section-title" style={{ margin: 0 }}>
+                        <span
+                          className="sm-section-title"
+                          style={{ margin: 0 }}
+                        >
                           <ListIcon />
                           Workflow ({skill.sections.workflow.length} steps)
                         </span>
                       </CardTitle>
                       <CardBody>
                         {skill.sections.workflow.map((step, idx) => (
-                          <div
-                            key={step.step}
-                            className="sm-workflow-step"
-                          >
+                          <div key={step.step} className="sm-workflow-step">
                             <div className="sm-workflow-step-number">
                               {step.step}
                             </div>
                             {idx < skill.sections.workflow.length - 1 && (
                               <div className="sm-workflow-step-line" />
                             )}
-                            <Title headingLevel="h4" size="md" style={{ marginBottom: 4 }}>
+                            <Title
+                              headingLevel="h4"
+                              size="md"
+                              style={{ marginBottom: 4 }}
+                            >
                               {step.title}
                             </Title>
                             <Content
                               component={ContentVariants.p}
-                              style={{ color: 'var(--pf-t--global--text--color--subtle)', lineHeight: 1.6 }}
+                              style={{
+                                color: 'var(--sm-text-secondary)',
+                                lineHeight: 1.6,
+                              }}
                             >
                               {step.content}
                             </Content>
@@ -347,15 +382,28 @@ export default function SkillDetailPage() {
                   <Card isCompact style={{ marginBottom: 16 }}>
                     <CardTitle>Details</CardTitle>
                     <CardBody>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 12,
+                        }}
+                      >
                         <div>
-                          <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                          <Content
+                            component={ContentVariants.small}
+                            style={{ color: 'var(--sm-text-secondary)' }}
+                          >
                             Category
                           </Content>
                           <Label
                             style={{
-                              backgroundColor: skill.plugin.color || '#6b7280',
-                              color: '#fff',
+                              backgroundColor:
+                                skill.plugin.color ||
+                                'var(--sm-surface-secondary)',
+                              color: skill.plugin.color
+                                ? 'var(--sm-text-on-brand)'
+                                : 'var(--sm-text-primary)',
                               borderColor: 'transparent',
                               marginTop: 4,
                             }}
@@ -365,11 +413,16 @@ export default function SkillDetailPage() {
                         </div>
                         <Divider />
                         <div>
-                          <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                          <Content
+                            component={ContentVariants.small}
+                            style={{ color: 'var(--sm-text-secondary)' }}
+                          >
                             Complexity
                           </Content>
                           <div style={{ marginTop: 4 }}>
-                            <Label color={complexityColor[complexity] ?? 'blue'}>
+                            <Label
+                              color={complexityColor[complexity] ?? 'blue'}
+                            >
                               {complexity}
                             </Label>
                           </div>
@@ -378,7 +431,10 @@ export default function SkillDetailPage() {
                           <>
                             <Divider />
                             <div>
-                              <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                              <Content
+                                component={ContentVariants.small}
+                                style={{ color: 'var(--sm-text-secondary)' }}
+                              >
                                 Recommended Model
                               </Content>
                               <div style={{ marginTop: 4, fontWeight: 500 }}>
@@ -391,10 +447,15 @@ export default function SkillDetailPage() {
                           <>
                             <Divider />
                             <div>
-                              <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                              <Content
+                                component={ContentVariants.small}
+                                style={{ color: 'var(--sm-text-secondary)' }}
+                              >
                                 Version
                               </Content>
-                              <div style={{ marginTop: 4 }}>v{skill.version}</div>
+                              <div style={{ marginTop: 4 }}>
+                                v{skill.version}
+                              </div>
                             </div>
                           </>
                         )}
@@ -402,7 +463,10 @@ export default function SkillDetailPage() {
                           <>
                             <Divider />
                             <div>
-                              <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                              <Content
+                                component={ContentVariants.small}
+                                style={{ color: 'var(--sm-text-secondary)' }}
+                              >
                                 Compatibility
                               </Content>
                               <div style={{ marginTop: 4 }}>
@@ -413,23 +477,39 @@ export default function SkillDetailPage() {
                             </div>
                           </>
                         )}
-                        {skill.wordCount != null && skill.wordCount > 0 && (
-                          <>
-                            <Divider />
-                            <div>
-                              <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
-                                Word Count
-                              </Content>
-                              <div style={{ marginTop: 4 }}>{skill.wordCount.toLocaleString()} words</div>
-                            </div>
-                          </>
-                        )}
+                        {typeof skill.wordCount === 'number' &&
+                          skill.wordCount > 0 && (
+                            <>
+                              <Divider />
+                              <div>
+                                <Content
+                                  component={ContentVariants.small}
+                                  style={{ color: 'var(--sm-text-secondary)' }}
+                                >
+                                  Word Count
+                                </Content>
+                                <div style={{ marginTop: 4 }}>
+                                  {skill.wordCount.toLocaleString()} words
+                                </div>
+                              </div>
+                            </>
+                          )}
                         <Divider />
                         <div>
-                          <Content component={ContentVariants.small} style={{ color: 'var(--pf-t--global--text--color--subtle)' }}>
+                          <Content
+                            component={ContentVariants.small}
+                            style={{ color: 'var(--sm-text-secondary)' }}
+                          >
                             Source Path
                           </Content>
-                          <div style={{ marginTop: 4, fontFamily: 'var(--pf-t--global--font--family--mono)', fontSize: '0.8rem' }}>
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontFamily:
+                                'var(--pf-t--global--font--family--mono)',
+                              fontSize: '0.8rem',
+                            }}
+                          >
                             {skill.gitPath}
                           </div>
                         </div>
@@ -440,7 +520,10 @@ export default function SkillDetailPage() {
                   {skill.sections.relatedSkills.length > 0 && (
                     <Card isCompact>
                       <CardTitle>
-                        <span className="sm-section-title" style={{ margin: 0 }}>
+                        <span
+                          className="sm-section-title"
+                          style={{ margin: 0 }}
+                        >
                           <ExternalLinkAltIcon />
                           Related Skills
                         </span>
@@ -473,7 +556,9 @@ export default function SkillDetailPage() {
             eventKey={1}
             title={
               <>
-                <TabTitleIcon><CodeIcon /></TabTitleIcon>
+                <TabTitleIcon>
+                  <CodeIcon />
+                </TabTitleIcon>
                 <TabTitleText>Raw Content</TabTitleText>
               </>
             }
@@ -492,9 +577,15 @@ export default function SkillDetailPage() {
               eventKey={2}
               title={
                 <>
-                  <TabTitleIcon><FolderOpenIcon /></TabTitleIcon>
+                  <TabTitleIcon>
+                    <FolderOpenIcon />
+                  </TabTitleIcon>
                   <TabTitleText>
-                    Assets ({skill.assets.references.length + skill.assets.templates.length + skill.assets.examples.length})
+                    Assets (
+                    {skill.assets.references.length +
+                      skill.assets.templates.length +
+                      skill.assets.examples.length}
+                    )
                   </TabTitleText>
                 </>
               }
@@ -562,7 +653,9 @@ export default function SkillDetailPage() {
             eventKey={3}
             title={
               <>
-                <TabTitleIcon><RocketIcon /></TabTitleIcon>
+                <TabTitleIcon>
+                  <RocketIcon />
+                </TabTitleIcon>
                 <TabTitleText>Test with Agent</TabTitleText>
               </>
             }
@@ -572,13 +665,24 @@ export default function SkillDetailPage() {
                 <Title headingLevel="h3" size="lg" style={{ marginBottom: 12 }}>
                   Test this skill in the Skills Playground
                 </Title>
-                <Content component={ContentVariants.p} style={{ marginBottom: 16, color: 'var(--pf-t--global--text--color--subtle)' }}>
-                  Open the Skills Playground with &ldquo;{humanize(skill.name)}&rdquo; pre-selected.
-                  The live agent will load this skill and you can test it interactively.
+                <Content
+                  component={ContentVariants.p}
+                  style={{
+                    marginBottom: 16,
+                    color: 'var(--sm-text-secondary)',
+                  }}
+                >
+                  Open the Skills Playground with &ldquo;{humanize(skill.name)}
+                  &rdquo; pre-selected. The live agent will load this skill and
+                  you can test it interactively.
                 </Content>
                 <Button
                   variant="primary"
-                  onClick={() => navigate(`${basePath}/playground?skill=${encodeURIComponent(skill.skillName)}`)}
+                  onClick={() =>
+                    navigate(
+                      `${basePath}/playground?skill=${encodeURIComponent(skill.skillName)}`,
+                    )
+                  }
                   icon={<RocketIcon />}
                 >
                   Open Skills Playground

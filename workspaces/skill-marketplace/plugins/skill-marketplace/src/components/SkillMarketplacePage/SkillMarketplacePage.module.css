@@ -1,0 +1,185 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.smRoot {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--sm-surface-primary);
+  color: var(--sm-text-primary);
+}
+.smTopnav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  height: 44px;
+  border-bottom: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-secondary);
+  flex-shrink: 0;
+  box-shadow: var(--sm-shadow);
+}
+.smTabs {
+  display: flex;
+  gap: 4px;
+  height: 100%;
+  align-items: stretch;
+  overflow-x: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.smTabs::-webkit-scrollbar {
+  display: none;
+}
+.smTab {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--sm-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.smTab:hover {
+  color: var(--sm-text-primary);
+  background: var(--sm-surface-hover);
+}
+.smTabActive {
+  color: var(--sm-brand);
+  border-bottom-color: var(--sm-brand);
+  font-weight: 700;
+  background: var(--sm-surface-primary);
+}
+.smContent {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.smCartBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  transition: all 0.15s;
+  position: relative;
+}
+.smCartBtn:hover {
+  border-color: var(--sm-brand);
+  color: var(--sm-brand);
+}
+.smCartBadge {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-weight: 700;
+  line-height: 16px;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Toast notification */
+.smToast {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  background: var(--sm-success);
+  color: var(--sm-text-on-brand);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  animation: smToastIn 0.25s ease-out;
+  pointer-events: none;
+}
+@keyframes smToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Floating cart bar */
+.smFloatingCart {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  background: var(--sm-surface-card);
+  border: 1px solid var(--sm-brand);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  animation: smToastIn 0.2s ease-out;
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+.smFloatingCart svg {
+  color: var(--sm-brand);
+  flex-shrink: 0;
+}
+.smFloatingCartLabel {
+  white-space: nowrap;
+}
+.smFloatingCartLabel strong {
+  color: var(--sm-brand);
+}
+.smFloatingCartBtn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.smFloatingCartBtn:hover {
+  opacity: 0.9;
+}

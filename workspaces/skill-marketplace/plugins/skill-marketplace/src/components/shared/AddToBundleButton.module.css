@@ -1,0 +1,64 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.atbBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.atbBtn:disabled {
+  cursor: default;
+}
+
+.atbIcon {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  color: var(--sm-brand);
+  font-size: 16px;
+  padding: 0;
+}
+.atbIcon:hover:not(:disabled) {
+  background: var(--sm-brand);
+  border-color: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+
+.atbFull {
+  padding: 7px 16px;
+  border: 1px solid var(--sm-brand);
+  background: transparent;
+  color: var(--sm-brand);
+  font-size: 13px;
+}
+.atbFull:hover:not(:disabled) {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+
+.atbAdded {
+  border-color: var(--sm-success) !important;
+  background: var(--sm-success-tint) !important;
+  color: var(--sm-success) !important;
+}

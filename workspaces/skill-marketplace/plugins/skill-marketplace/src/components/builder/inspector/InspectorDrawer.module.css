@@ -1,0 +1,139 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.bldInspector {
+  width: 340px;
+  min-width: 340px;
+  height: 100%;
+  border-left: 1px solid var(--sm-border-default);
+  display: flex;
+  flex-direction: column;
+  background: var(--sm-surface-card);
+  overflow: hidden;
+  animation: bldSlideIn 0.2s ease;
+}
+@keyframes bldSlideIn {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.bldInspectorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sm-border-subtle);
+  flex-shrink: 0;
+}
+.bldInspectorTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sm-text-primary);
+}
+.bldInspectorClose {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--sm-text-secondary);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bldInspectorClose:hover {
+  background: var(--sm-surface-hover);
+}
+.bldInspectorClose:focus-visible {
+  outline: 2px solid var(--sm-brand);
+}
+
+.bldInspectorTabs {
+  display: flex;
+  border-bottom: 1px solid var(--sm-border-subtle);
+  flex-shrink: 0;
+}
+.bldInspectorTab {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sm-text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.bldInspectorTab:hover {
+  color: var(--sm-text-primary);
+}
+.bldInspectorTabActive {
+  color: var(--sm-brand);
+  border-bottom-color: var(--sm-brand);
+}
+.bldInspectorTab:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: -2px;
+}
+.bldInspectorTabBadge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--sm-surface-secondary);
+  margin-left: 4px;
+}
+
+.bldInspectorBody {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.bldSessionInfo {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bldSessionRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bldSessionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--sm-text-secondary);
+}
+.bldSessionValue {
+  font-size: 13px;
+  color: var(--sm-text-primary);
+  word-break: break-all;
+}
+.bldSessionValueMono {
+  font-family: var(--pf-t--global--font--family--mono, 'Red Hat Mono', monospace);
+  font-size: 12px;
+}

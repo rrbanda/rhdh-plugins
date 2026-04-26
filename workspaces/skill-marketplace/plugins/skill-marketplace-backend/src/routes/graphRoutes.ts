@@ -15,13 +15,67 @@
  */
 import { Router } from 'express';
 import type { LoggerService } from '@backstage/backend-plugin-api';
-import type { Neo4jService, BuilderProxyService } from '../services';
+import type { Neo4jService } from '../services';
 import { parseIntParam } from './authUtils';
+
+const GRAPH_DEFAULT_LIMIT = 500;
+const GRAPH_MAX_LIMIT = 10000;
+const MAX_GRAPH_SEARCH_QUERY_LEN = 500;
+const NEIGHBORHOOD_DEFAULT_DEPTH = 2;
+const NEIGHBORHOOD_MIN_DEPTH = 1;
+const NEIGHBORHOOD_MAX_DEPTH = 5;
+const MAX_NEIGHBORHOOD_LIMIT = 200;
+
+/**
+ * Query param `limit` for GET /graph: integer in [1, GRAPH_MAX_LIMIT], or omit for default.
+ */
+function parseGraphLimitParam(
+  value: unknown,
+): { ok: true; limit: number } | { ok: false; error: string } {
+  if (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'string' && value.trim() === '')
+  ) {
+    return { ok: true, limit: GRAPH_DEFAULT_LIMIT };
+  }
+  const s = String(value).trim();
+  const n = Number(s);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) {
+    return { ok: false, error: 'limit must be a finite integer' };
+  }
+  if (n < 1) {
+    return { ok: false, error: 'limit must be a positive integer' };
+  }
+  if (n > GRAPH_MAX_LIMIT) {
+    return { ok: false, error: `limit must not exceed ${GRAPH_MAX_LIMIT}` };
+  }
+  return { ok: true, limit: n };
+}
+
+function parseNeighborhoodDepth(
+  raw: unknown,
+): { ok: true; depth: number } | { ok: false; error: string } {
+  if (raw === undefined || raw === null) {
+    return { ok: true, depth: NEIGHBORHOOD_DEFAULT_DEPTH };
+  }
+  const n = typeof raw === 'string' ? Number(raw.trim()) : Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) {
+    return { ok: false, error: 'depth must be a finite integer' };
+  }
+  if (n < NEIGHBORHOOD_MIN_DEPTH || n > NEIGHBORHOOD_MAX_DEPTH) {
+    return {
+      ok: false,
+      error: `depth must be between ${NEIGHBORHOOD_MIN_DEPTH} and ${NEIGHBORHOOD_MAX_DEPTH}`,
+    };
+  }
+  return { ok: true, depth: n };
+}
 
 export function registerGraphRoutes(
   router: Router,
   neo4j: Neo4jService | undefined,
-  builderProxy: BuilderProxyService | undefined,
+  _builderProxy: unknown,
   logger: LoggerService,
 ) {
   router.get('/graph', async (req, res) => {
@@ -30,13 +84,25 @@ export function registerGraphRoutes(
       return;
     }
     try {
-      const limit = req.query.limit
-        ? parseIntParam(req.query.limit, 500, 10000)
-        : undefined;
-      const data = await neo4j.fetchFullGraph(limit);
+      const hasLimit =
+        req.query.limit !== undefined &&
+        req.query.limit !== null &&
+        String(req.query.limit).trim() !== '';
+      const parsed = parseGraphLimitParam(
+        hasLimit ? req.query.limit : undefined,
+      );
+      if (!parsed.ok) {
+        res.status(400).json({ error: parsed.error });
+        return;
+      }
+      const data = await neo4j.fetchFullGraph(
+        hasLimit ? parsed.limit : undefined,
+      );
       res.json(data);
     } catch (err) {
-      logger.error(`GET /graph failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to fetch graph data' });
     }
   });
@@ -50,7 +116,9 @@ export function registerGraphRoutes(
       const schema = await neo4j.discoverSchema();
       res.json(schema);
     } catch (err) {
-      logger.error(`GET /graph/schema failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/schema failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to fetch graph schema' });
     }
   });
@@ -65,11 +133,19 @@ export function registerGraphRoutes(
       res.status(400).json({ error: 'query is required and must be a string' });
       return;
     }
+    if (query.length > MAX_GRAPH_SEARCH_QUERY_LEN) {
+      res.status(400).json({
+        error: `query must be at most ${MAX_GRAPH_SEARCH_QUERY_LEN} characters`,
+      });
+      return;
+    }
     try {
       const data = await neo4j.searchGraph(query);
       res.json(data);
     } catch (err) {
-      logger.error(`POST /graph/search failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `POST /graph/search failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Graph search failed' });
     }
   });
@@ -79,24 +155,35 @@ export function registerGraphRoutes(
       res.status(503).json({ error: 'Neo4j not configured' });
       return;
     }
-    const { nodeId: rawNodeId, depth: rawDepth, limit: rawLimit } = req.body ?? {};
+    const {
+      nodeId: rawNodeId,
+      depth: rawDepth,
+      limit: rawLimit,
+    } = req.body ?? {};
     if (typeof rawNodeId !== 'string' || !rawNodeId.trim()) {
-      res.status(400).json({ error: 'nodeId is required and must be a string' });
+      res
+        .status(400)
+        .json({ error: 'nodeId is required and must be a string' });
       return;
     }
     const nodeId = rawNodeId.trim();
-    const depth = typeof rawDepth === 'number' && Number.isInteger(rawDepth) && rawDepth > 0
-      ? Math.min(rawDepth, 5)
-      : 2;
-    const MAX_NEIGHBORHOOD_LIMIT = 200;
-    const limit = typeof rawLimit === 'number' && Number.isInteger(rawLimit) && rawLimit > 0
-      ? Math.min(rawLimit, MAX_NEIGHBORHOOD_LIMIT)
-      : undefined;
+    const depthResult = parseNeighborhoodDepth(rawDepth);
+    if (!depthResult.ok) {
+      res.status(400).json({ error: depthResult.error });
+      return;
+    }
+    const depth = depthResult.depth;
+    const limit =
+      typeof rawLimit === 'number' && Number.isInteger(rawLimit) && rawLimit > 0
+        ? Math.min(rawLimit, MAX_NEIGHBORHOOD_LIMIT)
+        : undefined;
     try {
       const data = await neo4j.fetchNeighborhood(nodeId, depth, limit);
       res.json(data);
     } catch (err) {
-      logger.error(`POST /graph/neighborhood failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `POST /graph/neighborhood failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to fetch neighborhood data' });
     }
   });
@@ -111,7 +198,9 @@ export function registerGraphRoutes(
       const agents = await neo4j.listAllAgents();
       res.json({ agents });
     } catch (err) {
-      logger.error(`GET /graph/agents failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/agents failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to list agents from graph' });
     }
   });
@@ -125,24 +214,36 @@ export function registerGraphRoutes(
       const count = await neo4j.countAgents();
       res.json({ count });
     } catch (err) {
-      logger.error(`GET /graph/agents/count failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/agents/count failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to count agents' });
     }
   });
 
-  router.get('/graph/agents/:namespace/:name/capabilities', async (req, res) => {
-    if (!neo4j) {
-      res.status(503).json({ error: 'Neo4j not configured' });
-      return;
-    }
-    try {
-      const capabilities = await neo4j.listAgentCapabilities(req.params.name, req.params.namespace);
-      res.json({ capabilities });
-    } catch (err) {
-      logger.error(`GET /graph/agents/:ns/:name/capabilities failed: ${err instanceof Error ? err.message : err}`);
-      res.status(500).json({ error: 'Failed to fetch capabilities for agent' });
-    }
-  });
+  router.get(
+    '/graph/agents/:namespace/:name/capabilities',
+    async (req, res) => {
+      if (!neo4j) {
+        res.status(503).json({ error: 'Neo4j not configured' });
+        return;
+      }
+      try {
+        const capabilities = await neo4j.listAgentCapabilities(
+          req.params.name,
+          req.params.namespace,
+        );
+        res.json({ capabilities });
+      } catch (err) {
+        logger.error(
+          `GET /graph/agents/:ns/:name/capabilities failed: ${err instanceof Error ? err.message : err}`,
+        );
+        res
+          .status(500)
+          .json({ error: 'Failed to fetch capabilities for agent' });
+      }
+    },
+  );
 
   router.get('/graph/capabilities/gaps', async (_req, res) => {
     if (!neo4j) {
@@ -153,7 +254,9 @@ export function registerGraphRoutes(
       const gaps = await neo4j.findCatalogGaps();
       res.json({ gaps });
     } catch (err) {
-      logger.error(`GET /graph/capabilities/gaps failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/capabilities/gaps failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to find catalog gaps' });
     }
   });
@@ -167,7 +270,9 @@ export function registerGraphRoutes(
       const count = await neo4j.countCatalogGaps();
       res.json({ count });
     } catch (err) {
-      logger.error(`GET /graph/capabilities/gaps/count failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/capabilities/gaps/count failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to count catalog gaps' });
     }
   });
@@ -178,11 +283,15 @@ export function registerGraphRoutes(
       return;
     }
     try {
-      const limit = req.query.limit ? parseIntParam(req.query.limit, 100, 1000) : 100;
+      const limit = req.query.limit
+        ? parseIntParam(req.query.limit, 100, 1000)
+        : 100;
       const skills = await neo4j.findUnusedSkills(limit);
       res.json({ skills });
     } catch (err) {
-      logger.error(`GET /graph/skills/unused failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/skills/unused failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to find unused skills' });
     }
   });
@@ -193,11 +302,15 @@ export function registerGraphRoutes(
       return;
     }
     try {
-      const limit = req.query.limit ? parseIntParam(req.query.limit, 50, 200) : 50;
+      const limit = req.query.limit
+        ? parseIntParam(req.query.limit, 50, 200)
+        : 50;
       const tags = await neo4j.listTags(limit);
       res.json({ tags });
     } catch (err) {
-      logger.error(`GET /graph/tags failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/tags failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to list tags' });
     }
   });
@@ -208,10 +321,15 @@ export function registerGraphRoutes(
       return;
     }
     try {
-      const skills = await neo4j.getSkillsByAgent(req.params.name, req.params.namespace);
+      const skills = await neo4j.getSkillsByAgent(
+        req.params.name,
+        req.params.namespace,
+      );
       res.json({ skills });
     } catch (err) {
-      logger.error(`GET /graph/agents/:ns/:name/skills failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/agents/:ns/:name/skills failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to fetch skills for agent' });
     }
   });
@@ -225,7 +343,9 @@ export function registerGraphRoutes(
       const agents = await neo4j.getAgentsBySkill(req.params.skillName);
       res.json({ agents });
     } catch (err) {
-      logger.error(`GET /graph/skills/:name/agents failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/skills/:name/agents failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to fetch agents for skill' });
     }
   });
@@ -236,11 +356,15 @@ export function registerGraphRoutes(
       return;
     }
     try {
-      const limit = req.query.limit ? parseIntParam(req.query.limit, 20, 100) : 20;
+      const limit = req.query.limit
+        ? parseIntParam(req.query.limit, 20, 100)
+        : 20;
       const events = await neo4j.listSyncEvents(limit);
       res.json({ events });
     } catch (err) {
-      logger.error(`GET /graph/sync/history failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/sync/history failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to list sync events' });
     }
   });
@@ -254,7 +378,9 @@ export function registerGraphRoutes(
       const quality = await neo4j.getQualityAggregate();
       res.json(quality);
     } catch (err) {
-      logger.error(`GET /graph/quality failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `GET /graph/quality failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to fetch quality metrics' });
     }
   });
@@ -266,7 +392,12 @@ export function registerGraphRoutes(
     }
     const { agentName, agentNamespace, verified } = req.body ?? {};
     if (!agentName || !agentNamespace || typeof verified !== 'boolean') {
-      res.status(400).json({ error: 'agentName, agentNamespace, and verified (boolean) are required' });
+      res
+        .status(400)
+        .json({
+          error:
+            'agentName, agentNamespace, and verified (boolean) are required',
+        });
       return;
     }
     try {
@@ -283,7 +414,9 @@ export function registerGraphRoutes(
       }
       res.json(result);
     } catch (err) {
-      logger.error(`POST /graph/capabilities/:id/verify failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `POST /graph/capabilities/:id/verify failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to verify match' });
     }
   });
@@ -295,7 +428,11 @@ export function registerGraphRoutes(
     }
     const { agentName, agentNamespace, skillName } = req.body ?? {};
     if (!agentName || !agentNamespace || !skillName) {
-      res.status(400).json({ error: 'agentName, agentNamespace, and skillName are required' });
+      res
+        .status(400)
+        .json({
+          error: 'agentName, agentNamespace, and skillName are required',
+        });
       return;
     }
     try {
@@ -312,43 +449,28 @@ export function registerGraphRoutes(
       }
       res.json(result);
     } catch (err) {
-      logger.error(`POST /graph/capabilities/:id/override failed: ${err instanceof Error ? err.message : err}`);
+      logger.error(
+        `POST /graph/capabilities/:id/override failed: ${err instanceof Error ? err.message : err}`,
+      );
       res.status(500).json({ error: 'Failed to override match' });
     }
   });
 
   router.post('/graph/build', async (_req, res) => {
-    if (!builderProxy) {
-      res.status(503).json({ error: 'Builder agent not configured' });
-      return;
-    }
-    try {
-      const events = await builderProxy.graphBuild();
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.flushHeaders();
-      for (const evt of events) {
-        if (!res.writableEnded) {
-          res.write(`event: ${evt.event}\ndata: ${JSON.stringify(evt.data)}\n\n`);
-        }
-      }
-      if (!res.writableEnded) {
-        res.write('event: stream_end\ndata: {}\n\n');
-        res.end();
-      }
-    } catch (err) {
-      logger.error(`POST /graph/build failed: ${err instanceof Error ? err.message : err}`);
-      res.status(502).json({ error: 'Failed to reach builder agent' });
-    }
+    res
+      .status(501)
+      .json({
+        error:
+          'Graph build is not available — use the Skill Builder agent endpoint instead',
+      });
   });
 
-  router.post('/graph/update', async (req, res) => {
-    if (!builderProxy) {
-      res.status(503).json({ error: 'Builder agent not configured' });
-      return;
-    }
-    const result = await builderProxy.graphUpdate(req.body);
-    res.status(result.status).json(result.data);
+  router.post('/graph/update', async (_req, res) => {
+    res
+      .status(501)
+      .json({
+        error:
+          'Graph update is not available — use the Skill Builder agent endpoint instead',
+      });
   });
 }

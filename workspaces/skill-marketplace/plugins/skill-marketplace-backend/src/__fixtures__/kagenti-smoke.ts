@@ -1,12 +1,27 @@
 /*
- * Kagenti API Smoke Test
+ * Copyright Red Hat, Inc.
  *
- * Validates every API call the skill-marketplace plugin makes against a real
- * Kagenti cluster. Run with: npx tsx src/__fixtures__/kagenti-smoke.ts
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*
+ * Kagenti API smoke test: validates API calls the skill-marketplace plugin makes
+ * against a real Kagenti cluster. Run with: npx tsx src/__fixtures__/kagenti-smoke.ts
  */
 
-const API_URL = 'https://kagenti-api-kagenti-system.apps.ocp.v7hjl.sandbox2288.opentlc.com';
-const KEYCLOAK_TOKEN_URL = 'https://keycloak-keycloak.apps.ocp.v7hjl.sandbox2288.opentlc.com/realms/kagenti/protocol/openid-connect/token';
+const API_URL =
+  'https://kagenti-api-kagenti-system.apps.ocp.v7hjl.sandbox2288.opentlc.com';
+const KEYCLOAK_TOKEN_URL =
+  'https://keycloak-keycloak.apps.ocp.v7hjl.sandbox2288.opentlc.com/realms/kagenti/protocol/openid-connect/token';
 const CLIENT_ID = 'kagenti';
 const USERNAME = 'temp-admin';
 const PASSWORD = '4454edeff4ee4470bdf29deb612e30c1';
@@ -79,9 +94,13 @@ async function main() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
     });
-    const data = await res.json() as Record<string, unknown>;
+    const data = (await res.json()) as Record<string, unknown>;
     if (!res.ok) {
-      results.push({ test: '1a-keycloak-auth', status: 'FAIL', details: `HTTP ${res.status}: ${JSON.stringify(data)}` });
+      results.push({
+        test: '1a-keycloak-auth',
+        status: 'FAIL',
+        details: `HTTP ${res.status}: ${JSON.stringify(data)}`,
+      });
       console.error('Auth failed, cannot continue.');
       printSummary();
       return;
@@ -96,7 +115,11 @@ async function main() {
     });
     console.log('Token obtained successfully.');
   } catch (err) {
-    results.push({ test: '1a-keycloak-auth', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+    results.push({
+      test: '1a-keycloak-auth',
+      status: 'FAIL',
+      details: `Exception: ${(err as Error).message}`,
+    });
     console.error('Auth failed, cannot continue.');
     printSummary();
     return;
@@ -113,8 +136,10 @@ async function main() {
   log('1h', 'Listing enabled namespaces...');
   let namespaces: string[] = [];
   try {
-    const res = await fetch(`${API_URL}/api/v1/namespaces?enabled_only=true`, { headers });
-    const data = await res.json() as Record<string, unknown>;
+    const res = await fetch(`${API_URL}/api/v1/namespaces?enabled_only=true`, {
+      headers,
+    });
+    const data = (await res.json()) as Record<string, unknown>;
     results.push({
       test: '1h-list-namespaces',
       status: res.ok ? 'PASS' : 'FAIL',
@@ -125,7 +150,11 @@ async function main() {
     namespaces = (data.namespaces as string[]) || [];
     console.log('Namespaces:', namespaces);
   } catch (err) {
-    results.push({ test: '1h-list-namespaces', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+    results.push({
+      test: '1h-list-namespaces',
+      status: 'FAIL',
+      details: `Exception: ${(err as Error).message}`,
+    });
   }
 
   // =====================================================================
@@ -135,8 +164,11 @@ async function main() {
   let agents: Array<Record<string, unknown>> = [];
   const testNamespace = namespaces[0] || 'kagenti-system';
   try {
-    const res = await fetch(`${API_URL}/api/v1/agents?namespace=${testNamespace}`, { headers });
-    const data = await res.json() as Record<string, unknown>;
+    const res = await fetch(
+      `${API_URL}/api/v1/agents?namespace=${testNamespace}`,
+      { headers },
+    );
+    const data = (await res.json()) as Record<string, unknown>;
     results.push({
       test: '1b-list-agents',
       status: res.ok ? 'PASS' : 'FAIL',
@@ -144,25 +176,36 @@ async function main() {
       responseShape: recordShape(data),
       rawData: data,
     });
-    agents = ((data.items as Array<Record<string, unknown>>) || []);
-    console.log(`Found ${agents.length} agents:`, agents.map(a => `${a.namespace}/${a.name} (${a.status})`));
+    agents = (data.items as Array<Record<string, unknown>>) || [];
+    console.log(
+      `Found ${agents.length} agents:`,
+      agents.map(a => `${a.namespace}/${a.name} (${a.status})`),
+    );
   } catch (err) {
-    results.push({ test: '1b-list-agents', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+    results.push({
+      test: '1b-list-agents',
+      status: 'FAIL',
+      details: `Exception: ${(err as Error).message}`,
+    });
   }
 
   if (agents.length === 0) {
     console.log('No agents found. Trying all namespaces...');
     for (const ns of namespaces) {
       try {
-        const res = await fetch(`${API_URL}/api/v1/agents?namespace=${ns}`, { headers });
-        const data = await res.json() as Record<string, unknown>;
+        const res = await fetch(`${API_URL}/api/v1/agents?namespace=${ns}`, {
+          headers,
+        });
+        const data = (await res.json()) as Record<string, unknown>;
         const items = (data.items as Array<Record<string, unknown>>) || [];
         if (items.length > 0) {
           agents = items;
           console.log(`Found ${items.length} agents in namespace ${ns}`);
           break;
         }
-      } catch { /* continue */ }
+      } catch {
+        /* continue */
+      }
     }
   }
 
@@ -176,8 +219,11 @@ async function main() {
 
     log('1c', `Getting detail for ${agentNs}/${agentName}...`);
     try {
-      const res = await fetch(`${API_URL}/api/v1/agents/${agentNs}/${agentName}`, { headers });
-      const data = await res.json() as Record<string, unknown>;
+      const res = await fetch(
+        `${API_URL}/api/v1/agents/${agentNs}/${agentName}`,
+        { headers },
+      );
+      const data = (await res.json()) as Record<string, unknown>;
       results.push({
         test: '1c-agent-detail',
         status: res.ok ? 'PASS' : 'FAIL',
@@ -185,10 +231,20 @@ async function main() {
         responseShape: recordShape(data),
         rawData: data,
       });
-      console.log('Agent detail shape:', JSON.stringify(recordShape(data), null, 2));
-      console.log('Full response (first 2000 chars):', JSON.stringify(data).slice(0, 2000));
+      console.log(
+        'Agent detail shape:',
+        JSON.stringify(recordShape(data), null, 2),
+      );
+      console.log(
+        'Full response (first 2000 chars):',
+        JSON.stringify(data).slice(0, 2000),
+      );
     } catch (err) {
-      results.push({ test: '1c-agent-detail', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+      results.push({
+        test: '1c-agent-detail',
+        status: 'FAIL',
+        details: `Exception: ${(err as Error).message}`,
+      });
     }
 
     // =====================================================================
@@ -197,8 +253,11 @@ async function main() {
     log('1d', `Getting agent card for ${agentNs}/${agentName}...`);
     let agentUrl = '';
     try {
-      const res = await fetch(`${API_URL}/api/v1/chat/${agentNs}/${agentName}/agent-card`, { headers });
-      const data = await res.json() as Record<string, unknown>;
+      const res = await fetch(
+        `${API_URL}/api/v1/chat/${agentNs}/${agentName}/agent-card`,
+        { headers },
+      );
+      const data = (await res.json()) as Record<string, unknown>;
       agentUrl = (data.url as string) || '';
       results.push({
         test: '1d-agent-card',
@@ -209,7 +268,11 @@ async function main() {
       });
       console.log('Agent card:', JSON.stringify(data, null, 2));
     } catch (err) {
-      results.push({ test: '1d-agent-card', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+      results.push({
+        test: '1d-agent-card',
+        status: 'FAIL',
+        details: `Exception: ${(err as Error).message}`,
+      });
     }
 
     // =====================================================================
@@ -217,12 +280,18 @@ async function main() {
     // =====================================================================
     log('1e', `Sending chat via Kagenti proxy to ${agentNs}/${agentName}...`);
     try {
-      const res = await fetch(`${API_URL}/api/v1/chat/${agentNs}/${agentName}/send`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ message: 'Hello, what can you do?', session_id: null }),
-      });
-      const data = await res.json() as Record<string, unknown>;
+      const res = await fetch(
+        `${API_URL}/api/v1/chat/${agentNs}/${agentName}/send`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            message: 'Hello, what can you do?',
+            session_id: null,
+          }),
+        },
+      );
+      const data = (await res.json()) as Record<string, unknown>;
       results.push({
         test: '1e-chat-proxy',
         status: res.ok ? 'PASS' : 'FAIL',
@@ -230,9 +299,16 @@ async function main() {
         responseShape: recordShape(data),
         rawData: data,
       });
-      console.log('Chat proxy response:', JSON.stringify(data, null, 2).slice(0, 2000));
+      console.log(
+        'Chat proxy response:',
+        JSON.stringify(data, null, 2).slice(0, 2000),
+      );
     } catch (err) {
-      results.push({ test: '1e-chat-proxy', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+      results.push({
+        test: '1e-chat-proxy',
+        status: 'FAIL',
+        details: `Exception: ${(err as Error).message}`,
+      });
     }
 
     // =====================================================================
@@ -261,7 +337,11 @@ async function main() {
         });
         const text = await res.text();
         let data: unknown;
-        try { data = JSON.parse(text); } catch { data = { raw: text }; }
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { raw: text };
+        }
         results.push({
           test: '1f-direct-a2a',
           status: res.ok ? 'PASS' : 'FAIL',
@@ -269,9 +349,16 @@ async function main() {
           responseShape: recordShape(data),
           rawData: data,
         });
-        console.log('Direct A2A response:', JSON.stringify(data, null, 2).slice(0, 2000));
+        console.log(
+          'Direct A2A response:',
+          JSON.stringify(data, null, 2).slice(0, 2000),
+        );
       } catch (err) {
-        results.push({ test: '1f-direct-a2a', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+        results.push({
+          test: '1f-direct-a2a',
+          status: 'FAIL',
+          details: `Exception: ${(err as Error).message}`,
+        });
       }
 
       // Also try with Bearer token
@@ -297,19 +384,34 @@ async function main() {
         });
         const text = await res.text();
         let data: unknown;
-        try { data = JSON.parse(text); } catch { data = { raw: text }; }
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { raw: text };
+        }
         results.push({
           test: '1f-direct-a2a-auth',
           status: res.ok ? 'PASS' : 'FAIL',
           details: `HTTP ${res.status}, url=${agentUrl}/a2a (with Bearer)`,
           responseShape: recordShape(data),
-          rawData: typeof data === 'object' && data !== null ? JSON.stringify(data).slice(0, 500) : data,
+          rawData:
+            typeof data === 'object' && data !== null
+              ? JSON.stringify(data).slice(0, 500)
+              : data,
         });
       } catch (err) {
-        results.push({ test: '1f-direct-a2a-auth', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+        results.push({
+          test: '1f-direct-a2a-auth',
+          status: 'FAIL',
+          details: `Exception: ${(err as Error).message}`,
+        });
       }
     } else {
-      results.push({ test: '1f-direct-a2a', status: 'SKIP', details: 'No agent URL from agent card' });
+      results.push({
+        test: '1f-direct-a2a',
+        status: 'SKIP',
+        details: 'No agent URL from agent card',
+      });
     }
 
     // =====================================================================
@@ -317,12 +419,15 @@ async function main() {
     // =====================================================================
     log('1g', `Streaming chat to ${agentNs}/${agentName}...`);
     try {
-      const res = await fetch(`${API_URL}/api/v1/chat/${agentNs}/${agentName}/stream`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ message: 'Hello, briefly describe yourself' }),
-        signal: AbortSignal.timeout(30_000),
-      });
+      const res = await fetch(
+        `${API_URL}/api/v1/chat/${agentNs}/${agentName}/stream`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ message: 'Hello, briefly describe yourself' }),
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
       const contentType = res.headers.get('content-type') || '';
       const text = await res.text();
       results.push({
@@ -333,7 +438,11 @@ async function main() {
       });
       console.log('Stream response (first 2000 chars):', text.slice(0, 2000));
     } catch (err) {
-      results.push({ test: '1g-stream-chat', status: 'FAIL', details: `Exception: ${(err as Error).message}` });
+      results.push({
+        test: '1g-stream-chat',
+        status: 'FAIL',
+        details: `Exception: ${(err as Error).message}`,
+      });
     }
 
     // =====================================================================
@@ -350,9 +459,19 @@ async function main() {
       });
     }
   } else {
-    const skipTests = ['1c-agent-detail', '1d-agent-card', '1e-chat-proxy', '1f-direct-a2a', '1g-stream-chat'];
+    const skipTests = [
+      '1c-agent-detail',
+      '1d-agent-card',
+      '1e-chat-proxy',
+      '1f-direct-a2a',
+      '1g-stream-chat',
+    ];
     for (const t of skipTests) {
-      results.push({ test: t, status: 'SKIP', details: 'No agents found in any namespace' });
+      results.push({
+        test: t,
+        status: 'SKIP',
+        details: 'No agents found in any namespace',
+      });
     }
   }
 
@@ -360,12 +479,14 @@ async function main() {
 }
 
 function printSummary() {
-  console.log('\n' + '='.repeat(70));
+  console.log(`\n${'='.repeat(70)}`);
   console.log('KAGENTI SMOKE TEST SUMMARY');
   console.log('='.repeat(70));
 
   for (const r of results) {
-    const icon = r.status === 'PASS' ? 'OK' : r.status === 'FAIL' ? 'FAIL' : 'SKIP';
+    let icon = 'SKIP';
+    if (r.status === 'PASS') icon = 'OK';
+    else if (r.status === 'FAIL') icon = 'FAIL';
     console.log(`[${icon}] ${r.test}: ${r.details}`);
     if (r.responseShape) {
       console.log('     Response shape:');
@@ -378,15 +499,21 @@ function printSummary() {
   const passed = results.filter(r => r.status === 'PASS').length;
   const failed = results.filter(r => r.status === 'FAIL').length;
   const skipped = results.filter(r => r.status === 'SKIP').length;
-  console.log(`\nTotal: ${passed} passed, ${failed} failed, ${skipped} skipped`);
+  console.log(
+    `\nTotal: ${passed} passed, ${failed} failed, ${skipped} skipped`,
+  );
 
-  console.log('\n' + '='.repeat(70));
+  console.log(`\n${'='.repeat(70)}`);
   console.log('DETAILED RAW RESPONSES');
   console.log('='.repeat(70));
   for (const r of results) {
     if (r.rawData) {
       console.log(`\n--- ${r.test} ---`);
-      console.log(typeof r.rawData === 'string' ? r.rawData : JSON.stringify(r.rawData, null, 2));
+      console.log(
+        typeof r.rawData === 'string'
+          ? r.rawData
+          : JSON.stringify(r.rawData, null, 2),
+      );
     }
   }
 }

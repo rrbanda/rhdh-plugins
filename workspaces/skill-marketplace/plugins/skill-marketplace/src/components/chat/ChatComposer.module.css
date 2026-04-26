@@ -1,0 +1,134 @@
+.bar {
+  border-top: 1px solid var(--sm-border-subtle);
+  padding: 12px 20px 16px;
+  background: var(--sm-surface-card);
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.composer {
+  width: 100%;
+  max-width: 720px;
+  border: 1px solid var(--sm-border-default);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  background: var(--sm-surface-primary);
+}
+.composer:focus-within {
+  border-color: var(--sm-brand);
+  box-shadow: 0 0 0 3px var(--sm-brand-hover);
+}
+
+.textarea {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 14px 18px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--sm-text-primary);
+  box-sizing: border-box;
+  min-height: 48px;
+}
+.textarea::placeholder {
+  color: var(--sm-text-secondary);
+}
+.textarea:disabled {
+  opacity: 0.5;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: var(--sm-surface-secondary);
+}
+.footerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.footerRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kbdHint {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+}
+
+.textBtn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--sm-text-secondary);
+  font-family: inherit;
+}
+.textBtn:hover {
+  background: var(--sm-surface-hover);
+  color: var(--sm-text-primary);
+}
+.textBtn:focus-visible {
+  outline: 2px solid var(--sm-brand);
+}
+
+.sendBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  transition: opacity 0.15s;
+}
+.sendBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.sendBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.sendBtn:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}
+
+.stopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: 1px solid var(--sm-danger);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--sm-danger);
+  transition: background 0.15s;
+}
+.stopBtn:hover {
+  background: var(--sm-danger-tint);
+}
+.stopBtn:focus-visible {
+  outline: 2px solid var(--sm-danger);
+  outline-offset: 2px;
+}

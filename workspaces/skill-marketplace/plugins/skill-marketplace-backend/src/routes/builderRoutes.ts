@@ -14,26 +14,26 @@
  * limitations under the License.
  */
 import { Router } from 'express';
-import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
+import type {
+  HttpAuthService,
+  LoggerService,
+  PermissionsService,
+} from '@backstage/backend-plugin-api';
 import type { OciRegistryConfig } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import {
   skillMarketplaceAdminPermission,
   skillMarketplaceAccessPermission,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import type { BuilderProxyService, OciRegistryService, SkillGraphSyncService } from '../services';
-import type { BuilderSSEEvent } from '../services/BuilderProxyService';
+import type { OciRegistryService, SkillGraphSyncService } from '../services';
+import type { SmpAgentClient } from '../services/SmpAgentClient';
 import { validateTypedSkillCard } from '../services/SkillCardValidator';
 import { requirePermission } from './authUtils';
+import { getRequestAbortSignal } from './requestSignal';
 import { invalidateCatalogCache } from './skillsRoutes';
-
-function writeSSEEvent(res: { write: (chunk: string) => boolean; writableEnded: boolean }, evt: BuilderSSEEvent): void {
-  if (res.writableEnded) return;
-  res.write(`event: ${evt.event}\ndata: ${JSON.stringify(evt.data)}\n\n`);
-}
 
 export function registerBuilderRoutes(
   router: Router,
-  builderProxy: BuilderProxyService | undefined,
+  smpAgentClient: SmpAgentClient | undefined,
   logger: LoggerService,
   ociRegistry?: OciRegistryService,
   publishRegistry?: OciRegistryConfig,
@@ -43,9 +43,16 @@ export function registerBuilderRoutes(
   securityMode?: string,
 ) {
   router.post('/builder/publish', async (req, res) => {
-    const allowed = await requirePermission(req, res, skillMarketplaceAdminPermission, {
-      httpAuth, permissions, securityMode,
-    });
+    const allowed = await requirePermission(
+      req,
+      res,
+      skillMarketplaceAdminPermission,
+      {
+        httpAuth,
+        permissions,
+        securityMode,
+      },
+    );
     if (!allowed) return;
 
     if (!ociRegistry) {
@@ -53,18 +60,27 @@ export function registerBuilderRoutes(
       return;
     }
     if (!publishRegistry) {
-      res.status(503).json({ error: 'OCI publish registry not configured — add skillMarketplace.oci.publishRegistry to app-config.yaml' });
+      res
+        .status(503)
+        .json({
+          error:
+            'OCI publish registry not configured — add skillMarketplace.oci.publishRegistry to app-config.yaml',
+        });
       return;
     }
 
     const { skillName, version, description, author, content } = req.body ?? {};
 
     if (typeof skillName !== 'string' || !skillName.trim()) {
-      res.status(400).json({ error: 'skillName is required and must be a string' });
+      res
+        .status(400)
+        .json({ error: 'skillName is required and must be a string' });
       return;
     }
     if (typeof content !== 'string' || !content.trim()) {
-      res.status(400).json({ error: 'content is required and must be a string' });
+      res
+        .status(400)
+        .json({ error: 'content is required and must be a string' });
       return;
     }
 
@@ -104,16 +120,19 @@ export function registerBuilderRoutes(
         version || undefined,
       );
 
-      logger.info(
-        `Published skill ${safeName} to ${ociReference}`,
-      );
+      logger.info(`Published skill ${safeName} to ${ociReference}`);
 
       invalidateCatalogCache();
 
       if (syncService) {
-        syncService.sync().catch(syncErr =>
-          logger.warn(`Post-publish sync failed: ${(syncErr as Error).message}`),
-        );
+        const syncSignal = getRequestAbortSignal(req);
+        syncService
+          .sync({ signal: syncSignal })
+          .catch(syncErr =>
+            logger.warn(
+              `Post-publish sync failed: ${(syncErr as Error).message}`,
+            ),
+          );
       }
 
       res.json({
@@ -122,111 +141,82 @@ export function registerBuilderRoutes(
         skillCard,
       });
     } catch (err) {
-      logger.error(`Failed to publish skill to OCI: ${err instanceof Error ? err.message : err}`);
-      res.status(502).json({ error: 'Failed to publish skill to OCI registry' });
+      logger.error(
+        `Failed to publish skill to OCI: ${err instanceof Error ? err.message : err}`,
+      );
+      res
+        .status(502)
+        .json({ error: 'Failed to publish skill to OCI registry' });
     }
   });
 
   router.post('/builder', async (req, res) => {
-    const accessAllowed = await requirePermission(req, res, skillMarketplaceAccessPermission, {
-      httpAuth, permissions, securityMode,
-    });
+    const accessAllowed = await requirePermission(
+      req,
+      res,
+      skillMarketplaceAccessPermission,
+      {
+        httpAuth,
+        permissions,
+        securityMode,
+      },
+    );
     if (!accessAllowed) return;
 
-    if (!builderProxy) {
-      res.status(503).json({ error: 'Builder agent not configured' });
+    if (!smpAgentClient) {
+      res
+        .status(503)
+        .json({
+          error:
+            'Skill Builder agent not configured. Set skillMarketplace.smpAgents.skillBuilderUrl.',
+        });
       return;
     }
 
     const action = req.query.action as string;
-    if (!action || !['generate', 'refine', 'save'].includes(action)) {
+    if (!action || !['generate', 'refine'].includes(action)) {
       res
         .status(400)
-        .json({ error: 'action query param required: generate | refine | save' });
+        .json({ error: 'action query param required: generate | refine' });
       return;
     }
 
-    if (action === 'save') {
-      try {
-        const result = await builderProxy.save(req.body);
-        res.status(result.status).json(result.data);
-      } catch (err) {
-        logger.error(`Builder save failed: ${err instanceof Error ? err.message : err}`);
-        res.status(502).json({ error: 'Failed to reach builder agent' });
-      }
+    const {
+      prompt,
+      currentSkill,
+      feedback,
+      context_id: contextIdBody,
+    } = req.body ?? {};
+    if (typeof prompt !== 'string' || !prompt.trim()) {
+      res.status(400).json({ error: 'prompt is required' });
       return;
     }
 
-    // Prevent Express compression middleware and proxies from gzip-encoding
-    // this SSE stream. Gzip buffers writes and only flushes on res.end(),
-    // which completely breaks incremental streaming to the browser.
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.setHeader('Content-Encoding', 'identity');
-    res.flushHeaders();
+    const fullPrompt =
+      action === 'refine' && currentSkill
+        ? `Refine this skill based on the following feedback.\n\nCurrent skill:\n${currentSkill}\n\nFeedback: ${feedback || prompt}`
+        : prompt;
 
-    const keepaliveInterval = setInterval(() => {
-      if (!res.writableEnded) {
-        res.write(': keepalive\n\n');
-      }
-    }, 15_000);
+    const contextId =
+      typeof contextIdBody === 'string' && contextIdBody.trim()
+        ? contextIdBody
+        : undefined;
 
-    const cleanup = () => clearInterval(keepaliveInterval);
-
-    let clientDisconnected = false;
-    req.on('close', () => {
-      clientDisconnected = true;
-      cleanup();
-    });
-
-    const forwardEvent = (evt: BuilderSSEEvent) => {
-      if (!clientDisconnected) writeSSEEvent(res, evt);
-    };
-
+    const signal = getRequestAbortSignal(req);
     try {
-      const streamFn = action === 'generate'
-        ? builderProxy.generateStream.bind(builderProxy)
-        : builderProxy.refineStream.bind(builderProxy);
+      const answer = await smpAgentClient.buildSkill(
+        fullPrompt,
+        contextId,
+        signal,
+      );
 
-      await streamFn(req.body, forwardEvent);
-
-      if (!res.writableEnded) {
-        res.write('event: stream_end\ndata: {}\n\n');
-        res.end();
-      }
-    } catch (streamErr) {
-      const streamMsg = streamErr instanceof Error ? streamErr.message : String(streamErr);
-      logger.warn(`Builder ${action} stream failed, falling back to /send: ${streamMsg}`);
-
-      try {
-        const events: BuilderSSEEvent[] =
-          action === 'generate'
-            ? await builderProxy.generate(req.body)
-            : await builderProxy.refine(req.body);
-
-        if (clientDisconnected) { cleanup(); return; }
-
-        for (const evt of events) {
-          writeSSEEvent(res, evt);
-        }
-
-        if (!res.writableEnded) {
-          res.write('event: stream_end\ndata: {}\n\n');
-          res.end();
-        }
-      } catch (fallbackErr) {
-        const msg = fallbackErr instanceof Error ? fallbackErr.message : 'Unknown error';
-        logger.error(`Builder ${action} fallback also failed: ${msg}`);
-        if (!res.writableEnded) {
-          res.write(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`);
-          res.write('event: stream_end\ndata: {}\n\n');
-          res.end();
-        }
-      }
-    } finally {
-      cleanup();
+      res.json({
+        content: answer,
+        action,
+      });
+    } catch (err) {
+      logger.error(`Builder ${action} failed: ${(err as Error).message}`);
+      res.status(502).json({ error: `Skill Builder ${action} failed` });
     }
   });
 }

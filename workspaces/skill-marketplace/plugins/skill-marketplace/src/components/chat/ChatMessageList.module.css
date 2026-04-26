@@ -1,0 +1,34 @@
+.list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 0;
+  position: relative;
+  scroll-behavior: smooth;
+}
+
+.scrollBtn {
+  position: sticky;
+  bottom: 12px;
+  align-self: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--sm-shadow);
+  transition: all 0.15s;
+  z-index: 10;
+}
+.scrollBtn:hover {
+  background: var(--sm-surface-hover);
+  color: var(--sm-text-primary);
+  box-shadow: var(--sm-shadow-lg);
+}

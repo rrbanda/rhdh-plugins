@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 import { Router } from 'express';
-import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
+import type {
+  HttpAuthService,
+  LoggerService,
+  PermissionsService,
+} from '@backstage/backend-plugin-api';
 import { skillMarketplaceAdminPermission } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { SkillGraphSyncService } from '../services';
 import { requirePermission } from './authUtils';
+import { getRequestAbortSignal } from './requestSignal';
 
 export function registerSyncRoutes(
   router: Router,
@@ -28,27 +33,64 @@ export function registerSyncRoutes(
   securityMode?: string,
 ) {
   router.post('/sync', async (req, res) => {
-    const allowed = await requirePermission(req, res, skillMarketplaceAdminPermission, {
-      httpAuth, permissions, securityMode,
-    });
-    if (!allowed) return;
+    try {
+      const allowed = await requirePermission(
+        req,
+        res,
+        skillMarketplaceAdminPermission,
+        {
+          httpAuth,
+          permissions,
+          securityMode,
+        },
+      );
+      if (!allowed) return;
 
-    if (!syncService) {
-      res.status(503).json({
-        error: 'Graph sync not available — configure Neo4j and OCI registries',
+      if (!syncService) {
+        res.status(503).json({
+          error:
+            'Graph sync not available — configure Neo4j and OCI registries',
+        });
+        return;
+      }
+
+      logger.info('Graph sync triggered via API');
+      const result = await syncService.sync({
+        signal: getRequestAbortSignal(req),
       });
-      return;
+      let status = 200;
+      if (result.ok === false) {
+        status =
+          result.durationMs === 0 && result.nodesUpserted === 0 ? 409 : 500;
+      }
+      res.status(status).json(result);
+    } catch (err) {
+      logger.error(`POST /sync failed: ${(err as Error).message}`);
+      res.status(500).json({ error: 'Graph sync request failed' });
     }
-
-    logger.info('Graph sync triggered via API');
-    const result = await syncService.sync();
-    const status = result.ok === false ? 500 : 200;
-    res.status(status).json(result);
   });
 
   router.get('/sync/status', async (_req, res) => {
-    res.json({
-      available: !!syncService,
-    });
+    try {
+      if (!syncService) {
+        res.json({
+          available: false,
+          status: 'idle',
+          lastSyncAt: null,
+          staleSinceMs: null,
+          lastSyncDurationMs: null,
+          lastError: null,
+          skillCount: 0,
+          nextSyncAt: null,
+          embeddingCoverage: { total: 0, withEmbeddings: 0 },
+        });
+        return;
+      }
+      const body = { available: true, ...(await syncService.getStatus()) };
+      res.json(body);
+    } catch (err) {
+      logger.error(`GET /sync/status failed: ${(err as Error).message}`);
+      res.status(500).json({ error: 'Failed to get sync status' });
+    }
   });
 }

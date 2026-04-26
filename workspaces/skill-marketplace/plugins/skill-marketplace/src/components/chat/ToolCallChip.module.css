@@ -1,0 +1,111 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.chip:hover {
+  border-color: var(--sm-brand);
+  background: var(--sm-brand-tint);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 1px;
+}
+.running {
+  border-color: var(--sm-brand);
+}
+.error {
+  border-color: var(--sm-danger);
+}
+
+.chipLabel {
+  font-weight: 500;
+  font-family: var(--pf-t--global--font--family--mono, monospace);
+  font-size: 12px;
+}
+.chipAgent {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--sm-surface-secondary);
+}
+.chipTime {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.popover {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 100;
+  min-width: 300px;
+  max-width: 500px;
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  box-shadow: var(--sm-shadow-lg);
+  animation: popIn 0.15s ease;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.section {
+  padding: 10px 14px;
+}
+.section + .section {
+  border-top: 1px solid var(--sm-border-subtle);
+}
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sm-text-secondary);
+}
+.json {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--sm-surface-secondary);
+  font-family: var(--pf-t--global--font--family--mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--sm-text-primary);
+  max-height: 200px;
+  overflow-y: auto;
+}

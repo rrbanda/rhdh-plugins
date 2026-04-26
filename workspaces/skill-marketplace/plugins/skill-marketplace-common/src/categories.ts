@@ -41,8 +41,14 @@ export type CategoryName =
 export const DEFAULT_CATEGORY_KEYWORDS: [CategoryName, string[]][] = [
   ['human-resources', ['resume', 'hr', 'candidate', 'hiring', 'recruit']],
   ['operations', ['checklist', 'compliance', 'ops', 'process', 'policy']],
-  ['engineering', ['code-review', 'pull-request', 'pr-review', 'lint', 'ci-cd', 'cicd']],
-  ['research', ['summary', 'pdf', 'research', 'web-scrape', 'document-analysis']],
+  [
+    'engineering',
+    ['code-review', 'pull-request', 'pr-review', 'lint', 'ci-cd', 'cicd'],
+  ],
+  [
+    'research',
+    ['summary', 'pdf', 'research', 'web-scrape', 'document-analysis'],
+  ],
   ['security', ['security', 'vulnerability', 'cve', 'audit', 'threat']],
   ['testing', ['test', 'coverage', 'assertion', 'mock', 'spec']],
   ['devops', ['docker', 'k8s', 'kubernetes', 'helm', 'terraform', 'deploy']],
@@ -94,13 +100,15 @@ export function categoryOf(
   const kws = keywords ?? DEFAULT_CATEGORY_KEYWORDS;
   const tags = skill.card.metadata.tags;
   if (tags && tags.length > 0) {
-    const tagStr = tags.join(' ').toLowerCase();
+    const tagStr = tags.join(' ').toLocaleLowerCase('en-US');
     for (const [cat, catKeywords] of kws) {
       if (catKeywords.some(kw => matchesKeyword(tagStr, kw))) return cat;
     }
   }
   const haystack =
-    `${skill.card.metadata.name} ${skill.card.metadata.description ?? ''}`.toLowerCase();
+    `${skill.card.metadata.name} ${skill.card.metadata.description ?? ''}`.toLocaleLowerCase(
+      'en-US',
+    );
   for (const [cat, catKeywords] of kws) {
     if (catKeywords.some(kw => matchesKeyword(haystack, kw))) return cat;
   }

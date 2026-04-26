@@ -1,0 +1,45 @@
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  flex: 1;
+}
+
+.title {
+  margin: 0 0 24px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--sm-text-secondary);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 560px;
+}
+
+.suggestion {
+  padding: 8px 16px;
+  border: 1px solid var(--sm-border-default);
+  border-radius: 20px;
+  background: var(--sm-surface-card);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--sm-text-primary);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.suggestion:hover {
+  border-color: var(--sm-brand);
+  background: var(--sm-brand-tint);
+  transform: translateY(-1px);
+}
+.suggestion:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}

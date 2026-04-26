@@ -13,10 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../../../api';
-import { useBuilderSSE } from './useBuilderSSE';
 import type { BuilderEvent, ChatMessage } from '../types';
 
 let msgIdCounter = 0;
@@ -38,6 +37,11 @@ export interface UseBuilderChatReturn {
   retry: () => void;
   clear: () => void;
   abort: () => void;
+  restore: (state: {
+    contextId: string;
+    messages: ChatMessage[];
+    generatedContent: string;
+  }) => void;
 }
 
 const MAX_RETRIES = 2;
@@ -51,28 +55,16 @@ export function useBuilderChat(): UseBuilderChatReturn {
   const [publishContent, setPublishContent] = useState('');
   const [previousContent, setPreviousContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [streamIdleTimeout, setStreamIdleTimeout] = useState<number | undefined>(undefined);
+  const [events, setEvents] = useState<BuilderEvent[]>([]);
 
   const lastUserInputRef = useRef('');
+  const abortRef = useRef<AbortController | null>(null);
 
-  const sse = useBuilderSSE({ idleTimeoutMs: streamIdleTimeout });
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .getHealth()
-      .then((health: Record<string, unknown>) => {
-        if (cancelled) return;
-        const builder = health.builder as { streamTimeoutMs?: number } | undefined;
-        if (builder?.streamTimeoutMs) setStreamIdleTimeout(builder.streamTimeoutMs);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-
-  useEffect(() => () => sse.abort(), [sse]);
+  const abort = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsGenerating(false);
+  }, []);
 
   const send = useCallback(
     async (text: string) => {
@@ -85,38 +77,109 @@ export function useBuilderChat(): UseBuilderChatReturn {
         { id: nextMsgId(), role: 'user', text: trimmed, timestamp: Date.now() },
       ]);
       setIsGenerating(true);
-      sse.resetEvents();
+      setEvents([]);
 
       const isRefine = !!contextId && !!generatedContent;
       if (isRefine) setPreviousContent(generatedContent);
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       let errorMsg: string | null = null;
-      let finalEvents: BuilderEvent[] = [];
       let finalContent = '';
-      let finalPublishContent = '';
+      const localEvents: BuilderEvent[] = [];
+
+      const startEvt: BuilderEvent = {
+        type: 'agent_start',
+        agent: 'skill-builder',
+        ts: Date.now(),
+      };
+      localEvents.push(startEvt);
+      setEvents([startEvt]);
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         errorMsg = null;
         try {
-          let result;
-          if (isRefine) {
-            const response = await api.refineSkill({
-              feedback: trimmed,
-              context_id: contextId,
-            });
-            result = await sse.startStream(response);
-          } else {
-            const cid = contextId || `builder-${Date.now()}`;
-            if (!contextId) setContextId(cid);
-            const response = await api.generateSkill({
-              description: trimmed,
-              context_id: cid,
-            });
-            result = await sse.startStream(response);
+          let result: { content: string; action: string };
+
+          // Try smp-agents /agents/builder first for richer generation
+          let usedSmpAgent = false;
+          try {
+            const smpResult = (await api.askSmpAgent(
+              'builder',
+              isRefine
+                ? `Refine this skill based on feedback.\n\nCurrent skill:\n${generatedContent}\n\nFeedback: ${trimmed}`
+                : trimmed,
+              contextId || undefined,
+              controller.signal,
+            )) as { answer?: string; contextId?: string };
+            if (smpResult?.answer) {
+              if (smpResult.contextId) {
+                setContextId(smpResult.contextId);
+              } else if (!contextId) {
+                setContextId(globalThis.crypto.randomUUID());
+              }
+              result = {
+                content: smpResult.answer,
+                action: isRefine ? 'refine' : 'generate',
+              };
+              usedSmpAgent = true;
+            } else {
+              throw new Error('Empty response from smp-agent builder');
+            }
+          } catch (primaryErr: unknown) {
+            const p = primaryErr as {
+              response?: { status?: number };
+              status?: number;
+            };
+            const status = p?.response?.status ?? p?.status;
+            if (status === 403 || status === 401) {
+              throw primaryErr;
+            }
+            console.warn(
+              'Builder primary path failed, falling back:',
+              primaryErr instanceof Error ? primaryErr.message : primaryErr,
+            );
           }
-          finalEvents = result.events;
-          finalContent = result.content;
-          finalPublishContent = result.publishContent;
+
+          // Fall back to legacy /builder endpoint
+          if (!usedSmpAgent) {
+            if (isRefine) {
+              result = await api.refineSkillJson(
+                {
+                  prompt: trimmed,
+                  feedback: trimmed,
+                  currentSkill: generatedContent,
+                  context_id: contextId,
+                },
+                controller.signal,
+              );
+            } else {
+              const cid = contextId || `builder-${Date.now()}`;
+              if (!contextId) setContextId(cid);
+              result = await api.generateSkillJson(
+                {
+                  prompt: trimmed,
+                  description: trimmed,
+                  context_id: cid,
+                },
+                controller.signal,
+              );
+            }
+          }
+
+          if (controller.signal.aborted) return;
+
+          finalContent = result!.content;
+          const completeEvt: BuilderEvent = {
+            type: 'complete',
+            skillContent: result!.content,
+            fullOutput: result!.content,
+            validation: '',
+            ts: Date.now(),
+          };
+          localEvents.push(completeEvt);
+          setEvents([...localEvents]);
           break;
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Generation failed';
@@ -128,25 +191,28 @@ export function useBuilderChat(): UseBuilderChatReturn {
 
           if (isNetworkError && attempt < MAX_RETRIES) {
             await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-            sse.resetEvents();
             continue;
           }
           errorMsg = isNetworkError
-            ? `Network error \u2014 could not reach the builder agent. Check that the backend is running and the builder agent URL is configured. Original error: ${msg}`
+            ? `Network error — could not reach the builder agent. Check that the backend is running and the builder agent URL is configured. Original error: ${msg}`
             : msg;
         }
       }
 
       setIsGenerating(false);
-      if (finalContent) setGeneratedContent(finalContent);
-      if (finalPublishContent) setPublishContent(finalPublishContent);
-
-      const hasCompletion = finalEvents.some(e => e.type === 'complete');
-      const streamError = finalEvents.find(
-        (e): e is Extract<BuilderEvent, { type: 'error' }> => e.type === 'error',
-      );
+      if (finalContent) {
+        setGeneratedContent(finalContent);
+        setPublishContent(finalContent);
+      }
 
       if (errorMsg) {
+        const errEvt: BuilderEvent = {
+          type: 'error',
+          error: errorMsg,
+          ts: Date.now(),
+        };
+        localEvents.push(errEvt);
+        setEvents([...localEvents]);
         setMessages(prev => [
           ...prev,
           {
@@ -155,23 +221,10 @@ export function useBuilderChat(): UseBuilderChatReturn {
             text: errorMsg!,
             timestamp: Date.now(),
             isError: true,
-            events: finalEvents,
+            events: [...localEvents],
           },
         ]);
-      } else if (streamError) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: nextMsgId(),
-            role: 'agent',
-            text: streamError.error,
-            timestamp: Date.now(),
-            isError: true,
-            events: finalEvents,
-          },
-        ]);
-      } else if (hasCompletion) {
-        const completeEvt = finalEvents.find(e => e.type === 'complete');
+      } else if (finalContent) {
         setMessages(prev => [
           ...prev,
           {
@@ -181,45 +234,24 @@ export function useBuilderChat(): UseBuilderChatReturn {
               ? 'Skill refined successfully. Check the updated preview.'
               : 'Skill generated successfully. Review the preview and publish when ready.',
             timestamp: Date.now(),
-            events: finalEvents,
-            validation: completeEvt?.type === 'complete' ? completeEvt.validation : undefined,
+            events: [...localEvents],
           },
         ]);
       } else {
-        const streamEnded = finalEvents.some(e => e.type === 'stream_end');
-        const hasContent = !!finalContent;
-        if (streamEnded && hasContent) {
-          setMessages(prev => [
-            ...prev,
-            {
-              id: nextMsgId(),
-              role: 'agent',
-              text: isRefine
-                ? 'Skill refined. Check the updated preview.'
-                : 'Skill generated. Review the preview and publish when ready.',
-              timestamp: Date.now(),
-              events: finalEvents,
-            },
-          ]);
-        } else {
-          const message = streamEnded && !hasContent
-            ? 'The agent ended unexpectedly without producing output. Please try again.'
-            : 'Generation completed with no final result. Try describing the skill differently.';
-          setMessages(prev => [
-            ...prev,
-            {
-              id: nextMsgId(),
-              role: 'agent',
-              text: message,
-              timestamp: Date.now(),
-              isError: true,
-              events: finalEvents,
-            },
-          ]);
-        }
+        setMessages(prev => [
+          ...prev,
+          {
+            id: nextMsgId(),
+            role: 'agent',
+            text: 'Generation completed with no output. Try describing the skill differently.',
+            timestamp: Date.now(),
+            isError: true,
+            events: [...localEvents],
+          },
+        ]);
       }
     },
-    [api, isGenerating, contextId, generatedContent, sse],
+    [api, isGenerating, contextId, generatedContent],
   );
 
   const retry = useCallback(() => {
@@ -239,8 +271,25 @@ export function useBuilderChat(): UseBuilderChatReturn {
     setGeneratedContent('');
     setPublishContent('');
     setPreviousContent('');
-    sse.resetEvents();
-  }, [sse]);
+    setEvents([]);
+  }, []);
+
+  const restore = useCallback(
+    (state: {
+      contextId: string;
+      messages: ChatMessage[];
+      generatedContent: string;
+    }) => {
+      setContextId(state.contextId);
+      setMessages(state.messages);
+      const content = state.generatedContent || '';
+      setGeneratedContent(content);
+      setPublishContent(content);
+      setPreviousContent('');
+      setEvents([]);
+    },
+    [],
+  );
 
   return {
     messages,
@@ -248,12 +297,13 @@ export function useBuilderChat(): UseBuilderChatReturn {
     generatedContent,
     publishContent,
     previousContent,
-    currentAgent: sse.currentAgent,
-    events: sse.events,
+    currentAgent: 'skill-builder',
+    events,
     contextId,
     send,
     retry,
     clear,
-    abort: sse.abort,
+    abort,
+    restore,
   };
 }

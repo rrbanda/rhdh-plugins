@@ -1,0 +1,564 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.graphPageRoot {
+  /* — Graph page theme: override in dark or brand shells — */
+  --sm-graph-font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --sm-graph-title-size: 1.25rem;
+  --sm-graph-subtitle-size: 0.8125rem;
+  --sm-graph-chrome-h: 4rem; /* Backstage main offset */
+  --sm-graph-node-skill: #6366f1;
+  --sm-graph-node-tool: #06b6d4;
+  --sm-graph-node-domain: #8b5cf6;
+  --sm-graph-node-agent: #f59e0b;
+  --sm-graph-node-tag: #10b981;
+  --sm-graph-node-bundle: #ec4899;
+  --sm-graph-canvas-pulse: rgba(99, 102, 241, 0.1);
+  --sm-graph-toolbar-bg: color-mix(in srgb, var(--sm-surface-elevated, var(--sm-surface-card)) 86%, rgba(255, 255, 255, 0.72));
+  --sm-graph-toolbar-border: color-mix(in srgb, var(--sm-border-default) 85%, transparent);
+  --sm-graph-main-surface: var(--sm-surface-canvas, var(--sm-surface-secondary));
+  --sm-graph-main-border: var(--sm-border-subtle, var(--sm-border-default));
+  --sm-graph-panel-shadow: 0 4px 24px color-mix(in srgb, var(--sm-text-primary) 8%, transparent);
+
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--sm-graph-chrome-h));
+  height: calc(100vh - var(--sm-graph-chrome-h));
+  font-family: var(--sm-graph-font);
+  color: var(--sm-text-primary);
+}
+
+/* Dark-friendly toolbar / pulse (Backstage and OS theme) */
+@media (prefers-color-scheme: dark) {
+  .graphPageRoot {
+    --sm-graph-toolbar-bg: color-mix(in srgb, var(--sm-surface-elevated, #0f172a) 86%, rgba(15, 23, 42, 0.55));
+    --sm-graph-toolbar-border: color-mix(in srgb, var(--sm-border-default) 70%, rgba(255, 255, 255, 0.08));
+    --sm-graph-canvas-pulse: rgba(129, 140, 248, 0.12);
+  }
+}
+
+.graphHeader {
+  padding: 0.75rem 0.75rem 0.5rem;
+  flex-shrink: 0;
+}
+.graphHeaderTop {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.graphTitle {
+  font-size: var(--sm-graph-title-size);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--sm-text-primary);
+}
+.graphStats {
+  font-size: var(--sm-graph-subtitle-size);
+  color: var(--sm-text-secondary);
+  font-weight: 500;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+.graphOnboarding {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  color: var(--sm-text-secondary);
+  line-height: 1.5;
+  max-width: 72ch;
+}
+
+.graphBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 0;
+  gap: 0;
+}
+
+.graphMain {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  border-radius: 0;
+  border: none;
+  border-top: 1px solid var(--sm-graph-main-border);
+  overflow: hidden;
+  background: var(--sm-graph-main-surface);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), flex 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.graphMainWithDetail {
+  margin-right: 0;
+}
+
+/* Frosted-glass floating toolbar (content row; position from .graphToolbar) */
+.graphToolbar {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 10;
+  background: var(--sm-graph-toolbar-bg, rgba(255, 255, 255, 0.85));
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  border: 1px solid var(--sm-graph-toolbar-border, rgba(0, 0, 0, 0.08));
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--sm-text-primary) 6%, transparent);
+  pointer-events: auto;
+}
+
+/* Controls row: layout inside floating toolbar */
+.graphControls {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  backdrop-filter: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.layoutSwitcher {
+  display: flex;
+  gap: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  padding: 2px;
+}
+.layoutBtn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  transition: all 0.15s;
+}
+.layoutBtnActive {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+
+.labelFilters {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.labelChip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  background: transparent;
+}
+.labelDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.labelCount {
+  opacity: 0.6;
+}
+
+/* Plugin filter */
+.pluginFilterWrap {
+  position: relative;
+}
+.pluginFilterBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default);
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.pluginFilterBtnActive {
+  border-color: var(--sm-brand);
+  color: var(--sm-brand);
+  background: var(--sm-brand-tint);
+}
+.pluginBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-size: 12px;
+  font-weight: 700;
+}
+.pluginPopover {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  width: 260px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--sm-surface-card);
+  border: 1px solid var(--sm-border-default);
+  border-radius: 10px;
+  padding: 6px;
+  z-index: 100;
+  box-shadow: var(--sm-shadow-lg);
+}
+.pluginClear {
+  width: 100%;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border: none;
+  background: var(--sm-danger-tint);
+  color: var(--sm-danger);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+.pluginItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sm-text-primary);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.1s;
+}
+.pluginItem:hover {
+  background: var(--sm-surface-secondary);
+}
+.pluginItemActive {
+  background: color-mix(in srgb, var(--pg-color, var(--sm-brand)) 8%, transparent);
+  font-weight: 600;
+  color: var(--pg-color, var(--sm-brand));
+}
+.pluginDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  flex-shrink: 0;
+}
+.pluginCount {
+  margin-left: auto;
+  opacity: 0.5;
+  font-size: 12px;
+}
+
+.controlsSpacer {
+  flex: 1;
+}
+
+.nodeEdgeCount {
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.searchWrap {
+  position: relative;
+}
+.searchIcon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.searchInput {
+  height: 28px;
+  width: 140px;
+  padding: 0 8px 0 26px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  font-size: 13px;
+  outline: none;
+  color: var(--sm-text-primary);
+}
+.searchInput:focus {
+  border-color: var(--sm-brand);
+}
+
+.actionBtn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+.actionBtn:hover {
+  background: var(--sm-surface-hover);
+}
+
+/* Relationship legend — floats under toolbar */
+.relLegend {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  top: 3.6rem;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--sm-graph-toolbar-border, var(--sm-border-default));
+  background: var(--sm-graph-toolbar-bg, color-mix(in srgb, var(--sm-surface-card) 88%, rgba(255, 255, 255, 0.7)));
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  font-size: 0.75rem;
+  box-shadow: 0 1px 8px color-mix(in srgb, var(--sm-text-primary) 4%, transparent);
+}
+.relLegendTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-secondary);
+}
+.relLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+}
+.relLegendLine {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+}
+.relLegendCount {
+  opacity: 0.5;
+}
+
+/* NVL canvas: full-bleed under floating chrome */
+.nvlCanvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 0;
+}
+.nvlCanvas :global(> div) {
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1;
+  position: relative;
+}
+
+/* AI “thinking” — inset pulse; pointer-events pass through to the graph */
+.graphCanvasPulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 0;
+  animation: graphCanvasPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes graphCanvasPulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: inset 0 0 30px 0 var(--sm-graph-canvas-pulse, rgba(99, 102, 241, 0.08));
+  }
+}
+
+.emptyState {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--sm-text-secondary);
+}
+
+/* Auto-sync indicator */
+.autoSyncIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+}
+.autoSyncDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sm-success);
+  animation: graphPagePulse 2s ease-in-out infinite;
+}
+@keyframes graphPagePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.addToBundleWrapper {
+  margin-top: 4px;
+}
+
+/* AI toggle button */
+.aiToggleBtn {
+  position: relative;
+}
+.aiToggleBtnActive {
+  background: var(--sm-brand-hover);
+  color: var(--sm-brand);
+}
+.aiToggleBtnActive::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--sm-brand);
+}
+
+/* Error / no-data / empty graph status views */
+.statusCentered {
+  padding: 48px;
+  text-align: center;
+}
+.statusCenteredNarrow {
+  padding: 48px;
+  text-align: center;
+  max-width: 540px;
+  margin: 0 auto;
+}
+.statusTitle {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.statusText {
+  color: var(--sm-text-secondary);
+  line-height: 1.6;
+}
+.retryButton {
+  margin-top: 16px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.emptyGraphWrap {
+  padding: 48px;
+  text-align: center;
+  max-width: 640px;
+  margin: 40px auto;
+}
+.emptyGraphTitle {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.emptyGraphText {
+  color: var(--sm-text-secondary);
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+.emptyGraphSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+  max-width: 500px;
+  margin: 0 auto 32px;
+}
+.emptyGraphRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.emptyGraphNumber {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.emptyGraphRowText {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.emptyGraphSyncBtn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}

@@ -14,63 +14,7 @@
  * limitations under the License.
  */
 import { useMemo } from 'react';
-
-const diffStyles = `
-.bld-diff {
-  font-family: var(--pf-t--global--font--family--mono, 'Red Hat Mono', monospace);
-  font-size: 13px;
-  line-height: 1.6;
-  overflow-x: auto;
-}
-.bld-diff-hunk {
-  padding: 4px 0;
-}
-.bld-diff-line {
-  display: flex;
-  min-height: 22px;
-}
-.bld-diff-gutter {
-  width: 36px;
-  min-width: 36px;
-  text-align: right;
-  padding: 0 6px 0 0;
-  color: var(--pf-t--global--text--color--subtle, #6a6e73);
-  user-select: none;
-  font-size: 12px;
-}
-.bld-diff-marker {
-  width: 20px;
-  min-width: 20px;
-  text-align: center;
-  font-weight: 600;
-  user-select: none;
-}
-.bld-diff-text {
-  flex: 1;
-  white-space: pre-wrap;
-  word-break: break-word;
-  padding-right: 16px;
-}
-.bld-diff-line--added {
-  background: var(--pf-t--global--color--status--success--default, #3e8635)1a;
-}
-.bld-diff-line--added .bld-diff-marker { color: var(--pf-t--global--color--status--success--default, #3e8635); }
-.bld-diff-line--removed {
-  background: var(--pf-t--global--color--status--danger--default, #c9190b)1a;
-}
-.bld-diff-line--removed .bld-diff-marker { color: var(--pf-t--global--color--status--danger--default, #c9190b); }
-.bld-diff-line--same .bld-diff-marker { color: transparent; }
-.bld-diff-stats {
-  display: flex;
-  gap: 12px;
-  padding: 8px 16px;
-  font-size: 12px;
-  border-bottom: 1px solid var(--pf-t--global--border--color--default, #e8e8e8);
-  color: var(--pf-t--global--text--color--subtle, #6a6e73);
-}
-.bld-diff-stats-added { color: var(--pf-t--global--color--status--success--default, #3e8635); }
-.bld-diff-stats-removed { color: var(--pf-t--global--color--status--danger--default, #c9190b); }
-`;
+import styles from './DiffViewer.module.css';
 
 interface DiffLine {
   type: 'same' | 'added' | 'removed';
@@ -89,7 +33,9 @@ export function computeDiff(oldText: string, newText: string): DiffLine[] {
   // LCS-based diff
   const m = oldLines.length;
   const n = newLines.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array(n + 1).fill(0),
+  );
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
@@ -107,7 +53,12 @@ export function computeDiff(oldText: string, newText: string): DiffLine[] {
 
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      result.unshift({ type: 'same', text: oldLines[i - 1], oldLineNo: i, newLineNo: j });
+      result.unshift({
+        type: 'same',
+        text: oldLines[i - 1],
+        oldLineNo: i,
+        newLineNo: j,
+      });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
@@ -128,7 +79,10 @@ interface DiffViewerProps {
 }
 
 export function DiffViewer({ oldText, newText }: DiffViewerProps) {
-  const lines = useMemo(() => computeDiff(oldText, newText), [oldText, newText]);
+  const lines = useMemo(
+    () => computeDiff(oldText, newText),
+    [oldText, newText],
+  );
   const stats = useMemo(() => {
     const added = lines.filter(l => l.type === 'added').length;
     const removed = lines.filter(l => l.type === 'removed').length;
@@ -136,26 +90,38 @@ export function DiffViewer({ oldText, newText }: DiffViewerProps) {
   }, [lines]);
 
   return (
-    <>
-      <style>{diffStyles}</style>
-      <div className="bld-diff">
-        <div className="bld-diff-stats">
-          <span className="bld-diff-stats-added">+{stats.added} added</span>
-          <span className="bld-diff-stats-removed">-{stats.removed} removed</span>
-        </div>
-        <div className="bld-diff-hunk">
-          {lines.map((line, idx) => (
-            <div key={idx} className={`bld-diff-line bld-diff-line--${line.type}`}>
-              <span className="bld-diff-gutter">{line.oldLineNo ?? ''}</span>
-              <span className="bld-diff-gutter">{line.newLineNo ?? ''}</span>
-              <span className="bld-diff-marker">
-                {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' '}
-              </span>
-              <span className="bld-diff-text">{line.text || '\u00A0'}</span>
-            </div>
-          ))}
-        </div>
+    <div className={styles.bldDiff}>
+      <div className={styles.bldDiffStats}>
+        <span className={styles.bldDiffStatsAdded}>+{stats.added} added</span>
+        <span className={styles.bldDiffStatsRemoved}>
+          -{stats.removed} removed
+        </span>
       </div>
-    </>
+      <div className={styles.bldDiffHunk}>
+        {lines.map((line, idx) => (
+          <div
+            key={idx}
+            className={`${styles.bldDiffLine} ${
+              line.type === 'added'
+                ? styles.bldDiffLineAdded
+                : line.type === 'removed'
+                  ? styles.bldDiffLineRemoved
+                  : styles.bldDiffLineSame
+            }`}
+          >
+            <span className={styles.bldDiffGutter}>{line.oldLineNo ?? ''}</span>
+            <span className={styles.bldDiffGutter}>{line.newLineNo ?? ''}</span>
+            <span className={styles.bldDiffMarker}>
+              {line.type === 'added'
+                ? '+'
+                : line.type === 'removed'
+                  ? '-'
+                  : ' '}
+            </span>
+            <span className={styles.bldDiffText}>{line.text || '\u00A0'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -13,20 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
+import type {
+  HttpAuthService,
+  LoggerService,
+  PermissionsService,
+} from '@backstage/backend-plugin-api';
 import express from 'express';
 import Router from 'express-promise-router';
 import type { OciRegistryConfig } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type {
   Neo4jService,
-  BuilderProxyService,
   KagentiService,
   OciRegistryService,
   SkillGraphSyncService,
-  AgenticRagService,
 } from './services';
-import { SkillContextBuilder } from './services';
+import type { SmpAgentClient } from './services/SmpAgentClient';
 import type { CypherQueryCatalog } from './services/CypherQueryCatalog';
+import type { SkillCatalogService } from './services/SkillCatalogService';
 import {
   registerSkillsRoutes,
   registerGraphRoutes,
@@ -37,6 +40,8 @@ import {
   registerAgenticRoutes,
   registerLifecycleRoutes,
   registerBundleRoutes,
+  registerCatalogRoutes,
+  registerSmpAgentRoutes,
 } from './routes';
 
 /** @public */
@@ -45,25 +50,40 @@ export interface RouterOptions {
   httpAuth?: HttpAuthService;
   permissions?: PermissionsService;
   neo4j?: Neo4jService;
-  builderProxy?: BuilderProxyService;
   kagenti?: KagentiService;
+  smpAgentClient?: SmpAgentClient;
   ociRegistry?: OciRegistryService;
   publishRegistry?: OciRegistryConfig;
   skillSearchDirs?: string[];
   kagentiDefaults?: { namespace: string; agentName: string };
   syncService?: SkillGraphSyncService;
   ragConfig?: Record<string, number>;
-  agenticService?: AgenticRagService;
   securityMode?: string;
-  builderStreamTimeoutMs?: number;
   queryCatalog?: CypherQueryCatalog;
+  skillCatalogService?: SkillCatalogService;
 }
 
 /** @public */
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, permissions, neo4j, builderProxy, kagenti, ociRegistry, publishRegistry, skillSearchDirs, kagentiDefaults, syncService, ragConfig, agenticService, securityMode, builderStreamTimeoutMs, queryCatalog } = options;
+  const {
+    logger,
+    httpAuth,
+    permissions,
+    neo4j,
+    kagenti,
+    smpAgentClient,
+    ociRegistry,
+    publishRegistry,
+    skillSearchDirs,
+    kagentiDefaults,
+    syncService,
+    ragConfig,
+    securityMode,
+    queryCatalog,
+    skillCatalogService,
+  } = options;
 
   const router = Router();
   router.use(express.json());
@@ -72,32 +92,101 @@ export async function createRouter(
     res.json({
       status: 'ok',
       neo4jConfigured: !!neo4j,
-      builderAgentConfigured: !!builderProxy,
       kagentiConfigured: !!kagenti,
+      smpAgentsConfigured: !!smpAgentClient?.isConfigured,
       ociRegistryConfigured: !!ociRegistry,
-      agenticConfigured: !!agenticService,
       kagenti: kagentiDefaults
-        ? { namespace: kagentiDefaults.namespace, agentName: kagentiDefaults.agentName }
+        ? {
+            namespace: kagentiDefaults.namespace,
+            agentName: kagentiDefaults.agentName,
+          }
         : undefined,
-      builder: {
-        streamTimeoutMs: builderStreamTimeoutMs ?? 300_000,
-      },
     });
   });
 
-  const skillContextBuilder = ociRegistry
-    ? new SkillContextBuilder({ ociRegistry, logger })
-    : undefined;
-
   registerSkillsRoutes(router, ociRegistry, logger, skillSearchDirs);
-  registerGraphRoutes(router, neo4j, builderProxy, logger);
-  registerBuilderRoutes(router, builderProxy, logger, ociRegistry, publishRegistry, httpAuth, permissions, syncService, securityMode);
-  registerKagentiRoutes(router, kagenti, logger, httpAuth, permissions, securityMode, skillContextBuilder);
-  registerSyncRoutes(router, logger, syncService, httpAuth, permissions, securityMode);
-  registerRagRoutes(router, logger, neo4j, syncService, httpAuth, permissions, ragConfig, queryCatalog);
-  registerAgenticRoutes(router, logger, agenticService, httpAuth, permissions);
-  registerLifecycleRoutes(router, logger, ociRegistry, httpAuth, permissions, securityMode);
-  registerBundleRoutes(router, neo4j, logger);
+  registerGraphRoutes(router, neo4j, undefined, logger);
+  registerBuilderRoutes(
+    router,
+    smpAgentClient,
+    logger,
+    ociRegistry,
+    publishRegistry,
+    httpAuth,
+    permissions,
+    syncService,
+    securityMode,
+  );
+  registerKagentiRoutes(
+    router,
+    kagenti,
+    logger,
+    httpAuth,
+    permissions,
+    securityMode,
+    smpAgentClient,
+    skillCatalogService,
+    ociRegistry,
+  );
+  registerSyncRoutes(
+    router,
+    logger,
+    syncService,
+    httpAuth,
+    permissions,
+    securityMode,
+  );
+  registerCatalogRoutes(
+    router,
+    skillCatalogService,
+    logger,
+    httpAuth,
+    permissions,
+    securityMode,
+  );
+  registerRagRoutes(
+    router,
+    logger,
+    neo4j,
+    syncService,
+    httpAuth,
+    permissions,
+    ragConfig,
+    queryCatalog,
+  );
+  registerAgenticRoutes(
+    router,
+    logger,
+    smpAgentClient,
+    httpAuth,
+    permissions,
+    securityMode,
+  );
+  registerLifecycleRoutes(
+    router,
+    logger,
+    ociRegistry,
+    httpAuth,
+    permissions,
+    securityMode,
+  );
+  registerBundleRoutes(
+    router,
+    neo4j,
+    logger,
+    httpAuth,
+    permissions,
+    securityMode,
+    ociRegistry,
+  );
+  registerSmpAgentRoutes(
+    router,
+    smpAgentClient,
+    logger,
+    httpAuth,
+    permissions,
+    securityMode,
+  );
 
   router.use(
     (

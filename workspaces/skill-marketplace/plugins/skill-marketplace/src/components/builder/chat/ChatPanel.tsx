@@ -13,33 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useRef, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { ChatMessage, BuilderEvent } from '../types';
+import type { ChatMessageBase, ToolCall } from '../../chat/types';
+import { ChatMessageList, ChatComposer } from '../../chat';
 import { WelcomeHero } from './WelcomeHero';
-import { MessageBubble } from './MessageBubble';
-import { AgentThinkingCard } from './AgentThinkingCard';
-import { Composer } from './Composer';
 import { AgentActivityFeed } from './AgentActivityFeed';
-
-const chatPanelStyles = `
-.bld-chat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-}
-
-.bld-messages {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 8px 0;
-}
-`;
+import styles from './ChatPanel.module.css';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -53,6 +33,46 @@ interface ChatPanelProps {
   onAbort: () => void;
 }
 
+function builderEventsToToolCalls(events?: BuilderEvent[]): ToolCall[] {
+  if (!events) return [];
+  const results = new Map<
+    string,
+    Extract<BuilderEvent, { type: 'tool_result' }>
+  >();
+  for (const e of events) {
+    if (e.type === 'tool_result') results.set(`${e.agent}:${e.tool}`, e);
+  }
+  return events
+    .filter(
+      (e): e is Extract<BuilderEvent, { type: 'tool_call' }> =>
+        e.type === 'tool_call',
+    )
+    .map(tc => {
+      const result = results.get(`${tc.agent}:${tc.tool}`);
+      return {
+        name: tc.tool,
+        agent: tc.agent,
+        args: tc.args,
+        result: result?.result,
+        status: result ? ('complete' as const) : ('running' as const),
+        elapsed: result ? result.ts - tc.ts : undefined,
+      };
+    });
+}
+
+function toSharedMessages(messages: ChatMessage[]): ChatMessageBase[] {
+  return messages.map(msg => ({
+    id: msg.id,
+    role: msg.role,
+    text: msg.text,
+    timestamp: msg.timestamp,
+    isError: msg.isError,
+    agentName: msg.role === 'agent' ? 'Skill Builder' : undefined,
+    validation: msg.validation,
+    toolCalls: builderEventsToToolCalls(msg.events),
+  }));
+}
+
 export function ChatPanel({
   messages,
   events,
@@ -64,7 +84,7 @@ export function ChatPanel({
   onClear,
   onAbort,
 }: ChatPanelProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sharedMessages = useMemo(() => toSharedMessages(messages), [messages]);
 
   const lastAgentEvents = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -78,49 +98,38 @@ export function ChatPanel({
   const feedEvents = isGenerating ? events : lastAgentEvents;
   const showFeed = feedEvents.some(e => e.type === 'agent_start');
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, events]);
+  const emptyState = <WelcomeHero onSuggestionClick={onSend} />;
 
   return (
-    <>
-      <style>{chatPanelStyles}</style>
-      <div className="bld-chat">
-        <div className="bld-messages">
-          {messages.length === 0 && !isGenerating && (
-            <WelcomeHero onSuggestionClick={onSend} />
-          )}
+    <div className={styles.chat}>
+      <ChatMessageList
+        messages={sharedMessages}
+        isLoading={isGenerating && events.length === 0}
+        agentName={currentAgent}
+        onRetry={onRetry}
+        isGenerating={isGenerating}
+        emptyState={emptyState}
+      />
 
-          {messages.map((msg, idx) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isLast={idx === messages.length - 1}
-              isGenerating={isGenerating}
-              onRetry={onRetry}
-            />
-          ))}
-
-          {isGenerating && events.length === 0 && (
-            <AgentThinkingCard agentName={currentAgent} />
-          )}
-
-          {showFeed && (
-            <AgentActivityFeed events={feedEvents} currentAgent={currentAgent} />
-          )}
-
-          <div ref={messagesEndRef} />
+      {showFeed && (
+        <div className={styles.feedContainer}>
+          <AgentActivityFeed events={feedEvents} currentAgent={currentAgent} />
         </div>
+      )}
 
-        <Composer
-          isGenerating={isGenerating}
-          hasContent={hasContent}
-          hasMessages={messages.length > 0}
-          onSend={onSend}
-          onStop={onAbort}
-          onClear={onClear}
-        />
-      </div>
-    </>
+      <ChatComposer
+        onSend={onSend}
+        onStop={onAbort}
+        onClear={onClear}
+        isGenerating={isGenerating}
+        hasMessages={messages.length > 0}
+        placeholder={
+          hasContent
+            ? 'Describe changes to refine the skill...'
+            : 'Describe the skill you want to create...'
+        }
+        sendLabel={hasContent ? 'Refine' : 'Generate'}
+      />
+    </div>
   );
 }

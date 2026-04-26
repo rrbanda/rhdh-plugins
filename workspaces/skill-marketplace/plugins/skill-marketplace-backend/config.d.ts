@@ -205,29 +205,33 @@ export interface Config {
        * Keys are tool names (matching SkillCard allowed-tools), values are enrichment metadata.
        * @visibility backend
        */
-      toolMetadata?: { [key: string]: {
-        /** @visibility backend */
-        description?: string;
-        /** @visibility backend */
-        docsUrl?: string;
-        /** @visibility backend */
-        version?: string;
-        /** @visibility backend */
-        deprecated?: boolean;
-      }};
+      toolMetadata?: {
+        [key: string]: {
+          /** @visibility backend */
+          description?: string;
+          /** @visibility backend */
+          docsUrl?: string;
+          /** @visibility backend */
+          version?: string;
+          /** @visibility backend */
+          deprecated?: boolean;
+        };
+      };
       /**
        * Configurable domain taxonomy for knowledge graph categorization.
        * Keys are domain names, values include description, owner, and optional parent for hierarchy.
        * @visibility backend
        */
-      domainTaxonomy?: { [key: string]: {
-        /** @visibility backend */
-        description?: string;
-        /** @visibility backend */
-        owner?: string;
-        /** @visibility backend */
-        parent?: string;
-      }};
+      domainTaxonomy?: {
+        [key: string]: {
+          /** @visibility backend */
+          description?: string;
+          /** @visibility backend */
+          owner?: string;
+          /** @visibility backend */
+          parent?: string;
+        };
+      };
       /** Minimum confidence for tag-based IMPLEMENTED_BY matching (default: 0.6, range: 0-1)
        * @visibility backend
        */
@@ -328,6 +332,40 @@ export interface Config {
          */
         expansionLimit?: number;
       };
+    };
+
+    /**
+     * SMP Agents configuration for external A2A agent microservices.
+     * When configured, the plugin calls these agents via A2A JSON-RPC
+     * instead of using the embedded TypeScript agentic services.
+     * Authentication uses the Keycloak JWT from the kagenti config.
+     * @visibility backend
+     */
+    smpAgents?: {
+      /** Base URL of the Skill Advisor agent (e.g. https://skill-advisor-smp-agents.apps.example.com)
+       * @visibility backend
+       */
+      skillAdvisorUrl?: string;
+      /** Base URL of the Bundle Validator agent
+       * @visibility backend
+       */
+      bundleValidatorUrl?: string;
+      /** Base URL of the KG Q&A agent
+       * @visibility backend
+       */
+      kgQaUrl?: string;
+      /** Base URL of the Playground agent
+       * @visibility backend
+       */
+      playgroundUrl?: string;
+      /** Base URL of the Skill Builder agent
+       * @visibility backend
+       */
+      skillBuilderUrl?: string;
+      /** HTTP request timeout in milliseconds for A2A calls (default: 120000)
+       * @visibility backend
+       */
+      requestTimeoutMs?: number;
     };
 
     /**

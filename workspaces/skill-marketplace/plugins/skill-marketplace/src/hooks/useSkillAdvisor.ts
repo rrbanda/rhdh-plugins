@@ -14,11 +14,8 @@
  * limitations under the License.
  */
 import { useCallback, useRef, useState } from 'react';
-import { useApi, fetchApiRef } from '@backstage/core-plugin-api';
+import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../api';
-import type {
-  AgenticStreamEvent,
-} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type { SkillData } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 export interface AdvisorSuggestion {
@@ -54,12 +51,17 @@ function extractSkillNames(text: string): string[] {
     /- ([A-Z][\w-]+(?::\s*[\w-]+)?)/g,
   ];
   for (const pattern of patterns) {
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(text)) !== null) {
+    let match: RegExpExecArray | null = pattern.exec(text);
+    while (match !== null) {
       const candidate = match[1].trim();
-      if (candidate.length >= 3 && candidate.length <= 120 && !candidate.includes('\n')) {
+      if (
+        candidate.length >= 3 &&
+        candidate.length <= 120 &&
+        !candidate.includes('\n')
+      ) {
         names.add(candidate);
       }
+      match = pattern.exec(text);
     }
   }
   return Array.from(names);
@@ -104,7 +106,6 @@ function matchToCatalog(
 
 export function useSkillAdvisor(catalogSkills: SkillData[]) {
   const api = useApi(skillMarketplaceApiRef);
-  const { fetch: backstageFetch } = useApi(fetchApiRef);
   const [state, setState] = useState<AdvisorState>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -124,73 +125,39 @@ export function useSkillAdvisor(catalogSkills: SkillData[]) {
         error: null,
       });
 
-      let answer = '';
       const cartContext = currentCartSkills?.length
         ? `\n\nThe user already has these skills in their bundle cart: ${currentCartSkills.join(', ')}. Suggest additional skills that complement these, avoid duplicates.`
         : '';
 
       try {
-        const { url, body, headers } = await api.agenticQueryStreamUrl({
-          query: `Based on the skill graph, recommend specific skills for this need: ${query}. List the exact skill names that match.${cartContext}`,
-          context: 'skill-advisor-bundle-curation',
-        });
+        setState(prev => ({
+          ...prev,
+          status: 'searching',
+          statusText: 'Querying Skill Advisor agent...',
+        }));
 
-        const res = await backstageFetch(url, {
-          method: 'POST',
-          headers,
-          body,
-          signal: controller.signal,
-        });
+        const { answer } = await api.askSmpAgent(
+          'advisor',
+          `Based on the skill graph, recommend specific skills for this need: ${query}. List the exact skill names that match.${cartContext}`,
+        );
 
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(errText || `HTTP ${res.status}`);
-        }
+        if (controller.signal.aborted) return;
 
-        if (!res.body) throw new Error('No response body');
+        setState(prev => ({
+          ...prev,
+          status: 'answering',
+          statusText: 'Composing recommendations...',
+          answer,
+        }));
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let eventType = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (controller.signal.aborted) return;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventType = line.slice(7).trim();
-            } else if (line.startsWith('data: ') && eventType) {
-              try {
-                const event: AgenticStreamEvent = {
-                  type: eventType as AgenticStreamEvent['type'],
-                  data: JSON.parse(line.slice(6)),
-                };
-                handleEvent(event);
-              } catch {
-                /* skip malformed */
-              }
-              eventType = '';
-            }
-          }
-        }
-
-        if (!controller.signal.aborted) {
-          const extracted = extractSkillNames(answer);
-          const suggestions = matchToCatalog(extracted, catalogSkills);
-          setState(prev => ({
-            ...prev,
-            status: 'done',
-            statusText: '',
-            suggestions,
-          }));
-        }
+        const extracted = extractSkillNames(answer);
+        const suggestions = matchToCatalog(extracted, catalogSkills);
+        setState(prev => ({
+          ...prev,
+          status: 'done',
+          statusText: '',
+          suggestions,
+        }));
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setState(prev => ({
@@ -204,37 +171,17 @@ export function useSkillAdvisor(catalogSkills: SkillData[]) {
           abortRef.current = null;
         }
       }
-
-      function handleEvent(event: AgenticStreamEvent) {
-        const d = event.data as Record<string, unknown>;
-        switch (event.type) {
-          case 'thinking':
-            setState(prev => ({ ...prev, status: 'thinking', statusText: `Thinking (step ${d.iteration})...` }));
-            break;
-          case 'tool_call':
-            setState(prev => ({ ...prev, status: 'searching', statusText: `Searching: ${friendlyTool(String(d.tool))}...` }));
-            break;
-          case 'tool_result':
-            setState(prev => ({ ...prev, status: 'searching', statusText: `Found results from ${friendlyTool(String(d.tool))}` }));
-            break;
-          case 'answer':
-            answer = String(d.answer);
-            setState(prev => ({ ...prev, status: 'answering', statusText: 'Composing recommendations...', answer }));
-            break;
-          case 'error':
-            setState(prev => ({ ...prev, status: 'error', error: String(d.error) }));
-            break;
-          default:
-            break;
-        }
-      }
     },
-    [api, backstageFetch, catalogSkills],
+    [api, catalogSkills],
   );
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
-    setState(prev => ({ ...prev, status: prev.answer ? 'done' : 'idle', statusText: '' }));
+    setState(prev => ({
+      ...prev,
+      status: prev.answer ? 'done' : 'idle',
+      statusText: '',
+    }));
   }, []);
 
   const reset = useCallback(() => {
@@ -243,17 +190,4 @@ export function useSkillAdvisor(catalogSkills: SkillData[]) {
   }, []);
 
   return { ...state, ask, cancel, reset };
-}
-
-function friendlyTool(name: string): string {
-  const map: Record<string, string> = {
-    search_skills_semantic: 'semantic search',
-    search_skills_keyword: 'keyword search',
-    get_skill_details: 'skill details',
-    explore_graph: 'graph exploration',
-    query_relationships: 'relationship query',
-    list_skills_by_domain: 'domain listing',
-    find_gaps: 'gap analysis',
-  };
-  return map[name] ?? name;
 }

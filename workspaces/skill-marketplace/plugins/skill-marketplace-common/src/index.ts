@@ -17,3 +17,11 @@
 export * from './permissions';
 export * from './types';
 export { parseSkillContent } from './parseSkillContent';
+export { catalogToSkillData, ociToSkillData } from './mappers';
+export {
+  categoryOf,
+  matchesKeyword,
+  buildCategoryKeywords,
+  DEFAULT_CATEGORY_KEYWORDS,
+} from './categories';
+export type { CategoryName } from './categories';

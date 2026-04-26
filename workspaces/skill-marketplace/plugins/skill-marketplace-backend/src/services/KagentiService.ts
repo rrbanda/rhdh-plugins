@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 import fetch from 'node-fetch';
-import type { Response as NodeFetchResponse } from 'node-fetch';
 import { LoggerService } from '@backstage/backend-plugin-api';
 import type {
   KagentiAgent,
@@ -57,13 +56,22 @@ export class KagentiService {
     if (!config.apiUrl) {
       throw new Error('KagentiService: apiUrl is required');
     }
-    if (!config.keycloak?.tokenUrl || !config.keycloak?.clientId || !config.keycloak?.username || !config.keycloak?.password) {
-      throw new Error('KagentiService: keycloak.tokenUrl, clientId, username, and password are all required');
+    if (
+      !config.keycloak?.tokenUrl ||
+      !config.keycloak?.clientId ||
+      !config.keycloak?.username ||
+      !config.keycloak?.password
+    ) {
+      throw new Error(
+        'KagentiService: keycloak.tokenUrl, clientId, username, and password are all required',
+      );
     }
     this.config = config;
     this.logger = logger;
-    this.requestTimeoutMs = config.requestTimeoutMs ?? KAGENTI_DEFAULT_REQUEST_TIMEOUT_MS;
-    this.tokenTimeoutMs = config.tokenTimeoutMs ?? KAGENTI_DEFAULT_TOKEN_TIMEOUT_MS;
+    this.requestTimeoutMs =
+      config.requestTimeoutMs ?? KAGENTI_DEFAULT_REQUEST_TIMEOUT_MS;
+    this.tokenTimeoutMs =
+      config.tokenTimeoutMs ?? KAGENTI_DEFAULT_TOKEN_TIMEOUT_MS;
   }
 
   private createSignal(ms?: number): AbortSignal {
@@ -72,7 +80,7 @@ export class KagentiService {
     return controller.signal;
   }
 
-  private async getToken(): Promise<string> {
+  async getToken(): Promise<string> {
     if (this.tokenCache && Date.now() < this.tokenCache.expiresAt) {
       return this.tokenCache.token;
     }
@@ -112,6 +120,10 @@ export class KagentiService {
     return data.access_token;
   }
 
+  invalidateToken(): void {
+    this.tokenCache = null;
+  }
+
   private chatUrl(
     path: string = '',
     namespace?: string,
@@ -148,7 +160,12 @@ export class KagentiService {
       this.logger.debug(`Kagenti request body: ${redacted}`);
     }
 
-    const res = await fetch(url, { method, headers, body: bodyStr, signal: this.createSignal() });
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: bodyStr,
+      signal: this.createSignal(),
+    });
 
     const text = await res.text();
     if (!res.ok) {
@@ -161,177 +178,11 @@ export class KagentiService {
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Chat
-  // -----------------------------------------------------------------------
-
-  /**
-   * Call the agent directly via A2A JSON-RPC `SendMessage` (a2a-go v2),
-   * bypassing Kagenti's chat proxy which uses an incompatible method name.
-   * Requires the backend to be able to reach the agent's internal URL.
-   */
-  async sendA2AMessage(
-    message: string,
-    sessionId?: string,
-    namespace?: string,
-    agentName?: string,
-  ): Promise<{ status: number; data: unknown }> {
-    let agentUrl: string;
-
-    if (this.config.directA2AUrl && !namespace && !agentName) {
-      agentUrl = this.config.directA2AUrl.replace(/\/a2a$/, '');
-      this.logger.info(`Using directA2AUrl: ${agentUrl}`);
-    } else {
-      const card = await this.getAgentCard(namespace, agentName);
-      if (card.status !== 200) {
-        throw new Error(`Agent card unavailable (${card.status})`);
-      }
-      agentUrl = (card.data as { url?: string }).url ?? '';
-      if (!agentUrl) {
-        throw new Error('Agent card has no URL');
-      }
-    }
-
-    try {
-      new URL(agentUrl);
-    } catch {
-      throw new Error(`Agent URL is not a valid URL: ${agentUrl}`);
-    }
-
-    const rpcPayload = {
-      jsonrpc: '2.0',
-      method: 'SendMessage',
-      id: `sm-${Date.now()}`,
-      params: {
-        message: {
-          messageId: sessionId || `msg-${Date.now()}`,
-          role: 'user',
-          parts: [{ text: message }],
-        },
-      },
-    };
-
-    this.logger.info(`Direct A2A call to ${agentUrl}/a2a`);
-
-    const res = await fetch(`${agentUrl}/a2a`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rpcPayload),
-      signal: this.createSignal(),
-    });
-
-    const text = await res.text();
-    this.logger.debug(`Direct A2A response (${res.status}): ${text.slice(0, 500)}`);
-
-    try {
-      const json = JSON.parse(text);
-      if (json.error) {
-        return {
-          status: 200,
-          data: {
-            content: `A2A error: ${json.error.message || JSON.stringify(json.error)}`,
-            session_id: sessionId,
-            is_complete: true,
-          },
-        };
-      }
-      const result = json.result || {};
-
-      // a2a-go v2 wraps the result as {"task": {...}} or {"message": {...}}
-      const task = result.task;
-      const msg = result.message;
-
-      const extractParts = (p: { text?: string }[]) =>
-        p.map(part => part.text).filter(Boolean).join('\n');
-
-      let content = '';
-      let contextId: string | undefined;
-
-      if (task) {
-        contextId = task.contextId;
-        // Primary: artifacts contain the agent's output
-        const artifactTexts = (task.artifacts ?? [])
-          .flatMap((a: { parts?: { text?: string }[] }) => a.parts ?? [])
-          .map((p: { text?: string }) => p.text)
-          .filter(Boolean);
-        if (artifactTexts.length > 0) {
-          content = artifactTexts.join('\n');
-        }
-        // Fallback: status message (used for status updates without artifacts)
-        if (!content && task.status?.message?.parts) {
-          content = extractParts(task.status.message.parts);
-        }
-      } else if (msg) {
-        contextId = msg.contextId;
-        content = extractParts(msg.parts ?? []);
-      } else {
-        // Fallback: try common locations
-        const fallbackParts = result.status?.message?.parts
-          ?? result.parts
-          ?? [];
-        contextId = result.contextId;
-        content = extractParts(fallbackParts);
-      }
-
-      if (!content) {
-        content = JSON.stringify(result);
-      }
-
-      return {
-        status: 200,
-        data: {
-          content,
-          session_id: contextId ?? sessionId,
-          is_complete: true,
-        },
-      };
-    } catch {
-      return { status: res.status, data: { content: text, is_complete: true } };
-    }
-  }
-
-  async sendMessage(
-    message: string,
-    sessionId?: string,
-    namespace?: string,
-    agentName?: string,
-  ): Promise<{ status: number; data: unknown }> {
-    const body: Record<string, unknown> = { message };
-    if (sessionId) body.session_id = sessionId;
-    return this.apiRequest(
-      this.chatUrl('/send', namespace, agentName),
-      { method: 'POST', body },
-    );
-  }
-
-  async streamMessage(
-    message: string,
-    sessionId?: string,
-    namespace?: string,
-    agentName?: string,
-  ): Promise<NodeFetchResponse> {
-    const token = await this.getToken();
-    const body: Record<string, unknown> = { message };
-    if (sessionId) body.session_id = sessionId;
-
-    return fetch(this.chatUrl('/stream', namespace, agentName), {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: this.createSignal(),
-    });
-  }
-
   async getAgentCard(
     namespace?: string,
     agentName?: string,
   ): Promise<{ status: number; data: unknown }> {
-    return this.apiRequest(
-      this.chatUrl('/agent-card', namespace, agentName),
-    );
+    return this.apiRequest(this.chatUrl('/agent-card', namespace, agentName));
   }
 
   // -----------------------------------------------------------------------
@@ -351,9 +202,7 @@ export class KagentiService {
     namespace: string,
     name: string,
   ): Promise<{ status: number; data: unknown }> {
-    return this.apiRequest(
-      this.agentsUrl(`/${namespace}/${name}`),
-    );
+    return this.apiRequest(this.agentsUrl(`/${namespace}/${name}`));
   }
 
   async deployAgent(
@@ -365,7 +214,9 @@ export class KagentiService {
       protocol: request.protocol ?? 'a2a',
       framework: request.framework ?? 'Other',
       workloadType: request.workloadType ?? 'deployment',
-      deploymentMethod: request.deploymentMethod ?? (request.containerImage ? 'image' : 'source'),
+      deploymentMethod:
+        request.deploymentMethod ??
+        (request.containerImage ? 'image' : 'source'),
     };
 
     if (request.containerImage) {
@@ -406,10 +257,9 @@ export class KagentiService {
     namespace: string,
     name: string,
   ): Promise<{ status: number; data: unknown }> {
-    return this.apiRequest(
-      this.agentsUrl(`/${namespace}/${name}`),
-      { method: 'DELETE' },
-    );
+    return this.apiRequest(this.agentsUrl(`/${namespace}/${name}`), {
+      method: 'DELETE',
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -432,8 +282,14 @@ export class KagentiService {
 
     const volumes = (podSpec?.volumes as Array<Record<string, unknown>>) || [];
     for (const v of volumes) {
-      const cm = (v.config_map ?? v.configMap) as Record<string, unknown> | undefined;
-      if (cm && typeof cm.name === 'string' && (cm.name as string).toLowerCase().includes('skill')) {
+      const cm = (v.config_map ?? v.configMap) as
+        | Record<string, unknown>
+        | undefined;
+      if (
+        cm &&
+        typeof cm.name === 'string' &&
+        (cm.name as string).toLowerCase().includes('skill')
+      ) {
         skills.push({ name: v.name as string, source: `configMap:${cm.name}` });
       }
       const volName = v.name as string;
@@ -441,12 +297,17 @@ export class KagentiService {
         const hasPvc = v.persistent_volume_claim || v.persistentVolumeClaim;
         const hasEmptyDir = v.empty_dir || v.emptyDir;
         if (hasPvc) {
-          const claimName = (hasPvc as Record<string, string>).claim_name ?? (hasPvc as Record<string, string>).claimName;
+          const claimName =
+            (hasPvc as Record<string, string>).claim_name ??
+            (hasPvc as Record<string, string>).claimName;
           if (!skills.some(s => s.name === volName)) {
             skills.push({ name: volName, source: `pvc:${claimName}` });
           }
         } else if (hasEmptyDir && !skills.some(s => s.name === volName)) {
-          skills.push({ name: volName, source: 'emptyDir (populated by init container)' });
+          skills.push({
+            name: volName,
+            source: 'emptyDir (populated by init container)',
+          });
         }
       }
     }
@@ -506,9 +367,7 @@ export class KagentiService {
   // Helpers
   // -----------------------------------------------------------------------
 
-  async listAgentsParsed(
-    namespace?: string,
-  ): Promise<KagentiAgent[]> {
+  async listAgentsParsed(namespace?: string): Promise<KagentiAgent[]> {
     const result = await this.listAgents(namespace);
     if (result.status !== 200) return [];
 
@@ -520,18 +379,29 @@ export class KagentiService {
       const meta = a.metadata as Record<string, unknown> | undefined;
       const agentName = (a.name ?? meta?.name) as string;
       const agentNs = (a.namespace ?? meta?.namespace) as string;
-      const agentLabels = (a.labels ?? meta?.labels ?? {}) as Record<string, unknown>;
+      const agentLabels = (a.labels ?? meta?.labels ?? {}) as Record<
+        string,
+        unknown
+      >;
       const agentCreatedAt = (a.createdAt ?? meta?.creationTimestamp) as string;
 
       return {
         name: agentName,
         namespace: agentNs,
         description: (a.description as string) || '',
-        status: (a.status ?? a.readyStatus ?? 'Unknown') as KagentiAgent['status'],
+        status: (a.status ??
+          a.readyStatus ??
+          'Unknown') as KagentiAgent['status'],
         labels: {
           protocol: (agentLabels.protocol as string[]) || [],
-          framework: (agentLabels.framework as string) || (agentLabels['kagenti.io/framework'] as string) || '',
-          type: (agentLabels.type as string) || (agentLabels['kagenti.io/type'] as string) || '',
+          framework:
+            (agentLabels.framework as string) ||
+            (agentLabels['kagenti.io/framework'] as string) ||
+            '',
+          type:
+            (agentLabels.type as string) ||
+            (agentLabels['kagenti.io/type'] as string) ||
+            '',
         },
         workloadType: (a.workloadType as string) || '',
         createdAt: agentCreatedAt || '',
@@ -549,15 +419,24 @@ export class KagentiService {
     const parseSkills = (arr: unknown): AgentSkillRef[] => {
       if (!Array.isArray(arr)) return [];
       return arr
-        .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object' && typeof s.id === 'string')
+        .filter(
+          (s): s is Record<string, unknown> =>
+            !!s && typeof s === 'object' && typeof s.id === 'string',
+        )
         .map(s => ({
           id: String(s.id),
           name: String(s.name ?? s.id),
           description: String(s.description ?? ''),
           tags: Array.isArray(s.tags) ? s.tags.map(String) : [],
-          examples: Array.isArray(s.examples) ? s.examples.map(String) : undefined,
-          inputModes: Array.isArray(s.inputModes) ? s.inputModes.map(String) : undefined,
-          outputModes: Array.isArray(s.outputModes) ? s.outputModes.map(String) : undefined,
+          examples: Array.isArray(s.examples)
+            ? s.examples.map(String)
+            : undefined,
+          inputModes: Array.isArray(s.inputModes)
+            ? s.inputModes.map(String)
+            : undefined,
+          outputModes: Array.isArray(s.outputModes)
+            ? s.outputModes.map(String)
+            : undefined,
         }));
     };
 
@@ -570,23 +449,41 @@ export class KagentiService {
       description: String(d.description ?? ''),
       url: String(d.url),
       version: String(d.version ?? ''),
-      documentationUrl: d.documentationUrl ? String(d.documentationUrl) : undefined,
-      provider: provider ? { organization: String(provider.organization ?? ''), url: String(provider.url ?? '') } : undefined,
+      documentationUrl: d.documentationUrl
+        ? String(d.documentationUrl)
+        : undefined,
+      provider: provider
+        ? {
+            organization: String(provider.organization ?? ''),
+            url: String(provider.url ?? ''),
+          }
+        : undefined,
       capabilities: {
         streaming: caps.streaming === true,
         pushNotifications: caps.pushNotifications === true,
         stateTransitionHistory: caps.stateTransitionHistory === true,
       },
-      authentication: auth ? { schemes: Array.isArray(auth.schemes) ? auth.schemes.map(String) : [], credentials: auth.credentials ? String(auth.credentials) : undefined } : undefined,
-      defaultInputModes: Array.isArray(d.defaultInputModes) ? d.defaultInputModes.map(String) : ['text/plain'],
-      defaultOutputModes: Array.isArray(d.defaultOutputModes) ? d.defaultOutputModes.map(String) : ['text/plain'],
+      authentication: auth
+        ? {
+            schemes: Array.isArray(auth.schemes)
+              ? auth.schemes.map(String)
+              : [],
+            credentials: auth.credentials
+              ? String(auth.credentials)
+              : undefined,
+          }
+        : undefined,
+      defaultInputModes: Array.isArray(d.defaultInputModes)
+        ? d.defaultInputModes.map(String)
+        : ['text/plain'],
+      defaultOutputModes: Array.isArray(d.defaultOutputModes)
+        ? d.defaultOutputModes.map(String)
+        : ['text/plain'],
       skills: parseSkills(d.skills),
     };
   }
 
-  async listAgentsWithCards(
-    namespace?: string,
-  ): Promise<KagentiAgent[]> {
+  async listAgentsWithCards(namespace?: string): Promise<KagentiAgent[]> {
     const agents = await this.listAgentsParsed(namespace);
     if (agents.length === 0) return agents;
 
@@ -594,7 +491,10 @@ export class KagentiService {
       agents.map(async (agent): Promise<KagentiAgent> => {
         try {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), KagentiService.AGENT_CARD_TIMEOUT_MS);
+          const timer = setTimeout(
+            () => controller.abort(),
+            KagentiService.AGENT_CARD_TIMEOUT_MS,
+          );
           try {
             const card = await this.getAgentCard(agent.namespace, agent.name);
             clearTimeout(timer);
@@ -608,7 +508,9 @@ export class KagentiService {
             clearTimeout(timer);
           }
         } catch (err) {
-          this.logger.debug(`AgentCard fetch failed for ${agent.namespace}/${agent.name}: ${(err as Error).message}`);
+          this.logger.debug(
+            `AgentCard fetch failed for ${agent.namespace}/${agent.name}: ${(err as Error).message}`,
+          );
         }
         return agent;
       }),

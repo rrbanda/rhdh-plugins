@@ -15,11 +15,13 @@
  */
 import { Router } from 'express';
 import neo4jDriver from 'neo4j-driver';
-import type { HttpAuthService, LoggerService, PermissionsService } from '@backstage/backend-plugin-api';
+import type {
+  HttpAuthService,
+  LoggerService,
+  PermissionsService,
+} from '@backstage/backend-plugin-api';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import {
-  skillMarketplaceAccessPermission,
-} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import { skillMarketplaceAccessPermission } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import type {
   GraphRAGQuery,
   GraphRAGResult,
@@ -30,6 +32,7 @@ import type { Neo4jService } from '../services/Neo4jService';
 import type { SkillGraphSyncService } from '../services/SkillGraphSyncService';
 import type { CypherQueryCatalog } from '../services/CypherQueryCatalog';
 import { toNumber, resolveId, escapeLucene } from '../services/neo4jUtils';
+import { getRequestAbortSignal } from './requestSignal';
 
 export interface RagConfig {
   fulltextScoreFloor: number;
@@ -53,6 +56,26 @@ const RAG_DEFAULTS: RagConfig = {
   maxQueryLength: 2000,
 };
 
+type RagScoreAuditEntry = {
+  raw: number | null;
+  /** Normalization divisor or description (vector/fallback have no/literal divisor). */
+  divisor: string | number;
+  final: number;
+  source: 'vector' | 'fulltext' | 'fulltext-fallback' | 'graph';
+};
+
+function logRagScoreTraceAtTraceLevel(
+  logger: LoggerService,
+  message: string,
+): void {
+  const l = logger as LoggerService & { trace?: (m: string) => void };
+  if (typeof l.trace === 'function') {
+    l.trace(message);
+  } else {
+    l.debug(`[trace] ${message}`);
+  }
+}
+
 function skillHitFromRecord(
   record: { properties: Record<string, unknown>; labels?: string[] },
   elementId: string,
@@ -69,7 +92,10 @@ function skillHitFromRecord(
   };
 }
 
-function validateRagBody(body: unknown): { valid: true; parsed: GraphRAGQuery } | { valid: false; error: string } {
+function validateRagBody(
+  body: unknown,
+  maxQueryLength: number,
+): { valid: true; parsed: GraphRAGQuery } | { valid: false; error: string } {
   if (!body || typeof body !== 'object') {
     return { valid: false, error: 'Request body is required' };
   }
@@ -78,42 +104,60 @@ function validateRagBody(body: unknown): { valid: true; parsed: GraphRAGQuery } 
   if (!b.query || typeof b.query !== 'string') {
     return { valid: false, error: 'query is required and must be a string' };
   }
-  if (b.query.length > RAG_DEFAULTS.maxQueryLength) {
-    return { valid: false, error: `query exceeds maximum length of ${RAG_DEFAULTS.maxQueryLength}` };
+  if (b.query.length > maxQueryLength) {
+    return {
+      valid: false,
+      error: `query exceeds maximum length of ${maxQueryLength}`,
+    };
   }
 
   const parsed: GraphRAGQuery = { query: b.query };
 
   if (b.context !== undefined) {
-    if (typeof b.context !== 'string') return { valid: false, error: 'context must be a string' };
+    if (typeof b.context !== 'string')
+      return { valid: false, error: 'context must be a string' };
     parsed.context = b.context;
   }
   if (b.maxResults !== undefined) {
     const n = Number(b.maxResults);
-    if (!Number.isFinite(n) || n < 1) return { valid: false, error: 'maxResults must be a positive number' };
+    if (!Number.isFinite(n) || n < 1)
+      return { valid: false, error: 'maxResults must be a positive number' };
     parsed.maxResults = n;
   }
   if (b.includeRelated !== undefined) {
-    if (typeof b.includeRelated !== 'boolean') return { valid: false, error: 'includeRelated must be a boolean' };
+    if (typeof b.includeRelated !== 'boolean')
+      return { valid: false, error: 'includeRelated must be a boolean' };
     parsed.includeRelated = b.includeRelated;
   }
   if (b.filters !== undefined) {
-    if (typeof b.filters !== 'object' || b.filters === null) return { valid: false, error: 'filters must be an object' };
+    if (typeof b.filters !== 'object' || b.filters === null)
+      return { valid: false, error: 'filters must be an object' };
     const f = b.filters as Record<string, unknown>;
     parsed.filters = {};
     if (f.domain !== undefined) {
-      if (typeof f.domain !== 'string') return { valid: false, error: 'filters.domain must be a string' };
+      if (typeof f.domain !== 'string')
+        return { valid: false, error: 'filters.domain must be a string' };
       parsed.filters.domain = f.domain;
     }
     if (f.tools !== undefined) {
-      if (!Array.isArray(f.tools) || !f.tools.every(t => typeof t === 'string')) {
-        return { valid: false, error: 'filters.tools must be an array of strings' };
+      if (
+        !Array.isArray(f.tools) ||
+        !f.tools.every(t => typeof t === 'string')
+      ) {
+        return {
+          valid: false,
+          error: 'filters.tools must be an array of strings',
+        };
       }
       parsed.filters.tools = f.tools;
     }
     if (f.minSimilarity !== undefined) {
       const s = Number(f.minSimilarity);
-      if (!Number.isFinite(s) || s < 0 || s > 1) return { valid: false, error: 'filters.minSimilarity must be between 0 and 1' };
+      if (!Number.isFinite(s) || s < 0 || s > 1)
+        return {
+          valid: false,
+          error: 'filters.minSimilarity must be between 0 and 1',
+        };
       parsed.filters.minSimilarity = s;
     }
   }
@@ -133,215 +177,300 @@ export function registerRagRoutes(
 ) {
   const cfg = { ...RAG_DEFAULTS, ...ragConfig };
   const rq = (key: string) => {
-    if (!queryCatalog) throw new Error(`ragRoutes: queryCatalog not available for key "${key}"`);
+    if (!queryCatalog)
+      throw new Error(`ragRoutes: queryCatalog not available for key "${key}"`);
     return queryCatalog.get(key);
   };
 
   router.post('/graph/rag', async (req, res) => {
-    if (httpAuth && permissions) {
-      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
-      const decision = await permissions.authorize(
-        [{ permission: skillMarketplaceAccessPermission }],
-        { credentials },
-      );
-      if (decision[0].result !== AuthorizeResult.ALLOW) {
-        res.status(403).json({ error: 'Insufficient permissions' });
+    try {
+      if (httpAuth && permissions) {
+        const credentials = await httpAuth.credentials(req, {
+          allow: ['user'],
+        });
+        const decision = await permissions.authorize(
+          [{ permission: skillMarketplaceAccessPermission }],
+          { credentials },
+        );
+        if (decision[0].result !== AuthorizeResult.ALLOW) {
+          res.status(403).json({ error: 'Insufficient permissions' });
+          return;
+        }
+      }
+
+      if (!neo4jService) {
+        res.status(503).json({ error: 'Neo4j not configured' });
         return;
       }
-    }
 
-    if (!neo4jService) {
-      res.status(503).json({ error: 'Neo4j not configured' });
-      return;
-    }
+      const validation = validateRagBody(req.body, cfg.maxQueryLength);
+      if (!validation.valid) {
+        res.status(400).json({ error: validation.error });
+        return;
+      }
 
-    const validation = validateRagBody(req.body);
-    if (!validation.valid) {
-      res.status(400).json({ error: validation.error });
-      return;
-    }
+      const {
+        query,
+        context,
+        maxResults: rawMax,
+        includeRelated: rawInclude,
+        filters,
+      } = validation.parsed;
+      const requestSignal = getRequestAbortSignal(req);
+      const maxResults = Math.min(rawMax ?? 10, 50);
+      const includeRelated = rawInclude ?? true;
+      const minSimilarity = filters?.minSimilarity ?? 0.7;
+      const domainFilter = filters?.domain;
+      const toolsFilter = filters?.tools;
 
-    const { query, context, maxResults: rawMax, includeRelated: rawInclude, filters } = validation.parsed;
-    const maxResults = Math.min(rawMax ?? 10, 50);
-    const includeRelated = rawInclude ?? true;
-    const minSimilarity = filters?.minSimilarity ?? 0.7;
-    const domainFilter = filters?.domain;
-    const toolsFilter = filters?.tools;
+      const skillMap = new Map<string, GraphRAGSkill>();
+      const scoreAuditBySkillName = new Map<string, RagScoreAuditEntry>();
+      const session = await neo4jService.getHealthySession();
+      const ragText = `${query}${context ? ` — ${context}` : ''}`;
 
-    const skillMap = new Map<string, GraphRAGSkill>();
-    const session = await neo4jService.getHealthySession();
-
-    try {
-      let queryEmbeddingUsed = false;
-      if (syncService) {
-        const queryEmbedding = await syncService.generateEmbedding(
-          `${query}${context ? ` — ${context}` : ''}`,
-        );
-        if (queryEmbedding) {
-          queryEmbeddingUsed = true;
-          try {
-            const vectorResult = await session.run(
-              rq('rag.vectorSearch'),
-              {
+      try {
+        if (requestSignal.aborted) {
+          res.status(499).json({ error: 'Client closed request' });
+          return;
+        }
+        let queryEmbeddingUsed = false;
+        let vectorSearchDegraded = false;
+        if (syncService) {
+          const queryEmbedding = await syncService.generateEmbedding(ragText);
+          if (queryEmbedding) {
+            queryEmbeddingUsed = true;
+            try {
+              const vectorResult = await session.run(rq('rag.vectorSearch'), {
                 topK: neo4jDriver.int(maxResults * cfg.vectorTopKMultiplier),
                 queryEmbedding,
                 minSimilarity,
-              },
-            );
-            for (const record of vectorResult.records) {
-              const node = record.get('node');
-              const eid = record.get('eid') as string;
-              const score = toNumber(record.get('score'));
-              const hit = skillHitFromRecord(node, eid);
-              if (!skillMap.has(hit._id)) {
-                skillMap.set(hit._id, {
-                  skill: hit,
-                  score,
-                  matchType: 'semantic',
-                  reason: `Semantic similarity: ${(score * 100).toFixed(0)}%`,
-                  related: [],
-                  tools: ((node.properties.tools as string[]) || []),
-                  domain: hit.category,
-                });
+              });
+              for (const record of vectorResult.records) {
+                const node = record.get('node');
+                const eid = record.get('eid') as string;
+                const score = toNumber(record.get('score'));
+                const hit = skillHitFromRecord(node, eid);
+                if (!skillMap.has(hit._id)) {
+                  scoreAuditBySkillName.set(hit.name, {
+                    raw: score,
+                    divisor: 1,
+                    final: score,
+                    source: 'vector',
+                  });
+                  skillMap.set(hit._id, {
+                    skill: hit,
+                    score,
+                    matchType: 'semantic',
+                    reason: `Semantic similarity: ${(score * 100).toFixed(0)}%`,
+                    related: [],
+                    tools: (node.properties.tools as string[]) || [],
+                    domain: hit.category,
+                  });
+                }
               }
+            } catch (err) {
+              vectorSearchDegraded = true;
+              logger.warn(
+                `Vector search failed: ${err instanceof Error ? err.message : String(err)}`,
+              );
             }
-          } catch (err) {
-            logger.warn(`Vector search failed: ${err instanceof Error ? err.message : String(err)}`);
+          } else {
+            vectorSearchDegraded = true;
           }
         }
-      }
 
-      try {
-        const escaped = escapeLucene(query);
-        const fulltextResult = await session.run(
-          rq('rag.fulltextSearch'),
-          { query: `${escaped}~`, floor: cfg.fulltextScoreFloor, limit: neo4jDriver.int(cfg.fulltextLimit) },
-        );
-        for (const record of fulltextResult.records) {
-          const node = record.get('node');
-          const eid = record.get('eid') as string;
-          const score = toNumber(record.get('score'));
-          const hit = skillHitFromRecord(node, eid);
-          const normalizedScore = Math.min(score / cfg.scoreNormalizationDivisor, 0.95);
-          if (!skillMap.has(hit._id)) {
-            skillMap.set(hit._id, {
-              skill: hit,
-              score: normalizedScore,
-              matchType: 'fulltext',
-              reason: `Text match (score: ${score.toFixed(2)})`,
-              related: [],
-              tools: ((node.properties.tools as string[]) || []),
-              domain: hit.category,
-            });
-          }
-        }
-      } catch (err) {
-        logger.warn(`Fulltext search failed, using fallback: ${err instanceof Error ? err.message : String(err)}`);
+        let fulltextPathSucceeded = false;
         try {
-          const fallbackResult = await session.run(
-            rq('rag.fulltextFallback'),
-            { query, limit: neo4jDriver.int(cfg.fulltextLimit) },
-          );
-          for (const record of fallbackResult.records) {
+          const escaped = escapeLucene(query);
+          const fulltextResult = await session.run(rq('rag.fulltextSearch'), {
+            query: `${escaped}~`,
+            floor: cfg.fulltextScoreFloor,
+            limit: neo4jDriver.int(cfg.fulltextLimit),
+          });
+          fulltextPathSucceeded = true;
+          for (const record of fulltextResult.records) {
             const node = record.get('node');
             const eid = record.get('eid') as string;
+            const score = toNumber(record.get('score'));
             const hit = skillHitFromRecord(node, eid);
+            const normalizedScore = Math.min(
+              score / cfg.scoreNormalizationDivisor,
+              0.95,
+            );
             if (!skillMap.has(hit._id)) {
+              scoreAuditBySkillName.set(hit.name, {
+                raw: score,
+                divisor: cfg.scoreNormalizationDivisor,
+                final: normalizedScore,
+                source: 'fulltext',
+              });
               skillMap.set(hit._id, {
                 skill: hit,
-                score: cfg.fallbackScore,
+                score: normalizedScore,
                 matchType: 'fulltext',
-                reason: 'Name/description contains query',
+                reason: `Text match (score: ${score.toFixed(2)})`,
                 related: [],
-                tools: [],
+                tools: (node.properties.tools as string[]) || [],
                 domain: hit.category,
               });
             }
           }
-        } catch (fallbackErr) {
-          logger.warn(`Fallback search also failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
+        } catch (err) {
+          logger.warn(
+            `Fulltext search failed, using fallback: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          try {
+            const fallbackResult = await session.run(
+              rq('rag.fulltextFallback'),
+              { query, limit: neo4jDriver.int(cfg.fulltextLimit) },
+            );
+            fulltextPathSucceeded = true;
+            for (const record of fallbackResult.records) {
+              const node = record.get('node');
+              const eid = record.get('eid') as string;
+              const hit = skillHitFromRecord(node, eid);
+              if (!skillMap.has(hit._id)) {
+                scoreAuditBySkillName.set(hit.name, {
+                  raw: null,
+                  divisor: 'n/a',
+                  final: cfg.fallbackScore,
+                  source: 'fulltext-fallback',
+                });
+                skillMap.set(hit._id, {
+                  skill: hit,
+                  score: cfg.fallbackScore,
+                  matchType: 'fulltext',
+                  reason: 'Name/description contains query',
+                  related: [],
+                  tools: [],
+                  domain: hit.category,
+                });
+              }
+            }
+          } catch (fallbackErr) {
+            logger.warn(
+              `Fallback search also failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`,
+            );
+          }
         }
-      }
 
-      if (includeRelated && skillMap.size > 0) {
-        const seedNames = Array.from(skillMap.keys()).slice(0, maxResults);
-        const expandResult = await session.run(
-          rq('rag.expandRelatedSkills'),
-          { names: seedNames, limit: neo4jDriver.int(cfg.expansionLimit) },
-        );
-        for (const record of expandResult.records) {
-          const seedName = record.get('seedName') as string;
-          const neighbor = record.get('neighbor');
-          const eid = record.get('eid') as string;
-          const relScore = toNumber(record.get('relScore'));
-          const neighborHit = skillHitFromRecord(neighbor, eid);
+        if (includeRelated && skillMap.size > 0) {
+          const seedNames = Array.from(skillMap.keys()).slice(0, maxResults);
+          const expandResult = await session.run(
+            rq('rag.expandRelatedSkills'),
+            { names: seedNames, limit: neo4jDriver.int(cfg.expansionLimit) },
+          );
+          for (const record of expandResult.records) {
+            const seedName = record.get('seedName') as string;
+            const neighbor = record.get('neighbor');
+            const eid = record.get('eid') as string;
+            const relScore = toNumber(record.get('relScore'));
+            const neighborHit = skillHitFromRecord(neighbor, eid);
 
-          const seed = skillMap.get(seedName);
-          if (seed) {
-            seed.related.push(neighborHit);
+            const seed = skillMap.get(seedName);
+            if (seed) {
+              seed.related.push(neighborHit);
+            }
+
+            if (!skillMap.has(neighborHit._id)) {
+              const parentScore = seed?.score ?? cfg.fallbackScore;
+              const propagatedScore =
+                parentScore * relScore * cfg.graphPropagationFactor;
+              scoreAuditBySkillName.set(neighborHit.name, {
+                raw: relScore,
+                divisor: `${parentScore.toFixed(4)} * ${cfg.graphPropagationFactor} (parent * graphPropagation)`,
+                final: propagatedScore,
+                source: 'graph',
+              });
+              skillMap.set(neighborHit._id, {
+                skill: neighborHit,
+                score: propagatedScore,
+                matchType: 'graph',
+                reason: `Connected via ${record.get('relType')} to ${seedName}`,
+                related: [],
+                tools: [],
+                domain: neighborHit.category,
+              });
+            }
           }
 
-          if (!skillMap.has(neighborHit._id)) {
-            const propagatedScore = (seed?.score ?? cfg.fallbackScore) * relScore * cfg.graphPropagationFactor;
-            skillMap.set(neighborHit._id, {
-              skill: neighborHit,
-              score: propagatedScore,
-              matchType: 'graph',
-              reason: `Connected via ${record.get('relType')} to ${seedName}`,
-              related: [],
-              tools: [],
-              domain: neighborHit.category,
-            });
+          const allNames = Array.from(skillMap.keys());
+          const toolResult = await session.run(rq('rag.collectToolsBySkill'), {
+            names: allNames,
+          });
+          for (const record of toolResult.records) {
+            const skillName = record.get('skillName') as string;
+            const tools = record.get('tools') as string[];
+            const entry = skillMap.get(skillName);
+            if (entry) entry.tools = tools;
           }
         }
 
-        const allNames = Array.from(skillMap.keys());
-        const toolResult = await session.run(
-          rq('rag.collectToolsBySkill'),
-          { names: allNames },
-        );
-        for (const record of toolResult.records) {
-          const skillName = record.get('skillName') as string;
-          const tools = record.get('tools') as string[];
-          const entry = skillMap.get(skillName);
-          if (entry) entry.tools = tools;
+        let results = Array.from(skillMap.values());
+
+        if (domainFilter) {
+          results = results.filter(r => r.domain === domainFilter);
         }
-      }
+        if (toolsFilter && toolsFilter.length > 0) {
+          results = results.filter(r =>
+            toolsFilter.every(t => r.tools.includes(t)),
+          );
+        }
 
-      let results = Array.from(skillMap.values());
+        results.sort((a, b) => b.score - a.score);
+        results = results.slice(0, maxResults);
 
-      if (domainFilter) {
-        results = results.filter(r => r.domain === domainFilter);
-      }
-      if (toolsFilter && toolsFilter.length > 0) {
-        results = results.filter(r =>
-          toolsFilter.every(t => r.tools.includes(t)),
+        for (const r of results) {
+          const audit = scoreAuditBySkillName.get(r.skill.name);
+          if (audit) {
+            logRagScoreTraceAtTraceLevel(
+              logger,
+              `GraphRAG score: skill=${r.skill.name} raw=${audit.raw} divisor=${String(audit.divisor)} final=${r.score} source=${audit.source}`,
+            );
+          } else {
+            logRagScoreTraceAtTraceLevel(
+              logger,
+              `GraphRAG score: skill=${r.skill.name} final=${r.score} (no audit — merged from another path)`,
+            );
+          }
+        }
+
+        const domainsSearched = [
+          ...new Set(results.map(r => r.domain).filter(Boolean)),
+        ];
+
+        const totalCountResult = await session.run(rq('rag.countAllSkills'));
+        const totalSkills = toNumber(totalCountResult.records[0]?.get('c'));
+
+        const response: GraphRAGResult = {
+          skills: results,
+          graphContext: {
+            totalSkills,
+            domainsSearched,
+            queryEmbeddingUsed,
+          },
+        };
+
+        if (vectorSearchDegraded && fulltextPathSucceeded) {
+          res.set(
+            'X-GraphRAG-Warning',
+            'Vector (semantic) search was unavailable; results are from fulltext and graph expansion only.',
+          );
+        }
+        res.json(response);
+      } catch (err) {
+        logger.error(
+          `GraphRAG query failed: ${err instanceof Error ? err.message : String(err)}`,
         );
+        res.status(500).json({ error: 'GraphRAG query failed' });
+      } finally {
+        await session.close();
       }
-
-      results.sort((a, b) => b.score - a.score);
-      results = results.slice(0, maxResults);
-
-      const domainsSearched = [...new Set(results.map(r => r.domain).filter(Boolean))];
-
-      const totalCountResult = await session.run(rq('rag.countAllSkills'));
-      const totalSkills = toNumber(totalCountResult.records[0]?.get('c'));
-
-      const response: GraphRAGResult = {
-        skills: results,
-        graphContext: {
-          totalSkills,
-          domainsSearched,
-          queryEmbeddingUsed,
-        },
-      };
-
-      res.json(response);
     } catch (err) {
-      logger.error(`GraphRAG query failed: ${err instanceof Error ? err.message : String(err)}`);
-      res.status(500).json({ error: 'GraphRAG query failed' });
-    } finally {
-      await session.close();
+      logger.error(
+        `POST /graph/rag failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      res.status(500).json({ error: 'Graph RAG request failed' });
     }
   });
 }

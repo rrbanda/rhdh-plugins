@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { Skill } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import { Skill } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import {
   categoriesOf,
   normalizeName,
@@ -86,7 +86,10 @@ describe('categoriesOf', () => {
   });
 
   it('returns general when no keywords match', () => {
-    const skill = makeSkill({ name: 'something-random', description: 'no keywords here' });
+    const skill = makeSkill({
+      name: 'something-random',
+      description: 'no keywords here',
+    });
     const result = categoriesOf(skill, DEFAULT_KEYWORDS);
     expect(result).toEqual([{ domain: 'general', primary: true }]);
   });
@@ -147,7 +150,8 @@ describe('normalizeName', () => {
 describe('computeSkillCompleteness', () => {
   it('returns 1.0 for a fully complete skill', () => {
     const skill = makeSkill({
-      description: 'A detailed description that is longer than thirty characters for scoring',
+      description:
+        'A detailed description that is longer than thirty characters for scoring',
       tags: ['tag1', 'tag2'],
       prompt: 'A prompt with enough content to pass the threshold',
       examples: [{ input: 'test', output: 'test' }],
@@ -170,13 +174,14 @@ describe('computeSkillCompleteness', () => {
 
   it('gives partial credit for partial fields', () => {
     const skill = makeSkill({
-      description: 'A detailed description with enough content here for scoring',
+      description:
+        'A detailed description with enough content here for scoring',
       tags: ['tag1', 'tag2'],
       version: '1.0.0',
     });
     const score = computeSkillCompleteness(skill, false);
     expect(score).toBeGreaterThanOrEqual(0.35);
-    expect(score).toBeLessThan(0.60);
+    expect(score).toBeLessThan(0.6);
   });
 });
 
@@ -202,7 +207,11 @@ describe('computeAgentCompleteness', () => {
         documentationUrl: 'https://docs.example.com',
         skills: [{ id: 'skill-1', name: 'Test Skill' }],
         authentication: { schemes: ['bearer'] },
-        capabilities: { streaming: true, pushNotifications: false, stateTransitionHistory: false },
+        capabilities: {
+          streaming: true,
+          pushNotifications: false,
+          stateTransitionHistory: false,
+        },
         defaultInputModes: ['text/plain'],
         defaultOutputModes: ['text/plain'],
       },

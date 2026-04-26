@@ -1,0 +1,540 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.bbPage {
+  padding: 24px 32px 40px;
+  max-width: 1400px;
+  position: relative;
+}
+.bbFeedback {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  animation: bbFadeIn 0.2s ease-out;
+}
+@keyframes bbFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.bbFeedbackSuccess {
+  background: var(--sm-success-tint);
+  color: var(--sm-success);
+}
+.bbFeedbackError {
+  background: var(--sm-danger-tint);
+  color: var(--sm-danger);
+}
+.bbHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+.bbHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.bbHiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.bbTitle {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+.bbSubtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--sm-text-secondary);
+}
+.bbCartBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--sm-text-primary);
+}
+.bbCartBtn:hover {
+  border-color: var(--sm-brand);
+}
+.bbCartBadge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-weight: 700;
+}
+.bbTabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--sm-border-default);
+  margin-bottom: 16px;
+}
+.bbTab {
+  padding: 8px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--sm-text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, border-color 0.2s;
+  font-family: inherit;
+}
+.bbTab:hover {
+  color: var(--sm-text-primary);
+}
+.bbTabActive {
+  color: var(--sm-brand);
+  border-bottom-color: var(--sm-brand);
+}
+.bbLoading {
+  padding: 32px;
+  text-align: center;
+  color: var(--sm-text-secondary);
+}
+.bbMarketplaceCard {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  font-family: inherit;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+.bbMarketplaceCard:hover {
+  border-color: var(--sm-brand);
+}
+.bbMarketplaceTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  min-width: 0;
+}
+.bbMarketplaceDesc {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 12px;
+  flex: 1;
+}
+.bbCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--sm-border-subtle);
+}
+.bbActionBtn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  color: var(--sm-text-primary);
+  font-family: inherit;
+  white-space: nowrap;
+}
+.bbActionBtn:hover:not(:disabled) {
+  background: var(--sm-surface-secondary);
+}
+.bbActionBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.bbListToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.bbFilterLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-text-primary);
+}
+.statusFilter {
+  min-width: 200px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.statusFilter:focus {
+  outline: none;
+  border-color: var(--sm-brand);
+}
+.bbFilterEmpty {
+  font-size: 14px;
+  color: var(--sm-text-secondary);
+  margin: 0 0 24px;
+}
+.bbGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.bbCard {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  color: inherit;
+}
+.bbCard:hover {
+  border-color: var(--sm-brand);
+  transform: translateY(-2px);
+  box-shadow: var(--sm-shadow-lg);
+}
+.bbCardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.bbCardNameRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.bbCardName {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.statusBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.bbCardCount {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-weight: 600;
+}
+.bbCardDesc {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bbCardMeta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--sm-border-subtle);
+}
+.bbEmpty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--sm-text-secondary);
+}
+.bbEmpty h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--sm-text-primary);
+}
+.bbEmpty p {
+  font-size: 14px;
+  margin: 0 0 20px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.bbEmptyActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.bbDetail {
+  /* layout placeholder */
+}
+.bbBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-brand);
+  padding: 0;
+  margin-bottom: 16px;
+  font-family: inherit;
+}
+.bbDetailHeader {
+  margin-bottom: 24px;
+}
+.bbDetailTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.bbDetailTitle {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.bbDetailLifecycle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.bbDetailLifecycleInfo {
+  margin: 0;
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  line-height: 1.4;
+}
+.bbDetailDesc {
+  font-size: 14px;
+  color: var(--sm-text-secondary);
+  margin: 0 0 8px;
+}
+.bbDetailMeta {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  margin-bottom: 16px;
+}
+.bbDetailActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bbSkillList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bbSkillItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-subtle);
+  position: relative;
+}
+.bbSkillCat {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.bbSkillName {
+  font-size: 14px;
+  font-weight: 500;
+}
+.bbSkillDesc {
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bbBtn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.bbBtnPrimary {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+.bbBtnPrimary:hover {
+  opacity: 0.9;
+}
+.bbBtnSecondary {
+  background: var(--sm-surface-card);
+  border-color: var(--sm-border-default);
+  color: var(--sm-text-primary);
+}
+.bbBtnSecondary:hover {
+  background: var(--sm-surface-secondary);
+}
+.bbBtnGhost {
+  background: none;
+  color: var(--sm-text-secondary);
+}
+.bbBtnGhost:hover {
+  background: var(--sm-surface-hover);
+}
+.bbBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.bbEditForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bbEditInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  background: var(--sm-surface-card);
+  color: var(--sm-text-primary);
+}
+.bbEditInput:focus {
+  border-color: var(--sm-brand);
+}
+.bbEditTitleInput {
+  font-size: 18px;
+  font-weight: 600;
+  height: 42px;
+}
+.bbEditActions {
+  display: flex;
+  gap: 8px;
+}
+
+.bbSkillActions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.bbSkillAddBtn,
+.bbSkillRemoveBtn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default);
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sm-text-secondary);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.bbSkillAddBtn:hover:not(:disabled) {
+  border-color: var(--sm-brand);
+  color: var(--sm-brand);
+  background: var(--sm-brand-tint);
+}
+.bbSkillAddBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  color: var(--sm-success);
+  border-color: var(--sm-success);
+}
+.bbSkillRemoveBtn {
+  color: var(--sm-danger);
+  border-color: var(--sm-danger-tint);
+}
+.bbSkillRemoveBtn:hover:not(:disabled) {
+  background: var(--sm-danger-tint);
+}
+.bbSkillRemoveBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

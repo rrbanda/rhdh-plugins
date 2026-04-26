@@ -15,123 +15,8 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { Link } from '@backstage/core-components';
-
-const publishDialogStyles = `
-.bld-publish-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  animation: bld-fadeIn 0.15s ease;
-}
-@keyframes bld-fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-.bld-publish-dialog {
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-  border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-  border-radius: 12px;
-  width: 420px;
-  max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-}
-
-.bld-publish-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-}
-.bld-publish-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.bld-publish-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.bld-publish-field label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--pf-t--global--text--color--regular, #151515);
-}
-.bld-publish-field input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-  border-radius: 6px;
-  font-size: 14px;
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-  color: var(--pf-t--global--text--color--regular, #151515);
-  box-sizing: border-box;
-}
-.bld-publish-field input:focus {
-  outline: 2px solid var(--pf-t--global--color--brand--default, #0066cc);
-  outline-offset: -1px;
-}
-
-.bld-publish-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 16px 20px;
-  border-top: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-}
-.bld-publish-cancel, .bld-publish-submit {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-}
-.bld-publish-cancel {
-  background: transparent;
-  color: var(--pf-t--global--text--color--regular, #151515);
-}
-.bld-publish-cancel:hover { background: var(--pf-t--global--background--color--secondary--default, #f0f0f0); }
-.bld-publish-submit {
-  background: var(--pf-t--global--color--brand--default, #0066cc);
-  color: #fff;
-}
-.bld-publish-submit:hover { opacity: 0.9; }
-.bld-publish-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.bld-publish-error {
-  padding: 10px 14px;
-  background: var(--pf-t--global--color--status--danger--default, #c9190b);
-  color: #fff;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.bld-publish-success-card {
-  text-align: center;
-  padding: 24px 20px;
-}
-.bld-publish-success-check {
-  font-size: 32px;
-  color: var(--pf-t--global--color--status--success--default, #3e8635);
-  margin-bottom: 8px;
-}
-.bld-publish-success-ref {
-  font-size: 13px;
-  color: var(--pf-t--global--text--color--subtle, #6a6e73);
-  word-break: break-all;
-  margin: 8px 0;
-}
-`;
+import AddToBundleButton from '../../shared/AddToBundleButton';
+import styles from './PublishDialog.module.css';
 
 export function extractSkillMetadata(content: string): {
   name?: string;
@@ -159,9 +44,21 @@ export function extractSkillMetadata(content: string): {
   const descMatch = content.match(
     /(?:^|\n)(?:>|##?\s+(?:Description|Summary|Overview))\s*\n+([\s\S]*?)(?=\n##|\n---|\n\n\n|$)/i,
   );
-  if (descMatch) result.description = descMatch[1].trim().split('\n')[0].slice(0, 200);
+  if (descMatch)
+    result.description = descMatch[1].trim().split('\n')[0].slice(0, 200);
 
   return result;
+}
+
+function deriveBuilderSkillSlug(name: string): string {
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'builder-skill'
+  );
 }
 
 interface PublishDialogProps {
@@ -176,7 +73,12 @@ interface PublishDialogProps {
   prefill?: { name?: string; version?: string; description?: string };
 }
 
-export function PublishDialog({ open, onClose, onPublish, prefill }: PublishDialogProps) {
+export function PublishDialog({
+  open,
+  onClose,
+  onPublish,
+  prefill,
+}: PublishDialogProps) {
   const [skillName, setSkillName] = useState('');
   const [version, setVersion] = useState('0.1.0');
   const [description, setDescription] = useState('');
@@ -222,96 +124,123 @@ export function PublishDialog({ open, onClose, onPublish, prefill }: PublishDial
   if (!open) return null;
 
   return (
-    <>
-      <style>{publishDialogStyles}</style>
-      <div className="bld-publish-overlay" onClick={onClose} onKeyDown={handleKeyDown} role="presentation">
-        <div
-          className="bld-publish-dialog"
-          onClick={e => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Publish skill to OCI registry"
-        >
-          <div className="bld-publish-header">
-            <h3>Publish to OCI Registry</h3>
-            <button onClick={onClose} type="button" aria-label="Close dialog" className="bld-publish-cancel">
-              ✕
-            </button>
-          </div>
+    <div
+      className={styles.bldPublishOverlay}
+      onClick={onClose}
+      onKeyDown={handleKeyDown}
+      role="presentation"
+    >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- modal surface; Escape handled on overlay */}
+      <div
+        className={styles.bldPublishDialog}
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Publish skill to OCI registry"
+      >
+        <div className={styles.bldPublishHeader}>
+          <h3>Publish to OCI Registry</h3>
+          <button
+            onClick={onClose}
+            type="button"
+            aria-label="Close dialog"
+            className={styles.bldPublishCancel}
+          >
+            ✕
+          </button>
+        </div>
 
-          {result ? (
-            <div className="bld-publish-success-card">
-              <div className="bld-publish-success-check">&#10003;</div>
-              <h4>Published Successfully</h4>
-              <div className="bld-publish-success-ref">{result.ociReference}</div>
+        {result ? (
+          <div className={styles.bldPublishSuccessCard}>
+            <div className={styles.bldPublishSuccessCheck}>&#10003;</div>
+            <h4>Published Successfully</h4>
+            <div className={styles.bldPublishSuccessRef}>
+              {result.ociReference}
+            </div>
+            <div className={styles.bldPublishSuccessActions}>
+              <AddToBundleButton
+                variant="full"
+                skill={{
+                  name: skillName.trim(),
+                  slug: deriveBuilderSkillSlug(skillName),
+                  category: 'General',
+                  description: description.trim() || 'Skill from Skill Builder',
+                }}
+              />
               <Link to="../skills">View in Skills Catalog</Link>
             </div>
-          ) : (
-            <>
-              <div className="bld-publish-body">
-                {error && (
-                  <div className="bld-publish-error" role="alert">
-                    {error}
-                  </div>
-                )}
-                <div className="bld-publish-field">
-                  <label htmlFor="bld-pub-name">Skill Name *</label>
-                  <input
-                    id="bld-pub-name"
-                    value={skillName}
-                    onChange={e => setSkillName(e.target.value)}
-                    placeholder="e.g. my-new-skill"
-                    required
-                    aria-required="true"
-                    autoFocus
-                  />
+          </div>
+        ) : (
+          <>
+            <div className={styles.bldPublishBody}>
+              {error && (
+                <div className={styles.bldPublishError} role="alert">
+                  {error}
                 </div>
-                <div className="bld-publish-field">
-                  <label htmlFor="bld-pub-version">Version</label>
-                  <input
-                    id="bld-pub-version"
-                    value={version}
-                    onChange={e => setVersion(e.target.value)}
-                    placeholder="0.1.0"
-                  />
-                </div>
-                <div className="bld-publish-field">
-                  <label htmlFor="bld-pub-desc">Description</label>
-                  <input
-                    id="bld-pub-desc"
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    placeholder="Brief description of the skill"
-                  />
-                </div>
-                <div className="bld-publish-field">
-                  <label htmlFor="bld-pub-author">Author</label>
-                  <input
-                    id="bld-pub-author"
-                    value={author}
-                    onChange={e => setAuthor(e.target.value)}
-                    placeholder="your-name or team"
-                  />
-                </div>
+              )}
+              <div className={styles.bldPublishField}>
+                <label htmlFor="bld-pub-name">Skill Name *</label>
+                <input
+                  id="bld-pub-name"
+                  value={skillName}
+                  onChange={e => setSkillName(e.target.value)}
+                  placeholder="e.g. my-new-skill"
+                  required
+                  aria-required="true"
+                  // eslint-disable-next-line jsx-a11y/no-autofocus -- focus first field when dialog opens
+                  autoFocus
+                />
               </div>
-              <div className="bld-publish-footer">
-                <button className="bld-publish-cancel" onClick={onClose} type="button">
-                  Cancel
-                </button>
-                <button
-                  className="bld-publish-submit"
-                  onClick={handleSubmit}
-                  disabled={publishing || !skillName.trim()}
-                  type="button"
-                  aria-busy={publishing}
-                >
-                  {publishing ? 'Publishing...' : 'Publish'}
-                </button>
+              <div className={styles.bldPublishField}>
+                <label htmlFor="bld-pub-version">Version</label>
+                <input
+                  id="bld-pub-version"
+                  value={version}
+                  onChange={e => setVersion(e.target.value)}
+                  placeholder="0.1.0"
+                />
               </div>
-            </>
-          )}
-        </div>
+              <div className={styles.bldPublishField}>
+                <label htmlFor="bld-pub-desc">Description</label>
+                <input
+                  id="bld-pub-desc"
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="Brief description of the skill"
+                />
+              </div>
+              <div className={styles.bldPublishField}>
+                <label htmlFor="bld-pub-author">Author</label>
+                <input
+                  id="bld-pub-author"
+                  value={author}
+                  onChange={e => setAuthor(e.target.value)}
+                  placeholder="your-name or team"
+                />
+              </div>
+            </div>
+            <div className={styles.bldPublishFooter}>
+              <button
+                className={styles.bldPublishCancel}
+                onClick={onClose}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.bldPublishSubmit}
+                onClick={handleSubmit}
+                disabled={publishing || !skillName.trim()}
+                type="button"
+                aria-busy={publishing}
+              >
+                {publishing ? 'Publishing...' : 'Publish'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
-    </>
+    </div>
   );
 }

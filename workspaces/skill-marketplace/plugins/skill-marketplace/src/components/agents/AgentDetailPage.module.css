@@ -1,0 +1,275 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.adPage {
+  padding: 24px 32px 40px;
+  max-width: 1200px;
+  color: var(--sm-text-primary);
+}
+.adBackRow {
+  margin-bottom: 16px;
+}
+.adBackBtn {
+  background: none;
+  border: none;
+  color: var(--sm-brand);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 500;
+}
+.adHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.adName {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+.adNs {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  font-family: monospace;
+}
+.adStatus {
+  display: inline-flex;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.adTabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--sm-border-default);
+}
+.adTab {
+  padding: 8px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+}
+.adTabActive {
+  color: var(--sm-brand);
+  border-bottom-color: var(--sm-brand);
+  font-weight: 600;
+}
+
+.adInfoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.adInfoCard {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+}
+.adInfoCard h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-secondary);
+}
+.adInfoCard code,
+.adInfoCard span {
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.adEnvSection h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.adEnvTable {
+  border: 1px solid var(--sm-border-default);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.adEnvRow {
+  display: flex;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--sm-border-subtle);
+}
+.adEnvRow:last-child {
+  border-bottom: none;
+}
+.adEnvName {
+  flex: 0 0 260px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-text-primary);
+}
+.adEnvValue {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  word-break: break-all;
+}
+
+.adChat {
+  display: flex;
+  flex-direction: column;
+  height: 500px;
+  border: 1px solid var(--sm-border-default);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.adChatMessages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.adChatEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--sm-text-secondary);
+  font-size: 14px;
+}
+.adChatMsg {
+  max-width: 80%;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.adChatUser {
+  align-self: flex-end;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+.adChatAgent {
+  align-self: flex-start;
+  background: var(--sm-surface-secondary);
+  color: var(--sm-text-primary);
+}
+.adChatRole {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  opacity: 0.7;
+}
+.adChatContent {
+  word-break: break-word;
+}
+.adChatTyping {
+  font-style: italic;
+  opacity: 0.6;
+}
+.adChatInputRow {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--sm-border-default);
+}
+.adChatInput {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-input);
+  color: var(--sm-text-primary);
+  font-size: 14px;
+  outline: none;
+}
+.adChatInput:focus {
+  border-color: var(--sm-brand);
+}
+.adChatSend {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: none;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.adChatSend:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.adOfflineBar {
+  padding: 8px 16px;
+  background: var(--sm-danger-tint);
+  color: var(--sm-danger);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  border-top: 1px solid color-mix(in srgb, var(--sm-danger) 20%, transparent);
+}
+
+.adLogs {
+  border: 1px solid var(--sm-border-default);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.adLogsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sm-border-default);
+}
+.adLogsHeader h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.adRefreshBtn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.adRefreshBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.adLogsPre {
+  padding: 16px;
+  margin: 0;
+  font-size: 12px;
+  font-family: monospace;
+  background: var(--sm-surface-primary);
+  color: var(--sm-text-primary);
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+}

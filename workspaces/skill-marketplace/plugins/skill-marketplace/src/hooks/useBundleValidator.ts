@@ -14,11 +14,8 @@
  * limitations under the License.
  */
 import { useCallback, useRef, useState } from 'react';
-import { useApi, fetchApiRef } from '@backstage/core-plugin-api';
+import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../api';
-import type {
-  AgenticStreamEvent,
-} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 export type ValidationSeverity = 'success' | 'warning' | 'info' | 'error';
 
@@ -60,11 +57,27 @@ function parseFindings(text: string): ValidationFinding[] {
     }
 
     const lower = content.toLowerCase();
-    if (lower.includes('missing') || lower.includes('gap') || lower.includes('need') || lower.includes('require')) {
+    if (
+      lower.includes('missing') ||
+      lower.includes('gap') ||
+      lower.includes('need') ||
+      lower.includes('require')
+    ) {
       severity = 'warning';
-    } else if (lower.includes('redundant') || lower.includes('overlap') || lower.includes('duplicate') || lower.includes('conflict')) {
+    } else if (
+      lower.includes('redundant') ||
+      lower.includes('overlap') ||
+      lower.includes('duplicate') ||
+      lower.includes('conflict')
+    ) {
       severity = 'error';
-    } else if (lower.includes('good') || lower.includes('complete') || lower.includes('well') || lower.includes('strong') || lower.includes('covers')) {
+    } else if (
+      lower.includes('good') ||
+      lower.includes('complete') ||
+      lower.includes('well') ||
+      lower.includes('strong') ||
+      lower.includes('covers')
+    ) {
       severity = 'success';
     }
 
@@ -89,7 +102,6 @@ function parseFindings(text: string): ValidationFinding[] {
 
 export function useBundleValidator() {
   const api = useApi(skillMarketplaceApiRef);
-  const { fetch: backstageFetch } = useApi(fetchApiRef);
   const [state, setState] = useState<ValidationState>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -109,7 +121,6 @@ export function useBundleValidator() {
         error: null,
       });
 
-      let answer = '';
       const depContext = resolvedDeps?.length
         ? `\nAuto-resolved dependencies: ${resolvedDeps.join(', ')}`
         : '';
@@ -118,8 +129,9 @@ export function useBundleValidator() {
         : '';
 
       try {
-        const { url, body, headers } = await api.agenticQueryStreamUrl({
-          query: [
+        const { answer } = await api.askSmpAgent(
+          'validator',
+          [
             'Validate this skill bundle for completeness, redundancy, and gaps.',
             `Skills in the bundle: ${skillNames.join(', ')}`,
             depContext,
@@ -133,82 +145,18 @@ export function useBundleValidator() {
             '',
             'Format each finding as a bullet point with a short title followed by a colon and detail.',
           ].join('\n'),
-          context: 'bundle-validation',
+        );
+
+        if (controller.signal.aborted) return;
+
+        const findings = parseFindings(answer);
+        setState({
+          status: 'done',
+          statusText: '',
+          findings,
+          summary: answer,
+          error: null,
         });
-
-        const res = await backstageFetch(url, {
-          method: 'POST',
-          headers,
-          body,
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(errText || `HTTP ${res.status}`);
-        }
-
-        if (!res.body) throw new Error('No response body');
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let eventType = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (controller.signal.aborted) return;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventType = line.slice(7).trim();
-            } else if (line.startsWith('data: ') && eventType) {
-              try {
-                const event: AgenticStreamEvent = {
-                  type: eventType as AgenticStreamEvent['type'],
-                  data: JSON.parse(line.slice(6)),
-                };
-                const d = event.data as Record<string, unknown>;
-                switch (event.type) {
-                  case 'thinking':
-                    setState(prev => ({ ...prev, statusText: `Analyzing (step ${d.iteration})...` }));
-                    break;
-                  case 'tool_call':
-                    setState(prev => ({ ...prev, statusText: `Checking: ${String(d.tool)}...` }));
-                    break;
-                  case 'answer':
-                    answer = String(d.answer);
-                    setState(prev => ({ ...prev, statusText: 'Compiling findings...' }));
-                    break;
-                  case 'error':
-                    setState(prev => ({ ...prev, status: 'error', error: String(d.error) }));
-                    break;
-                  default:
-                    break;
-                }
-              } catch {
-                /* skip malformed */
-              }
-              eventType = '';
-            }
-          }
-        }
-
-        if (!controller.signal.aborted) {
-          const findings = parseFindings(answer);
-          setState({
-            status: 'done',
-            statusText: '',
-            findings,
-            summary: answer,
-            error: null,
-          });
-        }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setState(prev => ({
@@ -223,7 +171,7 @@ export function useBundleValidator() {
         }
       }
     },
-    [api, backstageFetch],
+    [api],
   );
 
   const reset = useCallback(() => {

@@ -1,0 +1,549 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.aiBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sm-warning);
+  background: var(--sm-warning-tint);
+  border-bottom: 1px solid var(--sm-border-subtle);
+  line-height: 1.4;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--sm-scrim);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+.drawer {
+  width: 420px;
+  max-width: 90vw;
+  background: var(--sm-surface-card);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px var(--sm-scrim);
+  animation: slideIn 0.2s ease-out;
+}
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--sm-border-default);
+  flex-shrink: 0;
+}
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+.count {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  font-weight: 600;
+}
+.headerSpacer {
+  flex: 1;
+}
+.closeButton {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--sm-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.closeButton:hover {
+  background: var(--sm-surface-hover);
+}
+.toast {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.toastSuccess {
+  background: var(--sm-success-tint);
+  color: var(--sm-success);
+}
+.toastError {
+  background: var(--sm-danger-tint);
+  color: var(--sm-danger);
+}
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 20px;
+}
+.empty {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--sm-text-secondary);
+}
+.emptyHint {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+}
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sm-text-secondary);
+  margin: 16px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--sm-surface-secondary);
+}
+.skillRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--sm-border-subtle);
+}
+.skillInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.skillCategory {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: var(--sm-brand-tint);
+  color: var(--sm-brand);
+}
+.skillCategoryLink {
+  background: var(--sm-brand-tint);
+  color: var(--sm-text-link);
+}
+.skillName {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.removeButton {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 4px;
+  color: var(--sm-danger);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+.removeButton:hover {
+  opacity: 1;
+  background: var(--sm-danger-tint);
+}
+.reorderGroup {
+  display: inline-flex;
+  flex-direction: column;
+  margin-left: auto;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.reorderBtn {
+  width: 24px;
+  height: 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 4px;
+  color: var(--sm-text-secondary);
+  font-size: 9px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0.55;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.reorderBtn:hover:not(:disabled) {
+  opacity: 1;
+  background: var(--sm-surface-hover);
+}
+.reorderBtn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.depRow {
+  opacity: 0.7;
+}
+.depCategory {
+  background: var(--sm-warning-tint) !important;
+  color: var(--sm-warning) !important;
+}
+.depName {
+  font-style: italic;
+}
+.depOf,
+.simOf {
+  font-size: 10px;
+  color: var(--sm-text-secondary);
+  white-space: nowrap;
+}
+.simRow {
+  opacity: 0.6;
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.toolChip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--sm-surface-secondary);
+  color: var(--sm-text-primary);
+  font-weight: 500;
+}
+.resolveError {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sm-warning);
+  background: var(--sm-warning-tint);
+  line-height: 1.4;
+}
+.footer {
+  border-top: 1px solid var(--sm-border-default);
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.saveForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.saveActions {
+  display: flex;
+  gap: 8px;
+}
+.input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--sm-border-default);
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+.input:focus {
+  border-color: var(--sm-brand);
+}
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btnPrimary {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+.btnPrimary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.btnSecondary {
+  background: var(--sm-surface-card);
+  border-color: var(--sm-border-default);
+  color: var(--sm-text-primary);
+}
+.btnSecondary:hover {
+  background: var(--sm-surface-secondary);
+}
+.btnGhost {
+  background: none;
+  color: var(--sm-text-secondary);
+}
+.btnGhost:hover {
+  background: var(--sm-surface-hover);
+}
+
+/* AI Action Bar */
+.aiBar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--sm-border-subtle);
+  flex-shrink: 0;
+}
+.aiTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default);
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.aiTab:hover:not(:disabled) {
+  border-color: var(--sm-brand);
+  color: var(--sm-brand);
+}
+.aiTab:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.aiTabActive {
+  background: var(--sm-brand);
+  border-color: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+
+/* AI Advisor */
+.advisor {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--sm-border-subtle);
+  flex-shrink: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.advisorInputRow {
+  display: flex;
+  gap: 6px;
+}
+.advisorInput {
+  flex: 1;
+}
+.advisorBtn {
+  flex-shrink: 0;
+  padding: 0 16px;
+}
+.advisorStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--sm-text-secondary);
+  font-style: italic;
+}
+.advisorSpinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--sm-border-default);
+  border-top-color: var(--sm-brand);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.advisorError {
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--sm-danger);
+}
+.advisorAnswer {
+  padding: 8px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--sm-text-primary);
+  white-space: pre-wrap;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.advisorSuggestions {
+  padding-top: 4px;
+}
+.advisorSuggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--sm-border-subtle);
+}
+.advisorAdd {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--sm-brand);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sm-brand);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.advisorAdd:hover:not(:disabled) {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+.advisorAdded {
+  border-color: var(--sm-success);
+  color: var(--sm-success);
+  cursor: default;
+}
+
+/* Validator */
+.validator {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--sm-border-subtle);
+  flex-shrink: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.validatorStart {
+  text-align: center;
+}
+.validatorStart p {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  margin: 0 0 10px;
+}
+.validatorFindings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.finding {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.findingSuccess {
+  background: var(--sm-success-tint);
+}
+.findingWarning {
+  background: var(--sm-warning-tint);
+}
+.findingError {
+  background: var(--sm-danger-tint);
+}
+.findingInfo {
+  background: var(--sm-brand-tint);
+}
+.findingIcon {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  font-size: 13px;
+}
+.findingSuccess .findingIcon {
+  color: var(--sm-success);
+}
+.findingWarning .findingIcon {
+  color: var(--sm-warning);
+}
+.findingError .findingIcon {
+  color: var(--sm-danger);
+}
+.findingInfo .findingIcon {
+  color: var(--sm-text-link);
+}
+.findingBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.findingTitle {
+  font-weight: 600;
+  color: var(--sm-text-primary);
+}
+.findingDetail {
+  color: var(--sm-text-secondary);
+}
+.dismissButton {
+  margin-top: 8px;
+}

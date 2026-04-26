@@ -116,7 +116,8 @@ function extractListItems(body: string): string[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    const listMatch = trimmed.match(/^[-*]\s+(.+)$/) ??
+    const listMatch =
+      trimmed.match(/^[-*]\s+(.+)$/) ??
       trimmed.match(/^\d+[.)]\s+(.+)$/) ??
       trimmed.match(/^>\s*[-*]\s+(.+)$/);
 
@@ -206,13 +207,21 @@ function extractRelatedSkills(body: string): RelatedSkill[] {
   const seen = new Set<string>();
 
   const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
-  let linkMatch;
-  while ((linkMatch = linkPattern.exec(body)) !== null) {
+  for (;;) {
+    const linkMatch = linkPattern.exec(body);
+    if (linkMatch === null) {
+      break;
+    }
     const name = linkMatch[1].trim();
     const path = linkMatch[2].trim();
     if (!seen.has(name)) {
       seen.add(name);
-      skills.push({ name, path, slug: name.replace(/[:/]/g, '-'), description: '' });
+      skills.push({
+        name,
+        path,
+        slug: name.replace(/[:/]/g, '-'),
+        description: '',
+      });
     }
   }
 
@@ -221,7 +230,12 @@ function extractRelatedSkills(body: string): RelatedSkill[] {
       const name = item.replace(/\*\*/g, '').trim();
       if (name && !seen.has(name)) {
         seen.add(name);
-        skills.push({ name, path: name, slug: name.replace(/[:/]/g, '-'), description: '' });
+        skills.push({
+          name,
+          path: name,
+          slug: name.replace(/[:/]/g, '-'),
+          description: '',
+        });
       }
     }
   }
@@ -280,7 +294,12 @@ export function parseSkillContent(content: string): ParsedSections {
     }
 
     if (matchesAny(section.heading, WHEN_TO_USE_PATTERNS)) {
-      whenToUse = section.body.replace(/^(Activate this skill when[^:\n]*:|Use this skill when[^:\n]*:)/im, '').trim();
+      whenToUse = section.body
+        .replace(
+          /^(Activate this skill when[^:\n]*:|Use this skill when[^:\n]*:)/im,
+          '',
+        )
+        .trim();
       continue;
     }
 
@@ -305,7 +324,10 @@ export function parseSkillContent(content: string): ParsedSections {
       continue;
     }
 
-    if (workflow.length === 0 && matchesAny(section.heading, WORKFLOW_PATTERNS)) {
+    if (
+      workflow.length === 0 &&
+      matchesAny(section.heading, WORKFLOW_PATTERNS)
+    ) {
       workflow = extractWorkflowSteps(section.body);
       continue;
     }

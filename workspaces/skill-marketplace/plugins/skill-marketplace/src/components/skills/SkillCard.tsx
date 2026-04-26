@@ -14,27 +14,42 @@
  * limitations under the License.
  */
 import { useNavigate } from 'react-router-dom';
-import type { SkillData, ComplexityLevel } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import type {
+  SkillData,
+  ComplexityLevel,
+} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import { humanize } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import { useBundle } from '../../hooks';
+import AddToBundleButton from '../shared/AddToBundleButton';
 
 interface SkillCardProps {
   skill: SkillData;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (slug: string) => void;
+  /** When set (and not in selection mode), opens the callback instead of navigating to the full skill page. */
+  onOpenDetail?: (skill: SkillData) => void;
 }
 
 const COMPLEXITY_STYLES: Record<string, { bg: string; fg: string }> = {
-  Simple: { bg: '#10b98118', fg: '#059669' },
-  Medium: { bg: '#3b82f618', fg: '#2563eb' },
-  Complex: { bg: '#f59e0b18', fg: '#d97706' },
-  Advanced: { bg: '#ef444418', fg: '#dc2626' },
+  Simple: { bg: 'rgba(16,185,129,0.09)', fg: '#059669' },
+  Medium: { bg: 'rgba(59,130,246,0.09)', fg: '#2563eb' },
+  Complex: { bg: 'rgba(245,158,11,0.09)', fg: '#d97706' },
+  Advanced: { bg: 'rgba(239,68,68,0.09)', fg: '#dc2626' },
 };
 
-const LIFECYCLE_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
-  draft: { bg: '#f59e0b18', fg: '#d97706', label: 'Draft' },
-  testing: { bg: '#3b82f618', fg: '#2563eb', label: 'Testing' },
-  published: { bg: '#10b98118', fg: '#059669', label: 'Published' },
-  deprecated: { bg: '#f9731618', fg: '#ea580c', label: 'Deprecated' },
-  archived: { bg: '#6b728018', fg: '#4b5563', label: 'Archived' },
+const LIFECYCLE_STYLES: Record<
+  string,
+  { bg: string; fg: string; label: string }
+> = {
+  draft: { bg: 'rgba(245,158,11,0.09)', fg: '#d97706', label: 'Draft' },
+  testing: { bg: 'rgba(59,130,246,0.09)', fg: '#2563eb', label: 'Testing' },
+  published: { bg: 'rgba(16,185,129,0.09)', fg: '#059669', label: 'Published' },
+  deprecated: {
+    bg: 'rgba(249,115,22,0.09)',
+    fg: '#ea580c',
+    label: 'Deprecated',
+  },
+  archived: { bg: 'rgba(107,114,128,0.09)', fg: '#4b5563', label: 'Archived' },
 };
 
 function estimateComplexity(skill: SkillData): ComplexityLevel {
@@ -47,28 +62,52 @@ function estimateComplexity(skill: SkillData): ComplexityLevel {
   return 'Simple';
 }
 
-export function SkillCard({ skill }: SkillCardProps) {
+export function SkillCard({
+  skill,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
+  onOpenDetail,
+}: SkillCardProps) {
   const navigate = useNavigate();
-  const { addSkill, hasSkill } = useBundle();
   const complexity = estimateComplexity(skill);
   const pluginColor = skill.plugin.color ?? '#6b7280';
   const cStyles = COMPLEXITY_STYLES[complexity] ?? COMPLEXITY_STYLES.Medium;
-  const inBundle = hasSkill(skill.skillName);
 
-  const title =
-    skill.sections.title || humanize(skill.name);
+  const title = skill.sections.title || humanize(skill.name);
 
   const cleanDescription = skill.description
     .replace(/^Use when (the user asks to |you need to )/i, '')
     .replace(/^[a-z]/, c => c.toUpperCase());
 
+  const handleClick = () => {
+    if (selectionMode && onToggleSelect) {
+      onToggleSelect(skill.slug);
+    } else if (onOpenDetail) {
+      onOpenDetail(skill);
+    } else {
+      navigate(skill.slug);
+    }
+  };
+
   return (
     <div
-      role="link"
+      role={selectionMode ? 'checkbox' : 'link'}
+      aria-checked={selectionMode ? selected : undefined}
       tabIndex={0}
-      className="sm-card"
-      onClick={() => navigate(skill.slug)}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(skill.slug); } }}
+      className={`sm-card ${selectionMode && selected ? 'sm-card-selected' : ''}`}
+      onClick={handleClick}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
+      aria-label={
+        selectionMode
+          ? `${selected ? 'Deselect' : 'Select'} skill ${title}`
+          : `Open skill ${title}`
+      }
     >
       {/* Left color bar */}
       <span className="sm-card-bar" style={{ backgroundColor: pluginColor }} />
@@ -82,19 +121,33 @@ export function SkillCard({ skill }: SkillCardProps) {
           >
             {skill.pluginName}
           </span>
-          {skill.lifecycleState && (() => {
-            const ls = LIFECYCLE_STYLES[skill.lifecycleState] ?? LIFECYCLE_STYLES.draft;
-            return (
-              <span
-                className="sm-card-lifecycle"
-                style={{ backgroundColor: ls.bg, color: ls.fg }}
-              >
-                {ls.label}
-              </span>
-            );
-          })()}
+          {skill.lifecycleState &&
+            (() => {
+              const ls =
+                LIFECYCLE_STYLES[skill.lifecycleState] ??
+                LIFECYCLE_STYLES.draft;
+              return (
+                <span
+                  className="sm-card-lifecycle"
+                  style={{ backgroundColor: ls.bg, color: ls.fg }}
+                >
+                  {ls.label}
+                </span>
+              );
+            })()}
           {skill.version && (
             <span className="sm-card-version">v{skill.version}</span>
+          )}
+          {skill.bundle && (
+            <span
+              className="sm-card-lifecycle"
+              style={{
+                backgroundColor: 'rgba(139,92,246,0.09)',
+                color: '#7c3aed',
+              }}
+            >
+              Bundle
+            </span>
           )}
         </div>
 
@@ -108,10 +161,14 @@ export function SkillCard({ skill }: SkillCardProps) {
         {skill.tags && skill.tags.length > 0 && (
           <div className="sm-card-tags">
             {skill.tags.slice(0, 4).map(t => (
-              <span key={t} className="sm-card-tag">{t}</span>
+              <span key={t} className="sm-card-tag">
+                {t}
+              </span>
             ))}
             {skill.tags.length > 4 && (
-              <span className="sm-card-tag sm-card-tag-more">+{skill.tags.length - 4}</span>
+              <span className="sm-card-tag sm-card-tag-more">
+                +{skill.tags.length - 4}
+              </span>
             )}
           </div>
         )}
@@ -133,7 +190,13 @@ export function SkillCard({ skill }: SkillCardProps) {
 
             {skill.sections.workflow.length > 0 && (
               <span className="sm-card-meta-badge">
-                <svg width={12} height={12} viewBox="0 0 16 16" fill="currentColor" opacity={0.5}>
+                <svg
+                  width={12}
+                  height={12}
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  opacity={0.5}
+                >
                   <path d="M2 2.5A.5.5 0 012.5 2h3a.5.5 0 01.5.5v3a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-3zm8 0a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-3zm-8 8a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-3zm8 0a.5.5 0 01.5-.5h3a.5.5 0 01.5.5v3a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-3z" />
                 </svg>
                 {skill.sections.workflow.length} steps
@@ -142,52 +205,87 @@ export function SkillCard({ skill }: SkillCardProps) {
 
             {(skill.model || skill.compatibility) && (
               <span className="sm-card-meta-badge">
-                <svg width={12} height={12} viewBox="0 0 16 16" fill="currentColor" opacity={0.5}>
+                <svg
+                  width={12}
+                  height={12}
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  opacity={0.5}
+                >
                   <path d="M6 12.5a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3a.5.5 0 01-.5-.5zM3 8.06a.5.5 0 01.5-.5h9a.5.5 0 010 1h-9a.5.5 0 01-.5-.5zm-2-4a.5.5 0 01.5-.5h13a.5.5 0 010 1H1.5a.5.5 0 01-.5-.5z" />
                 </svg>
                 {skill.compatibility || skill.model}
               </span>
             )}
 
-            {skill.wordCount != null && skill.wordCount > 0 && (
+            {typeof skill.wordCount === 'number' && skill.wordCount > 0 && (
               <span className="sm-card-meta-badge">
-                <svg width={12} height={12} viewBox="0 0 16 16" fill="currentColor" opacity={0.5}>
+                <svg
+                  width={12}
+                  height={12}
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  opacity={0.5}
+                >
                   <path d="M2 2a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V2zm2-1a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V2a1 1 0 00-1-1H4z" />
                   <path d="M5 4h6v1H5V4zm0 3h6v1H5V7zm0 3h4v1H5v-1z" />
                 </svg>
                 {skill.wordCount} words
               </span>
             )}
+
+            {skill.license && (
+              <span className="sm-card-meta-badge">
+                <svg
+                  width={12}
+                  height={12}
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  opacity={0.5}
+                >
+                  <path d="M8 0a8 8 0 100 16A8 8 0 008 0zM2.04 4.326c.325 1.329 2.532 2.54 3.717 3.19.48.263.793.434.743.484-.08.08-.162.158-.242.234-.416.396-.787.749-.758 1.266.035.634.618.824 1.214 1.017.577.188 1.168.38 1.286.983.082.417-.075.988-.22 1.52-.215.782-.406 1.48.22 1.48 1.5-.5 3.798-2.186 4.628-4.5H12c0-1-.876-1.573-1.543-1.573-.332 0-.665.14-.97.485-.577.653-1.24.453-1.57.205-.27-.206-.293-.555-.273-.793l.002-.023c.037-.38-.254-.94-.508-1.126-.065-.047-.237-.128-.474-.21.135-.66.402-1.294.779-1.853a7.015 7.015 0 011.105-1.286 6.963 6.963 0 013.452.135A7.96 7.96 0 008 1a7.96 7.96 0 00-5.96 3.326z" />
+                </svg>
+                {skill.license}
+              </span>
+            )}
+
+            {skill.created && (
+              <span className="sm-card-meta-badge">
+                {new Date(skill.created).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            )}
           </div>
 
-          <button
-            type="button"
-            className="sm-card-bundle-btn"
-            title={inBundle ? 'Already in bundle' : 'Add to Bundle'}
-            aria-label={inBundle ? `${title} already in bundle` : `Add ${title} to bundle`}
-            disabled={inBundle}
-            onClick={e => {
-              e.stopPropagation();
-              if (!inBundle) {
-                addSkill({
-                  name: skill.skillName,
-                  slug: skill.slug,
-                  category: skill.pluginName,
-                  description: skill.description,
-                });
-              }
-            }}
-            style={{
-              width: 28, height: 28, borderRadius: 6, border: 'none',
-              background: inBundle ? '#10b98118' : 'transparent',
-              color: inBundle ? '#059669' : '#6a6e73',
-              cursor: inBundle ? 'default' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}
-          >
-            {inBundle ? '✓' : '+'}
-          </button>
-          <span className="sm-card-arrow">→</span>
+          {selectionMode ? (
+            <span
+              className={`sm-card-checkbox ${selected ? 'sm-card-checkbox-checked' : ''}`}
+            >
+              {selected && (
+                <svg
+                  viewBox="0 0 16 16"
+                  width={12}
+                  height={12}
+                  fill="currentColor"
+                >
+                  <path d="M13.485 1.929a1 1 0 010 1.414l-7.071 7.071a1 1 0 01-1.414 0L1.929 7.343a1 1 0 111.414-1.414L5.707 8.293l6.364-6.364a1 1 0 011.414 0z" />
+                </svg>
+              )}
+            </span>
+          ) : (
+            <AddToBundleButton
+              skill={{
+                name: skill.skillName,
+                slug: skill.slug,
+                category: skill.pluginName,
+                description: skill.description,
+              }}
+              variant="icon"
+            />
+          )}
+          {!selectionMode && <span className="sm-card-arrow">→</span>}
         </div>
       </div>
     </div>

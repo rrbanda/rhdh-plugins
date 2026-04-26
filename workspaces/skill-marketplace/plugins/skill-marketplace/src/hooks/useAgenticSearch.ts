@@ -13,191 +13,164 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useCallback, useRef, useState } from 'react';
-import { useApi, fetchApiRef } from '@backstage/core-plugin-api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useApi } from '@backstage/core-plugin-api';
+import type { GraphRAGSkill } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import { skillMarketplaceApiRef } from '../api';
-import type {
-  ReasoningStep,
-  AgenticStreamEvent,
-} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+
+function newSessionId(): string {
+  const c = globalThis.crypto;
+  if (typeof c !== 'undefined' && typeof c.randomUUID === 'function') {
+    return c.randomUUID();
+  }
+  return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
 
 export interface AgenticMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  steps?: ReasoningStep[];
+  /** When the message was created (for hover timestamps) */
+  createdAt?: number;
+  steps?: Array<{
+    tool: string;
+    input: Record<string, unknown>;
+    output: unknown;
+    durationMs: number;
+  }>;
   sources?: string[];
+  /** Skills returned from parallel Graph RAG for cards in the panel */
+  ragSkills?: GraphRAGSkill[];
   durationMs?: number;
   iterations?: number;
 }
 
 export interface StreamingState {
-  status: 'idle' | 'thinking' | 'tool_call' | 'tool_result' | 'answering' | 'error';
+  status:
+    | 'idle'
+    | 'thinking'
+    | 'tool_call'
+    | 'tool_result'
+    | 'answering'
+    | 'error';
   currentTool?: string;
   currentStep?: string;
 }
 
 export function useAgenticSearch() {
   const api = useApi(skillMarketplaceApiRef);
-  const { fetch: backstageFetch } = useApi(fetchApiRef);
   const [messages, setMessages] = useState<AgenticMessage[]>([]);
-  const [streaming, setStreaming] = useState<StreamingState>({ status: 'idle' });
+  const [streaming, setStreaming] = useState<StreamingState>({
+    status: 'idle',
+  });
   const [isLoading, setIsLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const msgIdRef = useRef(0);
+  const sessionIdRef = useRef(newSessionId());
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-  const sendQuery = useCallback(async (query: string, context?: string) => {
-    if (isLoading || !query.trim()) return;
+  const sendQuery = useCallback(
+    async (query: string, context?: string) => {
+      if (isLoading || !query.trim()) return;
 
-    const userMsgId = `msg-${++msgIdRef.current}`;
-    const assistantMsgId = `msg-${++msgIdRef.current}`;
+      const startTime = Date.now();
+      const userMsgId = `msg-${++msgIdRef.current}`;
+      const assistantMsgId = `msg-${++msgIdRef.current}`;
 
-    setMessages(prev => [
-      ...prev,
-      { id: userMsgId, role: 'user', content: query },
-    ]);
-    setIsLoading(true);
-    setStreaming({ status: 'thinking' });
-
-    const steps: ReasoningStep[] = [];
-    let answer = '';
-    let sources: string[] = [];
-    let durationMs = 0;
-    let iterations = 0;
-    let lastToolInput: Record<string, unknown> = {};
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      const { url, body, headers } = await api.agenticQueryStreamUrl({
-        query,
-        context,
-      });
-
-      const res = await backstageFetch(url, {
-        method: 'POST',
-        headers,
-        body,
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || `HTTP ${res.status}`);
-      }
-
-      if (!res.body) {
-        throw new Error('No response body');
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        let eventType = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith('data: ') && eventType) {
-            try {
-              const event: AgenticStreamEvent = {
-                type: eventType as AgenticStreamEvent['type'],
-                data: JSON.parse(line.slice(6)),
-              };
-              processEvent(event);
-            } catch {
-              /* skip malformed events */
-            }
-            eventType = '';
-          }
-        }
-      }
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        setStreaming({ status: 'error', currentStep: (err as Error).message });
-        answer = answer || `Error: ${(err as Error).message}`;
-      }
-    } finally {
-      abortRef.current = null;
-      setIsLoading(false);
-      setStreaming({ status: 'idle' });
-
+      const userCreatedAt = Date.now();
       setMessages(prev => [
         ...prev,
         {
-          id: assistantMsgId,
-          role: 'assistant',
-          content: answer || 'No response received.',
-          steps: steps.length > 0 ? steps : undefined,
-          sources: sources.length > 0 ? sources : undefined,
-          durationMs,
-          iterations: iterations || undefined,
+          id: userMsgId,
+          role: 'user',
+          content: query,
+          createdAt: userCreatedAt,
         },
       ]);
-    }
+      setIsLoading(true);
+      setStreaming({
+        status: 'thinking',
+        currentStep: 'Querying KG Q&A agent...',
+      });
 
-    function processEvent(event: AgenticStreamEvent) {
-      const d = event.data as Record<string, unknown>;
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-      switch (event.type) {
-        case 'thinking':
-          setStreaming({
-            status: 'thinking',
-            currentStep: `Thinking (iteration ${d.iteration}/${d.maxIterations})...`,
-          });
-          break;
+      const prompt = context ? `${query}\n\nContext: ${context}` : query;
+      const contextId = sessionIdRef.current;
+      let answer = '';
+      let sources: string[] = [];
+      let ragSkills: GraphRAGSkill[] = [];
 
-        case 'tool_call':
-          lastToolInput = (d.input as Record<string, unknown>) ?? {};
-          setStreaming({
-            status: 'tool_call',
-            currentTool: String(d.tool),
-            currentStep: `Calling ${friendlyToolName(String(d.tool))}...`,
-          });
-          break;
+      try {
+        setStreaming({
+          status: 'answering',
+          currentStep: 'Querying knowledge graph and RAG...',
+        });
+        const [agentResult, ragResult] = await Promise.allSettled([
+          api.askSmpAgent('kgqa', prompt, contextId),
+          api.queryRAG({ query, maxResults: 10, includeRelated: true }),
+        ]);
 
-        case 'tool_result':
-          steps.push({
-            tool: String(d.tool),
-            input: lastToolInput,
-            output: d.summary,
-            durationMs: Number(d.durationMs) || 0,
-          });
-          lastToolInput = {};
-          setStreaming({
-            status: 'tool_result',
-            currentTool: String(d.tool),
-            currentStep: `${friendlyToolName(String(d.tool))}: ${d.summary}`,
-          });
-          break;
+        answer =
+          agentResult.status === 'fulfilled'
+            ? agentResult.value.answer
+            : `Error: ${
+                agentResult.reason instanceof Error
+                  ? agentResult.reason.message
+                  : 'Agent request failed'
+              }`;
 
-        case 'answer':
-          answer = String(d.answer);
-          setStreaming({ status: 'answering', currentStep: 'Composing answer...' });
-          break;
-
-        case 'done':
-          sources = (d.sources as string[]) ?? [];
-          durationMs = Number(d.durationMs) || 0;
-          iterations = Number(d.iterations) || 0;
-          break;
-
-        case 'error':
-          setStreaming({ status: 'error', currentStep: String(d.error) });
-          if (!answer) answer = `Error: ${d.error}`;
-          break;
+        sources =
+          ragResult.status === 'fulfilled'
+            ? ragResult.value.skills.map(s => s.skill.name)
+            : [];
+        ragSkills =
+          ragResult.status === 'fulfilled' ? ragResult.value.skills : [];
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          answer = `Error: ${(err as Error).message}`;
+        }
+      } finally {
+        abortRef.current = null;
       }
-    }
-  }, [api, backstageFetch, isLoading]);
+
+      if (!isMountedRef.current) {
+        setIsLoading(false);
+        return;
+      }
+      if (controller.signal.aborted) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(false);
+      if (answer !== undefined && answer !== null) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: assistantMsgId,
+            role: 'assistant',
+            content: answer || 'No response from the agent.',
+            sources: sources.length > 0 ? sources : undefined,
+            ragSkills: ragSkills.length > 0 ? ragSkills : undefined,
+            durationMs: Date.now() - startTime,
+            createdAt: Date.now(),
+          },
+        ]);
+      }
+      setStreaming(
+        answer.startsWith('Error:')
+          ? { status: 'error', currentStep: answer }
+          : { status: 'idle' },
+      );
+    },
+    [api, isLoading],
+  );
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
@@ -206,20 +179,8 @@ export function useAgenticSearch() {
   const clearHistory = useCallback(() => {
     setMessages([]);
     setStreaming({ status: 'idle' });
+    sessionIdRef.current = newSessionId();
   }, []);
 
   return { messages, streaming, isLoading, sendQuery, cancel, clearHistory };
-}
-
-function friendlyToolName(name: string): string {
-  const map: Record<string, string> = {
-    search_skills_semantic: 'Semantic search',
-    search_skills_keyword: 'Keyword search',
-    get_skill_details: 'Fetching skill details',
-    explore_graph: 'Exploring graph',
-    query_relationships: 'Querying relationships',
-    get_graph_schema: 'Reading schema',
-    list_skills_by_domain: 'Listing domain skills',
-  };
-  return map[name] ?? name;
 }

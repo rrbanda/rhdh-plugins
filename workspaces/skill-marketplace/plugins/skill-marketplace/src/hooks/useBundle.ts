@@ -13,38 +13,70 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../api';
+import type {
+  ResolvedDependencyTree,
+  CreateBundleResponse,
+} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import { toYaml } from '../utils/toYaml';
 
 export interface BundleSkill {
   name: string;
   slug: string;
   category: string;
   description: string;
-  addedBy: 'user' | 'dependency';
-  dependencyOf?: string;
 }
 
-export interface ResolvedData {
-  dependencies: Array<{ name: string; category: string; description: string; dependencyOf: string }>;
-  tools: Array<{ name: string; description: string }>;
-  similar: Array<{ name: string; category: string; description: string; similarTo: string }>;
-}
-
-interface BundleState {
+export interface BundleState {
   skills: BundleSkill[];
-  resolved: ResolvedData | null;
+  resolved: ResolvedDependencyTree | null;
   resolving: boolean;
+  resolveError: string | null;
   drawerOpen: boolean;
-  addSkill: (skill: { name: string; slug: string; category: string; description: string }) => void;
+  lastAdded: string | null;
+  addSkill: (skill: {
+    name: string;
+    slug: string;
+    category: string;
+    description: string;
+  }) => void;
+  addSkills: (
+    skills: Array<{
+      name: string;
+      slug: string;
+      category: string;
+      description: string;
+    }>,
+  ) => number;
   removeSkill: (name: string) => void;
+  reorderSkill: (slug: string, direction: 'up' | 'down') => void;
   clearCart: () => void;
   toggleDrawer: () => void;
   setDrawerOpen: (open: boolean) => void;
-  saveBundle: (name: string, description: string) => Promise<Record<string, unknown>>;
-  exportBundle: (name: string, description: string) => void;
+  saveBundle: (
+    name: string,
+    description: string,
+  ) => Promise<CreateBundleResponse>;
+  exportBundle: (
+    name: string,
+    description: string,
+    format?: 'json' | 'yaml',
+  ) => void;
   hasSkill: (name: string) => boolean;
+  updateBundleStatus: (
+    id: string,
+    status: string,
+  ) => Promise<{ id: string; status: string }>;
 }
 
 const STORAGE_KEY = 'skill-marketplace-bundle-cart';
@@ -61,30 +93,48 @@ function loadFromStorage(): BundleSkill[] {
 function saveToStorage(skills: BundleSkill[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(skills));
-  } catch { /* ignore quota errors */ }
+  } catch {
+    /* ignore quota errors */
+  }
 }
 
 const BundleContext = createContext<BundleState>({
   skills: [],
   resolved: null,
   resolving: false,
+  resolveError: null,
   drawerOpen: false,
+  lastAdded: null,
   addSkill: () => {},
+  addSkills: () => 0,
   removeSkill: () => {},
+  reorderSkill: () => {},
   clearCart: () => {},
   toggleDrawer: () => {},
   setDrawerOpen: () => {},
-  saveBundle: async () => ({}),
-  exportBundle: () => {},
+  saveBundle: async () => ({}) as CreateBundleResponse,
+  exportBundle: () => {
+    /* no-op */
+  },
   hasSkill: () => false,
+  updateBundleStatus: async () => ({ id: '', status: '' }),
 });
 
 export function BundleProvider({ children }: { children: React.ReactNode }) {
   const api = useApi(skillMarketplaceApiRef);
   const [skills, setSkills] = useState<BundleSkill[]>(loadFromStorage);
-  const [resolved, setResolved] = useState<ResolvedData | null>(null);
+  const [resolved, setResolved] = useState<ResolvedDependencyTree | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     saveToStorage(skills);
@@ -93,39 +143,97 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (skills.length === 0) {
       setResolved(null);
-      return;
+      setResolveError(null);
+      return undefined;
     }
     let cancelled = false;
     setResolving(true);
-    const userSkillNames = skills.filter(s => s.addedBy === 'user').map(s => s.name);
-    if (userSkillNames.length === 0) {
-      setResolving(false);
-      return;
-    }
-    api.resolveDependencies(userSkillNames)
+    setResolveError(null);
+    const skillNames = skills.map(s => s.name);
+    api
+      .resolveDependencies(skillNames)
       .then(data => {
-        if (!cancelled) setResolved(data as ResolvedData);
+        if (!cancelled) setResolved(data);
       })
       .catch(err => {
         console.warn('useBundle: dependency resolution failed', err);
-        if (!cancelled) setResolved(null);
+        if (!cancelled) {
+          setResolved(null);
+          setResolveError(
+            err instanceof Error ? err.message : 'Dependency resolution failed',
+          );
+        }
       })
       .finally(() => {
         if (!cancelled) setResolving(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [api, skills]);
 
-  const addSkill = useCallback((skill: { name: string; slug: string; category: string; description: string }) => {
-    setSkills(prev => {
-      if (prev.some(s => s.name === skill.name)) return prev;
-      return [...prev, { ...skill, addedBy: 'user' as const }];
-    });
-    setDrawerOpen(prev => prev || true);
+  const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setLastAdded(msg);
+    toastTimerRef.current = setTimeout(() => setLastAdded(null), 2500);
   }, []);
+
+  const addSkill = useCallback(
+    (skill: {
+      name: string;
+      slug: string;
+      category: string;
+      description: string;
+    }) => {
+      setSkills(prev => {
+        if (prev.some(s => s.name === skill.name)) return prev;
+        return [...prev, { ...skill }];
+      });
+      showToast(
+        `Added "${skill.name.split(':').pop() || skill.name}" to bundle cart`,
+      );
+    },
+    [showToast],
+  );
+
+  const addSkills = useCallback(
+    (
+      batch: Array<{
+        name: string;
+        slug: string;
+        category: string;
+        description: string;
+      }>,
+    ) => {
+      let added = 0;
+      setSkills(prev => {
+        const existing = new Set(prev.map(s => s.name));
+        const newOnes = batch.filter(s => !existing.has(s.name));
+        added = newOnes.length;
+        return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+      });
+      if (added > 0) {
+        showToast(`Added ${added} skill${added > 1 ? 's' : ''} to bundle cart`);
+      }
+      return added;
+    },
+    [showToast],
+  );
 
   const removeSkill = useCallback((name: string) => {
     setSkills(prev => prev.filter(s => s.name !== name));
+  }, []);
+
+  const reorderSkill = useCallback((slug: string, direction: 'up' | 'down') => {
+    setSkills(prev => {
+      const idx = prev.findIndex(s => s.slug === slug);
+      if (idx < 0) return prev;
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      return next;
+    });
   }, []);
 
   const clearCart = useCallback(() => {
@@ -137,50 +245,111 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
     setDrawerOpen(prev => !prev);
   }, []);
 
-  const hasSkill = useCallback((name: string) => {
-    return skills.some(s => s.name === name);
-  }, [skills]);
+  const hasSkill = useCallback(
+    (name: string) => {
+      return skills.some(s => s.name === name);
+    },
+    [skills],
+  );
 
-  const saveBundle = useCallback(async (name: string, description: string) => {
-    const slugs = skills.map(s => s.slug);
-    const result = await api.createBundle({ name, description, skillSlugs: slugs });
-    setSkills([]);
-    setResolved(null);
-    setDrawerOpen(false);
-    return result;
-  }, [api, skills]);
+  const saveBundle = useCallback(
+    async (name: string, description: string) => {
+      const slugs = skills.map(s => s.slug);
+      const result = await api.createBundle({
+        name,
+        description,
+        skillSlugs: slugs,
+      });
+      setSkills([]);
+      setResolved(null);
+      return result;
+    },
+    [api, skills],
+  );
 
-  const exportBundle = useCallback((name: string, description: string) => {
-    const data = {
-      name,
-      description,
-      skills: skills.map(s => ({
-        name: s.name,
-        slug: s.slug,
-        category: s.category,
-        addedBy: s.addedBy,
-        description: s.description,
-      })),
-      dependencies: resolved?.dependencies ?? [],
-      toolRequirements: resolved?.tools?.map(t => t.name) ?? [],
-      similarSuggestions: resolved?.similar?.map(s => s.name) ?? [],
-      totalSkills: skills.length + (resolved?.dependencies?.length ?? 0),
-      manuallyAdded: skills.filter(s => s.addedBy === 'user').length,
-      autoDependencies: resolved?.dependencies?.length ?? 0,
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${name.toLowerCase().replace(/\s+/g, '-')}-bundle.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [skills, resolved]);
+  const updateBundleStatus = useCallback(
+    async (id: string, status: string) => {
+      return api.updateBundleStatus(id, status);
+    },
+    [api],
+  );
 
-  const value = useMemo(() => ({
-    skills, resolved, resolving, drawerOpen,
-    addSkill, removeSkill, clearCart, toggleDrawer, setDrawerOpen, saveBundle, exportBundle, hasSkill,
-  }), [skills, resolved, resolving, drawerOpen, addSkill, removeSkill, clearCart, toggleDrawer, saveBundle, exportBundle, hasSkill]);
+  const exportBundle = useCallback(
+    (name: string, description: string, format: 'json' | 'yaml' = 'json') => {
+      const data = {
+        name,
+        description,
+        author: 'local-export',
+        createdAt: new Date().toISOString(),
+        skills: skills.map(s => ({
+          name: s.name,
+          slug: s.slug,
+          category: s.category,
+          addedBy: 'user',
+          description: s.description,
+        })),
+        dependencies: resolved?.dependencies ?? [],
+        toolRequirements: resolved?.tools ?? [],
+        similarSuggestions: resolved?.similar ?? [],
+        totalSkills: skills.length + (resolved?.dependencies?.length ?? 0),
+        manuallyAdded: skills.length,
+        autoDependencies: resolved?.dependencies?.length ?? 0,
+      };
+      const baseFile = `${name.toLowerCase().replace(/\s+/g, '-')}-bundle`;
+      const body =
+        format === 'yaml' ? toYaml(data) : JSON.stringify(data, null, 2);
+      const mime =
+        format === 'yaml' ? 'text/yaml;charset=utf-8' : 'application/json';
+      const blob = new Blob([body], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = format === 'yaml' ? `${baseFile}.yaml` : `${baseFile}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [skills, resolved],
+  );
+
+  const value = useMemo(
+    () => ({
+      skills,
+      resolved,
+      resolving,
+      resolveError,
+      drawerOpen,
+      lastAdded,
+      addSkill,
+      addSkills,
+      removeSkill,
+      reorderSkill,
+      clearCart,
+      toggleDrawer,
+      setDrawerOpen,
+      saveBundle,
+      exportBundle,
+      hasSkill,
+      updateBundleStatus,
+    }),
+    [
+      skills,
+      resolved,
+      resolving,
+      resolveError,
+      drawerOpen,
+      lastAdded,
+      addSkill,
+      addSkills,
+      removeSkill,
+      reorderSkill,
+      clearCart,
+      toggleDrawer,
+      saveBundle,
+      exportBundle,
+      hasSkill,
+      updateBundleStatus,
+    ],
+  );
 
   return React.createElement(BundleContext.Provider, { value }, children);
 }

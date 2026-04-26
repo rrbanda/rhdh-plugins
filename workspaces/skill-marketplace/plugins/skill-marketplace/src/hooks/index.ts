@@ -18,11 +18,24 @@ export { useGraphData } from './useGraphData';
 export { useAgenticSearch } from './useAgenticSearch';
 export type { AgenticMessage, StreamingState } from './useAgenticSearch';
 export { useBundle, BundleProvider } from './useBundle';
-export type { BundleSkill, ResolvedData } from './useBundle';
+export type { BundleSkill, BundleState } from './useBundle';
 export { useSemanticSearch } from './useSemanticSearch';
 export type { SemanticSearchState } from './useSemanticSearch';
 export { useSkillAdvisor } from './useSkillAdvisor';
 export type { AdvisorSuggestion, AdvisorState } from './useSkillAdvisor';
 export { useBundleValidator } from './useBundleValidator';
-export type { ValidationFinding, ValidationSeverity, ValidationState } from './useBundleValidator';
+export type {
+  ValidationFinding,
+  ValidationSeverity,
+  ValidationState,
+} from './useBundleValidator';
 export { useAgenticAvailable } from './useAgenticAvailable';
+export { useAgentAvailability } from './useAgentAvailability';
+export type {
+  AgentAvailability,
+  AgentStatus,
+  UseAgentAvailabilityResult,
+  UseAgentAvailabilityOptions,
+} from './useAgentAvailability';
+export { useSkillCatalog } from './useSkillCatalog';
+export type { CatalogFilters, SkillCatalogState } from './useSkillCatalog';

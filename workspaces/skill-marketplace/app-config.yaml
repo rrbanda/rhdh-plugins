@@ -64,6 +64,17 @@ skillMarketplace:
         name: skills-registry
         token: ${OCI_REGISTRY_TOKEN:-your-registry-token}
 
+  # SMP Agents: external A2A agent microservices on OpenShift (managed by Kagenti).
+  # When configured, these replace the embedded TypeScript agentic services.
+  # Auth uses the Keycloak JWT from the kagenti.keycloak config above.
+  smpAgents:
+    skillAdvisorUrl: ${SMP_SKILL_ADVISOR_URL:-}
+    bundleValidatorUrl: ${SMP_BUNDLE_VALIDATOR_URL:-}
+    kgQaUrl: ${SMP_KG_QA_URL:-}
+    playgroundUrl: ${SMP_PLAYGROUND_URL:-}
+    skillBuilderUrl: ${SMP_SKILL_BUILDER_URL:-}
+    requestTimeoutMs: 120000
+
   # WARNING: Set to 'none' ONLY for local development. Use 'plugin-only' in production.
   security:
     mode: ${SKILL_MARKETPLACE_SECURITY_MODE:-plugin-only}

@@ -1,0 +1,23 @@
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.copyBtn:hover {
+  background: var(--sm-surface-hover);
+  color: var(--sm-text-primary);
+}
+.copyBtn:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 1px;
+}

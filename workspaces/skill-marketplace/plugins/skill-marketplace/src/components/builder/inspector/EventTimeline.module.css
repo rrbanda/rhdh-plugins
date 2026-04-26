@@ -1,0 +1,115 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.bldEvtList {
+  padding: 8px 0;
+}
+.bldEvtItem {
+  display: flex;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--sm-border-subtle);
+  font-size: 13px;
+  cursor: pointer;
+}
+.bldEvtItem:hover {
+  background: var(--sm-surface-hover);
+}
+
+.bldEvtBadge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.bldEvtBadgeAgentStart {
+  background: var(--sm-brand-tint);
+  color: var(--sm-brand);
+}
+.bldEvtBadgeToolCall {
+  background: var(--sm-brand-tint);
+  color: var(--sm-text-link);
+}
+.bldEvtBadgeToolResult {
+  background: var(--sm-brand-tint);
+  color: var(--sm-text-link);
+}
+.bldEvtBadgeAgentOutput {
+  background: var(--sm-brand-tint);
+  color: var(--sm-text-link);
+}
+.bldEvtBadgeComplete {
+  background: var(--sm-success-tint);
+  color: var(--sm-success);
+}
+.bldEvtBadgeError {
+  background: var(--sm-danger-tint);
+  color: var(--sm-danger);
+}
+.bldEvtBadgeStreamEnd {
+  background: var(--sm-surface-secondary);
+  color: var(--sm-text-secondary);
+}
+
+.bldEvtBody {
+  flex: 1;
+  min-width: 0;
+}
+.bldEvtSummary {
+  color: var(--sm-text-primary);
+  word-break: break-word;
+}
+.bldEvtTs {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  margin-top: 2px;
+}
+.bldEvtDetail {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--sm-surface-secondary);
+  font-family: var(--pf-t--global--font--family--mono, 'Red Hat Mono', monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+.bldEvtCopy {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--sm-brand);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+.bldEvtCopy:hover {
+  background: var(--sm-surface-hover);
+}
+.bldEvtEmpty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+}

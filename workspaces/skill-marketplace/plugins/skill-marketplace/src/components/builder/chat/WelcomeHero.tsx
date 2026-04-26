@@ -13,52 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-const welcomeStyles = `
-.bld-welcome {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-  flex: 1;
-}
-
-.bld-welcome h2 {
-  margin: 0 0 24px;
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--pf-t--global--text--color--subtle, #6a6e73);
-}
-
-.bld-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  max-width: 560px;
-}
-
-.bld-suggestion {
-  padding: 8px 16px;
-  border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-  border-radius: 20px;
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--pf-t--global--text--color--regular, #151515);
-  transition: all 0.15s;
-}
-.bld-suggestion:hover {
-  border-color: var(--pf-t--global--color--brand--default, #0066cc);
-  background: var(--pf-t--global--color--brand--default, #0066cc)08;
-}
-.bld-suggestion:focus-visible {
-  outline: 2px solid var(--pf-t--global--color--brand--default, #0066cc);
-  outline-offset: 2px;
-}
-`;
+import styles from './WelcomeHero.module.css';
 
 const SUGGESTIONS = [
   'Create a skill that reviews code for security vulnerabilities',
@@ -72,23 +27,20 @@ interface WelcomeHeroProps {
 
 export function WelcomeHero({ onSuggestionClick }: WelcomeHeroProps) {
   return (
-    <>
-      <style>{welcomeStyles}</style>
-      <div className="bld-welcome">
-        <h2>What skill would you like to build?</h2>
-        <div className="bld-suggestions">
-          {SUGGESTIONS.map((prompt, i) => (
-            <button
-              key={i}
-              className="bld-suggestion"
-              onClick={() => onSuggestionClick(prompt)}
-              type="button"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
+    <div className={styles.welcome}>
+      <h2 className={styles.title}>What skill would you like to build?</h2>
+      <div className={styles.suggestions}>
+        {SUGGESTIONS.map((prompt, i) => (
+          <button
+            key={i}
+            className={styles.suggestion}
+            onClick={() => onSuggestionClick(prompt)}
+            type="button"
+          >
+            {prompt}
+          </button>
+        ))}
       </div>
-    </>
+    </div>
   );
 }

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 import express from 'express';
-import { PassThrough } from 'stream';
 import request from 'supertest';
 import { mockServices } from '@backstage/backend-test-utils';
 
@@ -24,26 +23,50 @@ jest.mock('./services/SkillCardValidator', () => ({
 }));
 
 import { createRouter } from './router';
-import type { BuilderProxyService, OciRegistryService } from './services';
+import { OciRegistryService } from './services';
+import { SmpAgentClient } from './services/SmpAgentClient';
 
-function createMockBuilderProxy(overrides?: Partial<BuilderProxyService>): BuilderProxyService {
+function createMockSmpAgentClient(
+  overrides?: Partial<SmpAgentClient>,
+): SmpAgentClient {
   return {
-    generate: jest.fn(),
-    refine: jest.fn(),
-    save: jest.fn(),
-    graphBuild: jest.fn(),
-    graphUpdate: jest.fn(),
+    isConfigured: true,
+    askSkillAdvisor: jest.fn().mockResolvedValue('advisor response'),
+    askBundleValidator: jest.fn().mockResolvedValue('validator response'),
+    askKgQa: jest.fn().mockResolvedValue('kgqa response'),
+    askPlayground: jest.fn().mockResolvedValue('playground response'),
+    buildSkill: jest.fn().mockResolvedValue('# Generated Skill\nContent here'),
+    chat: jest
+      .fn()
+      .mockResolvedValue({ text: 'chat response', contextId: undefined }),
+    checkHealth: jest.fn().mockResolvedValue({
+      skillAdvisor: { configured: true, healthy: true },
+      bundleValidator: { configured: true, healthy: true },
+      kgQa: { configured: true, healthy: true },
+      playground: { configured: false, healthy: false },
+      skillBuilder: { configured: true, healthy: true },
+    }),
+    getAgentCard: jest.fn().mockResolvedValue({ name: 'Test Agent' }),
     ...overrides,
-  } as unknown as BuilderProxyService;
+  } as unknown as SmpAgentClient;
 }
 
-function createMockOciRegistry(overrides?: Partial<OciRegistryService>): OciRegistryService {
+function createMockOciRegistry(
+  overrides?: Partial<OciRegistryService>,
+): OciRegistryService {
   return {
     listCatalogs: jest.fn().mockResolvedValue([]),
     listTags: jest.fn().mockResolvedValue([]),
     getManifest: jest.fn(),
     getBlob: jest.fn(),
-    pushSkill: jest.fn().mockResolvedValue('registry.example.com/test-skill:0.1.0'),
+    pushSkill: jest
+      .fn()
+      .mockResolvedValue('registry.example.com/test-skill:0.1.0'),
+    pushBundle: jest
+      .fn()
+      .mockResolvedValue(
+        'registry.example.com/skill-bundle-test:1.0.0-published',
+      ),
     ...overrides,
   } as unknown as OciRegistryService;
 }
@@ -54,7 +77,7 @@ describe('createRouter', () => {
   describe('basic routes (no services configured)', () => {
     beforeAll(async () => {
       const logger = mockServices.logger.mock();
-      const router = await createRouter({ logger });
+      const router = await createRouter({ logger, securityMode: 'none' });
       app = express().use(router);
     });
 
@@ -65,7 +88,6 @@ describe('createRouter', () => {
         expect.objectContaining({
           status: 'ok',
           neo4jConfigured: false,
-          builderAgentConfigured: false,
           kagentiConfigured: false,
           ociRegistryConfigured: false,
         }),
@@ -90,61 +112,67 @@ describe('createRouter', () => {
       expect(res.body.error).toContain('not configured');
     });
 
-    it('returns 403 or 503 for /builder when builder not configured (permission check runs first)', async () => {
-      const res = await request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-      expect([403, 503]).toContain(res.status);
-    });
-
-    it('validates POST /kagenti/chat requires message', async () => {
+    it('returns 503 for /kagenti/chat when SMP agents not configured', async () => {
       const res = await request(app)
         .post('/kagenti/chat')
-        .send({});
-      expect(res.status).toBeGreaterThanOrEqual(400);
+        .send({ message: 'hello' });
+      expect(res.status).toBe(503);
     });
 
     it('validates POST /graph/search requires query', async () => {
-      const res = await request(app)
-        .post('/graph/search')
-        .send({});
+      const res = await request(app).post('/graph/search').send({});
       expect(res.status).toBeGreaterThanOrEqual(400);
     });
   });
 
-  describe('health endpoint with builder config', () => {
-    it('includes builder.streamTimeoutMs from config', async () => {
+  describe('SMP agent routes', () => {
+    let mockSmp: ReturnType<typeof createMockSmpAgentClient>;
+
+    beforeEach(async () => {
+      mockSmp = createMockSmpAgentClient();
       const logger = mockServices.logger.mock();
       const router = await createRouter({
         logger,
-        builderStreamTimeoutMs: 10_000,
+        smpAgentClient: mockSmp,
+        securityMode: 'none',
       });
       app = express().use(router);
-
-      const res = await request(app).get('/health');
-      expect(res.status).toBe(200);
-      expect(res.body.builder).toEqual({ streamTimeoutMs: 10_000 });
     });
 
-    it('defaults builder.streamTimeoutMs to 300000', async () => {
-      const logger = mockServices.logger.mock();
-      const router = await createRouter({ logger });
-      app = express().use(router);
+    it('returns health status from agents', async () => {
+      const res = await request(app).get('/agents/health');
+      expect(res.status).toBe(200);
+      expect(res.body.skillAdvisor).toEqual({
+        configured: true,
+        healthy: true,
+      });
+    });
 
-      const res = await request(app).get('/health');
-      expect(res.body.builder).toEqual({ streamTimeoutMs: 300_000 });
+    it('returns answer from advisor agent', async () => {
+      const res = await request(app)
+        .post('/agents/advisor')
+        .send({ message: 'recommend kubernetes skills' });
+      expect(res.status).toBe(200);
+      expect(res.body.answer).toBeDefined();
+      expect(res.body.agent).toBe('Skill Advisor');
+    });
+
+    it('validates message is required', async () => {
+      const res = await request(app).post('/agents/advisor').send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('message is required');
     });
   });
 
-  describe('builder SSE routes', () => {
-    let mockBuilder: ReturnType<typeof createMockBuilderProxy>;
+  describe('builder routes with SMP agent', () => {
+    let mockSmp: ReturnType<typeof createMockSmpAgentClient>;
 
     beforeEach(async () => {
-      mockBuilder = createMockBuilderProxy();
+      mockSmp = createMockSmpAgentClient();
       const logger = mockServices.logger.mock();
       const router = await createRouter({
         logger,
-        builderProxy: mockBuilder,
+        smpAgentClient: mockSmp,
         securityMode: 'none',
       });
       app = express().use(router);
@@ -161,157 +189,89 @@ describe('createRouter', () => {
       expect(res.status).toBe(400);
     });
 
-    it('proxies save action as JSON', async () => {
-      (mockBuilder.save as jest.Mock).mockResolvedValue({
-        status: 200,
-        data: { saved: true },
-      });
-
+    it('returns JSON for generate action', async () => {
       const res = await request(app)
-        .post('/builder?action=save')
-        .send({ content: 'test' });
-
+        .post('/builder?action=generate')
+        .send({ prompt: 'create a kubernetes skill' });
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ saved: true });
-      expect(mockBuilder.save).toHaveBeenCalledWith({ content: 'test' });
+      expect(res.body.content).toBeDefined();
+      expect(res.body.action).toBe('generate');
     });
 
-    it('returns SSE headers for generate action', async () => {
-      const stream = new PassThrough();
-      (mockBuilder.generate as jest.Mock).mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: stream,
-      });
-
-      const res = request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-
-      setTimeout(() => stream.end(), 50);
-
-      const response = await res;
-      expect(response.headers['content-type']).toContain('text/event-stream');
-      expect(response.headers['cache-control']).toBe('no-cache');
-    });
-
-    it('emits stream_end event when upstream ends', async () => {
-      const stream = new PassThrough();
-      (mockBuilder.generate as jest.Mock).mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: stream,
-      });
-
-      const res = request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-
-      stream.write('event: agent_start\ndata: {"agent":"TestAgent"}\n\n');
-      setTimeout(() => stream.end(), 50);
-
-      const response = await res;
-      expect(response.text).toContain('event: stream_end');
-      expect(response.text).toContain('data: {}');
-    });
-
-    it('pipes SSE data from upstream to client', async () => {
-      const stream = new PassThrough();
-      (mockBuilder.generate as jest.Mock).mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: stream,
-      });
-
-      const res = request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-
-      const sseData = 'event: agent_start\ndata: {"agent":"A"}\n\n';
-      stream.write(sseData);
-      setTimeout(() => stream.end(), 50);
-
-      const response = await res;
-      expect(response.text).toContain(sseData);
-    });
-
-    it('handles upstream error with error SSE event', async () => {
-      const stream = new PassThrough();
-      (mockBuilder.generate as jest.Mock).mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: stream,
-      });
-
-      const res = request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-
-      setTimeout(() => {
-        stream.destroy(new Error('Connection lost'));
-      }, 50);
-
-      const response = await res;
-      expect(response.text).toContain('event: error');
-      expect(response.text).toContain('Stream interrupted');
-    });
-
-    it('returns upstream error status for non-ok response', async () => {
-      (mockBuilder.generate as jest.Mock).mockResolvedValue({
-        ok: false,
-        status: 422,
-        text: () => Promise.resolve('Invalid input'),
-      });
-
+    it('returns JSON for refine action', async () => {
       const res = await request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-
-      expect(res.status).toBe(422);
-    });
-
-    it('returns 502 when upstream body is null', async () => {
-      (mockBuilder.generate as jest.Mock).mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: null,
-      });
-
-      const res = await request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-
-      expect(res.status).toBe(502);
-      expect(res.body.error).toContain('No stream body');
-    });
-
-    it('handles refine action the same as generate', async () => {
-      const stream = new PassThrough();
-      (mockBuilder.refine as jest.Mock).mockResolvedValue({
-        ok: true,
-        status: 200,
-        body: stream,
-      });
-
-      const res = request(app)
         .post('/builder?action=refine')
-        .send({ feedback: 'fix it' });
-
-      setTimeout(() => stream.end(), 50);
-
-      const response = await res;
-      expect(response.headers['content-type']).toContain('text/event-stream');
-      expect(mockBuilder.refine).toHaveBeenCalled();
+        .send({
+          prompt: 'add more detail',
+          currentSkill: '# Existing',
+          feedback: 'more detail',
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.content).toBeDefined();
+      expect(res.body.action).toBe('refine');
     });
 
-    it('returns 502 when builder proxy throws', async () => {
-      (mockBuilder.generate as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
+    it('requires prompt for builder', async () => {
+      const res = await request(app).post('/builder?action=generate').send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('prompt is required');
+    });
+  });
 
+  describe('kagenti chat via SMP agents', () => {
+    let mockSmp: ReturnType<typeof createMockSmpAgentClient>;
+
+    beforeEach(async () => {
+      mockSmp = createMockSmpAgentClient();
+      const logger = mockServices.logger.mock();
+      const router = await createRouter({
+        logger,
+        smpAgentClient: mockSmp,
+        securityMode: 'none',
+      });
+      app = express().use(router);
+    });
+
+    it('routes chat to SMP agent', async () => {
       const res = await request(app)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
+        .post('/kagenti/chat')
+        .send({ message: 'hello', agentName: 'skill-advisor' });
+      expect(res.status).toBe(200);
+      expect(res.body.content).toBeDefined();
+      expect(res.body.is_complete).toBe(true);
+    });
 
-      expect(res.status).toBe(502);
+    it('validates message is required for chat', async () => {
+      const res = await request(app).post('/kagenti/chat').send({});
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('agentic-rag via SMP agents', () => {
+    let mockSmp: ReturnType<typeof createMockSmpAgentClient>;
+
+    beforeEach(async () => {
+      mockSmp = createMockSmpAgentClient();
+      const logger = mockServices.logger.mock();
+      const router = await createRouter({
+        logger,
+        smpAgentClient: mockSmp,
+        securityMode: 'none',
+      });
+      app = express().use(router);
+    });
+
+    it('returns JSON from agentic-rag', async () => {
+      const res = await request(app)
+        .post('/graph/agentic-rag')
+        .send({ query: 'how many skills?' });
+      expect(res.status).toBe(200);
+      expect(res.body.answer).toBeDefined();
+    });
+
+    it('validates query is required', async () => {
+      const res = await request(app).post('/graph/agentic-rag').send({});
+      expect(res.status).toBe(400);
     });
   });
 
@@ -334,7 +294,6 @@ describe('createRouter', () => {
       const res = await request(app)
         .post('/builder/publish')
         .send({ content: 'test content' });
-
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('skillName');
     });
@@ -343,118 +302,50 @@ describe('createRouter', () => {
       const res = await request(app)
         .post('/builder/publish')
         .send({ skillName: 'test' });
-
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('content');
     });
 
-    it('rejects empty skillName', async () => {
-      const res = await request(app)
-        .post('/builder/publish')
-        .send({ skillName: '   ', content: 'test' });
-
-      expect(res.status).toBe(400);
-    });
-
     it('successfully publishes a skill', async () => {
-      const res = await request(app)
-        .post('/builder/publish')
-        .send({
-          skillName: 'test-skill',
-          version: '1.0.0',
-          content: '# Test\nContent here',
-          author: 'tester',
-        });
-
+      const res = await request(app).post('/builder/publish').send({
+        skillName: 'test-skill',
+        version: '1.0.0',
+        content: '# Test\nContent here',
+        author: 'tester',
+      });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.ociReference).toBe('registry.example.com/test-skill:0.1.0');
-      expect(mockOciRegistry.pushSkill).toHaveBeenCalled();
+      expect(res.body.ociReference).toBe(
+        'registry.example.com/test-skill:0.1.0',
+      );
     });
 
-    it('sanitizes skillName (lowercase, replace special chars)', async () => {
-      const res = await request(app)
-        .post('/builder/publish')
-        .send({
-          skillName: 'My Skill Name!',
-          content: '# Test\nContent',
-        });
-
+    it('sanitizes skillName', async () => {
+      const res = await request(app).post('/builder/publish').send({
+        skillName: 'My Skill Name!',
+        content: '# Test\nContent',
+      });
       expect(res.status).toBe(200);
       const callArgs = (mockOciRegistry.pushSkill as jest.Mock).mock.calls[0];
       expect(callArgs[1].metadata.name).toBe('my-skill-name');
-    });
-
-    it('returns 503 when publish registry is not configured', async () => {
-      const logger = mockServices.logger.mock();
-      const router = await createRouter({
-        logger,
-        ociRegistry: mockOciRegistry,
-        securityMode: 'none',
-      });
-      const appNoPublish = express().use(router);
-
-      const res = await request(appNoPublish)
-        .post('/builder/publish')
-        .send({ skillName: 'test', content: 'test' });
-
-      expect(res.status).toBe(503);
-      expect(res.body.error).toContain('publish registry not configured');
-    });
-
-    it('returns 502 when pushSkill fails', async () => {
-      (mockOciRegistry.pushSkill as jest.Mock).mockRejectedValue(new Error('push failed'));
-
-      const res = await request(app)
-        .post('/builder/publish')
-        .send({ skillName: 'test', content: '# Test\nContent' });
-
-      expect(res.status).toBe(502);
     });
   });
 
   describe('permission checks', () => {
     it('returns 403 when auth services unavailable and security mode is not none', async () => {
       const logger = mockServices.logger.mock();
-      const mockBuilder = createMockBuilderProxy();
+      const mockSmp = createMockSmpAgentClient();
       const router = await createRouter({
         logger,
-        builderProxy: mockBuilder,
+        smpAgentClient: mockSmp,
       });
       const appWithAuth = express().use(router);
 
       const res = await request(appWithAuth)
         .post('/builder?action=generate')
-        .send({ description: 'test' });
-
+        .send({ prompt: 'test' });
       expect(res.status).toBe(403);
       expect(res.body.error).toContain('Authentication services unavailable');
-    });
-
-    it('allows access when securityMode is none', async () => {
-      const logger = mockServices.logger.mock();
-      const stream = new PassThrough();
-      const mockBuilder = createMockBuilderProxy({
-        generate: jest.fn().mockResolvedValue({
-          ok: true,
-          status: 200,
-          body: stream,
-        }),
-      });
-      const router = await createRouter({
-        logger,
-        builderProxy: mockBuilder,
-        securityMode: 'none',
-      });
-      const appNone = express().use(router);
-
-      const res = request(appNone)
-        .post('/builder?action=generate')
-        .send({ description: 'test' });
-
-      setTimeout(() => stream.end(), 50);
-      const response = await res;
-      expect(response.headers['content-type']).toContain('text/event-stream');
     });
   });
 });

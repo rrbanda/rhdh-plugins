@@ -310,6 +310,7 @@ sync:
   deleteStaleAgents: >-
     MATCH (a:Agent) WHERE NOT (a.name + '/' + a.namespace) IN $keys
     DETACH DELETE a RETURN count(a) AS removed
+  # Prune graph skills that no longer exist in the OCI registry (names param = current registry set).
   deleteStaleSkills: >-
     MATCH (s:Skill) WHERE NOT s.name IN $names
     DETACH DELETE s RETURN count(s) AS removed

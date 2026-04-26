@@ -26,7 +26,10 @@ import type {
   LifecycleState,
   Author,
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
-import { validateSkillCard, validateTypedSkillCard } from './SkillCardValidator';
+import {
+  validateSkillCard,
+  validateTypedSkillCard,
+} from './SkillCardValidator';
 
 const ANNOTATION_TITLE = 'org.opencontainers.image.title';
 const ANNOTATION_VERSION = 'org.opencontainers.image.version';
@@ -38,6 +41,8 @@ const ANNOTATION_VENDOR = 'org.opencontainers.image.vendor';
 const ANNOTATION_SOURCE = 'org.opencontainers.image.source';
 const ANNOTATION_REVISION = 'org.opencontainers.image.revision';
 const ANNOTATION_LIFECYCLE_STATUS = 'io.skillimage.status';
+const ANNOTATION_BUNDLE = 'io.skillimage.bundle';
+const ANNOTATION_BUNDLE_SKILLS = 'io.skillimage.bundle.skills';
 const ANNOTATION_TAGS = 'io.skillimage.tags';
 const ANNOTATION_ALLOWED_TOOLS = 'io.skillimage.allowed-tools';
 const ANNOTATION_DISPLAY_NAME = 'io.skillimage.display-name';
@@ -45,7 +50,8 @@ const ANNOTATION_WORDCOUNT = 'io.skillimage.wordcount';
 const ANNOTATION_COMPATIBILITY = 'io.skillimage.compatibility';
 
 const IMAGE_LAYER_MEDIA_TYPE = 'application/vnd.oci.image.layer.v1.tar+gzip';
-const REDHAT_LAYER_MEDIA_TYPE = 'application/vnd.redhat.agentskill.layer.v1.tar+gzip';
+const REDHAT_LAYER_MEDIA_TYPE =
+  'application/vnd.redhat.agentskill.layer.v1.tar+gzip';
 
 interface OciManifest {
   schemaVersion: number;
@@ -76,6 +82,8 @@ export interface OciRegistryServiceConfig {
   cacheTimeout: number;
   requestTimeoutMs?: number;
   maxCacheEntries?: number;
+  /** When set, used for pushSkill / pushBundle targets (same as app-config publishRegistry). */
+  publishRegistry?: OciRegistryConfig;
 }
 
 const OCI_DEFAULT_TIMEOUT_MS = 30_000;
@@ -125,7 +133,10 @@ export class OciRegistryService {
    * Extract the next page URL from the OCI Distribution Spec `Link` header.
    * Format: `</v2/_catalog?last=xyz&n=100>; rel="next"`
    */
-  private parseNextLink(linkHeader: string | null, origin: string): string | null {
+  private parseNextLink(
+    linkHeader: string | null,
+    origin: string,
+  ): string | null {
     if (!linkHeader) return null;
     const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
     if (!match) return null;
@@ -155,10 +166,7 @@ export class OciRegistryService {
     return undefined;
   }
 
-  private buildRegistryUrl(
-    registryUrl: string,
-    path: string,
-  ): string {
+  private buildRegistryUrl(registryUrl: string, path: string): string {
     const clean = registryUrl.replace(/\/$/, '');
 
     if (clean.includes('ghcr.io')) {
@@ -209,7 +217,10 @@ export class OciRegistryService {
       let nextUrl: string | null = firstUrl;
 
       while (nextUrl) {
-        const res = await fetch(nextUrl, { headers, signal: this.createSignal() });
+        const res = await fetch(nextUrl, {
+          headers,
+          signal: this.createSignal(),
+        });
         if (!res.ok) {
           if (allTags.length === 0) {
             this.logger.warn(
@@ -242,10 +253,7 @@ export class OciRegistryService {
     const cached = this.getCached<OciManifest>(cacheKey);
     if (cached) return cached;
 
-    const url = this.buildRegistryUrl(
-      registry.url,
-      `/manifests/${ref}`,
-    );
+    const url = this.buildRegistryUrl(registry.url, `/manifests/${ref}`);
 
     try {
       const headers: Record<string, string> = {
@@ -279,10 +287,7 @@ export class OciRegistryService {
     const cached = this.getCached<Buffer>(cacheKey);
     if (cached) return cached;
 
-    const url = this.buildRegistryUrl(
-      registry.url,
-      `/blobs/${digest}`,
-    );
+    const url = this.buildRegistryUrl(registry.url, `/blobs/${digest}`);
 
     try {
       const headers: Record<string, string> = {
@@ -291,15 +296,22 @@ export class OciRegistryService {
       const res = await fetch(url, { headers, signal: this.createSignal() });
       if (!res.ok) return null;
 
-      const contentLength = parseInt(res.headers.get('content-length') || '0', 10);
+      const contentLength = parseInt(
+        res.headers.get('content-length') || '0',
+        10,
+      );
       if (contentLength > OciRegistryService.MAX_BLOB_SIZE) {
-        this.logger.warn(`Blob ${digest} too large (${contentLength} bytes), skipping`);
+        this.logger.warn(
+          `Blob ${digest} too large (${contentLength} bytes), skipping`,
+        );
         return null;
       }
 
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length > OciRegistryService.MAX_BLOB_SIZE) {
-        this.logger.warn(`Blob ${digest} exceeds size limit (${buf.length} bytes)`);
+        this.logger.warn(
+          `Blob ${digest} exceeds size limit (${buf.length} bytes)`,
+        );
         return null;
       }
       this.setCache(cacheKey, buf);
@@ -312,9 +324,7 @@ export class OciRegistryService {
     }
   }
 
-  extractAnnotations(
-    manifest: OciManifest,
-  ): OciAnnotations {
+  extractAnnotations(manifest: OciManifest): OciAnnotations {
     const ann = manifest.annotations || {};
     return {
       created: ann[ANNOTATION_CREATED],
@@ -327,6 +337,8 @@ export class OciRegistryService {
       source: ann[ANNOTATION_SOURCE],
       revision: ann[ANNOTATION_REVISION],
       lifecycleStatus: ann[ANNOTATION_LIFECYCLE_STATUS],
+      bundleImage: ann[ANNOTATION_BUNDLE],
+      bundleSkillsJson: ann[ANNOTATION_BUNDLE_SKILLS],
       tags: ann[ANNOTATION_TAGS],
       allowedTools: ann[ANNOTATION_ALLOWED_TOOLS],
       displayName: ann[ANNOTATION_DISPLAY_NAME],
@@ -351,13 +363,17 @@ export class OciRegistryService {
         // fall through to comma-split
       }
     }
-    return trimmed.split(',').map(t => t.trim()).filter(Boolean);
+    return trimmed
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
   }
 
   private static findTarLayer(manifest: OciManifest) {
     return manifest.layers.find(
-      l => l.mediaType === IMAGE_LAYER_MEDIA_TYPE ||
-           l.mediaType === REDHAT_LAYER_MEDIA_TYPE,
+      l =>
+        l.mediaType === IMAGE_LAYER_MEDIA_TYPE ||
+        l.mediaType === REDHAT_LAYER_MEDIA_TYPE,
     );
   }
 
@@ -415,9 +431,10 @@ export class OciRegistryService {
         authors: Array.isArray(meta.authors)
           ? (meta.authors as Author[])
           : undefined,
-        'allowed-tools': typeof meta['allowed-tools'] === 'string'
-          ? (meta['allowed-tools'] as string)
-          : undefined,
+        'allowed-tools':
+          typeof meta['allowed-tools'] === 'string'
+            ? (meta['allowed-tools'] as string)
+            : undefined,
       },
     };
 
@@ -455,7 +472,9 @@ export class OciRegistryService {
   ): Skill {
     const annotations = this.extractAnnotations(manifest);
     const ociReference = `${registry.url}:${tag}`;
-    const lifecycleState = annotations.lifecycleStatus as LifecycleState | undefined;
+    const lifecycleState = annotations.lifecycleStatus as
+      | LifecycleState
+      | undefined;
 
     if (card) {
       return {
@@ -502,9 +521,7 @@ export class OciRegistryService {
     return new URL(withScheme).pathname.replace(/^\//, '');
   }
 
-  async listRepos(
-    registry: OciRegistryConfig,
-  ): Promise<string[]> {
+  async listRepos(registry: OciRegistryConfig): Promise<string[]> {
     const cacheKey = `repos:${registry.url}`;
     const cached = this.getCached<string[]>(cacheKey);
     if (cached) return cached;
@@ -524,10 +541,15 @@ export class OciRegistryService {
       let nextUrl: string | null = `${parsed.origin}/v2/_catalog`;
 
       while (nextUrl) {
-        const res = await fetch(nextUrl, { headers, signal: this.createSignal() });
+        const res = await fetch(nextUrl, {
+          headers,
+          signal: this.createSignal(),
+        });
         if (!res.ok) {
           if (allRepositories.length === 0) {
-            this.logger.warn(`Catalog listing failed (${res.status}), falling back to direct tag listing`);
+            this.logger.warn(
+              `Catalog listing failed (${res.status}), falling back to direct tag listing`,
+            );
             break;
           }
           break;
@@ -581,14 +603,23 @@ export class OciRegistryService {
       let token: string | undefined;
       try {
         const fs = await import('fs');
-        token = fs.readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/token', 'utf-8').trim();
+        token = fs
+          .readFileSync(
+            '/var/run/secrets/kubernetes.io/serviceaccount/token',
+            'utf-8',
+          )
+          .trim();
       } catch {
-        this.logger.warn('Cannot read in-cluster SA token for ImageStream probe');
+        this.logger.warn(
+          'Cannot read in-cluster SA token for ImageStream probe',
+        );
         return [];
       }
 
       const apiUrl = `https://${k8sHost}:${k8sPort}/apis/image.openshift.io/v1/namespaces/${namespace}/imagestreams`;
-      this.logger.info(`Probing OpenShift ImageStreams in namespace ${namespace}`);
+      this.logger.info(
+        `Probing OpenShift ImageStreams in namespace ${namespace}`,
+      );
 
       const res = await fetch(apiUrl, {
         headers: {
@@ -597,11 +628,13 @@ export class OciRegistryService {
         },
         signal: this.createSignal(),
         // @ts-ignore - Node fetch TLS option
-        ...(process.env.NODE_EXTRA_CA_CERTS ? {} : { }),
+        ...(process.env.NODE_EXTRA_CA_CERTS ? {} : {}),
       });
 
       if (!res.ok) {
-        this.logger.warn(`ImageStream probe failed (${res.status}), will use direct tag listing`);
+        this.logger.warn(
+          `ImageStream probe failed (${res.status}), will use direct tag listing`,
+        );
         return [];
       }
 
@@ -613,7 +646,9 @@ export class OciRegistryService {
         .map(item => item.metadata.name)
         .filter(name => name.startsWith('skill-'));
 
-      this.logger.info(`ImageStream probe found ${repos.length} skill repos in ${namespace}`);
+      this.logger.info(
+        `ImageStream probe found ${repos.length} skill repos in ${namespace}`,
+      );
       return repos;
     } catch (err) {
       this.logger.warn(`ImageStream probe error: ${(err as Error).message}`);
@@ -637,7 +672,11 @@ export class OciRegistryService {
       }
     }
 
-    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, items.length) }, () =>
+        worker(),
+      ),
+    );
     return results;
   }
 
@@ -657,7 +696,12 @@ export class OciRegistryService {
           const card = lightweight
             ? null
             : await this.extractSkillCard(repoRegistry, manifest);
-          const skill = this.skillFromManifest(repoRegistry, tag, manifest, card);
+          const skill = this.skillFromManifest(
+            repoRegistry,
+            tag,
+            manifest,
+            card,
+          );
           skill.ociReference = `${registry.url}/${repo}:${tag}`;
           return skill;
         },
@@ -665,7 +709,9 @@ export class OciRegistryService {
       );
       return results;
     } catch (err) {
-      this.logger.warn(`Error fetching repo ${repo}: ${(err as Error).message}`);
+      this.logger.warn(
+        `Error fetching repo ${repo}: ${(err as Error).message}`,
+      );
     }
     return [];
   }
@@ -686,10 +732,15 @@ export class OciRegistryService {
         const repos = await this.listRepos(registry);
 
         if (repos.length > 0) {
-          this.logger.info(`Scanning ${repos.length} repos in ${registry.name} (parallel, concurrency=25)`);
+          this.logger.info(
+            `Scanning ${repos.length} repos in ${registry.name} (parallel, concurrency=25)`,
+          );
           const batchResults = await this.runParallel(
             repos,
-            repo => this.fetchSkillFromRepo(registry, repo).then(s => s.length > 0 ? s : null),
+            repo =>
+              this.fetchSkillFromRepo(registry, repo).then(s =>
+                s.length > 0 ? s : null,
+              ),
             25,
           );
           for (const batch of batchResults) allSkills.push(...batch);
@@ -714,7 +765,9 @@ export class OciRegistryService {
       }
     }
 
-    this.logger.info(`Listed ${allSkills.length} skills from ${registries.length} registries`);
+    this.logger.info(
+      `Listed ${allSkills.length} skills from ${registries.length} registries`,
+    );
     this.setCache(cacheKey, allSkills);
     return allSkills;
   }
@@ -797,9 +850,10 @@ export class OciRegistryService {
     const registry = this.resolveRegistry(registryUrl);
     if (!registry) return null;
 
-    const refRegistry = registry.url === registryUrl
-      ? registry
-      : { ...registry, url: registryUrl };
+    const refRegistry =
+      registry.url === registryUrl
+        ? registry
+        : { ...registry, url: registryUrl };
 
     const manifest = await this.getManifest(refRegistry, tag);
     if (!manifest) return null;
@@ -813,9 +867,10 @@ export class OciRegistryService {
     const registry = this.resolveRegistry(registryUrl);
     if (!registry) return null;
 
-    const refRegistry = registry.url === registryUrl
-      ? registry
-      : { ...registry, url: registryUrl };
+    const refRegistry =
+      registry.url === registryUrl
+        ? registry
+        : { ...registry, url: registryUrl };
 
     const manifest = await this.getManifest(refRegistry, tag);
     if (!manifest) return null;
@@ -896,9 +951,12 @@ export class OciRegistryService {
 
     const skillName = skillCard.metadata.name;
     const state = lifecycleState || 'draft';
-    const resolvedTag = tag || `${skillCard.metadata.version || '0.1.0'}-${state}`;
+    const resolvedTag =
+      tag || `${skillCard.metadata.version || '0.1.0'}-${state}`;
 
-    const repoName = skillName.startsWith('skill-') ? skillName : `skill-${skillName}`;
+    const repoName = skillName.startsWith('skill-')
+      ? skillName
+      : `skill-${skillName}`;
     const repoRegistry: OciRegistryConfig = {
       ...baseRegistry,
       url: `${baseRegistry.url.replace(/\/$/, '')}/${repoName}`,
@@ -913,8 +971,10 @@ export class OciRegistryService {
     const cardBuf = Buffer.from(cardYaml, 'utf-8');
     const contentBuf = Buffer.from(skillContent, 'utf-8');
 
-    const { compressed: tarLayer, uncompressedDigest } =
-      this.buildTarGzipLayer(cardBuf, contentBuf);
+    const { compressed: tarLayer, uncompressedDigest } = this.buildTarGzipLayer(
+      cardBuf,
+      contentBuf,
+    );
     const layerDigest = this.sha256Digest(tarLayer);
 
     await this.uploadBlob(repoRegistry, tarLayer, layerDigest);
@@ -1003,6 +1063,142 @@ export class OciRegistryService {
   }
 
   /**
+   * Push a bundle image to the configured publish registry (OCI Distribution).
+   * Layer contains bundle.json; manifest uses bundle-specific annotations.
+   */
+  async pushBundle(
+    bundle: Record<string, unknown>,
+  ): Promise<string | undefined> {
+    const publishConfig = this.config.publishRegistry;
+    if (!publishConfig) {
+      throw new Error('No publish registry configured');
+    }
+
+    const name = (bundle.name as string) || 'unnamed-bundle';
+    const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const author = (bundle.author as string) || 'anonymous';
+    const skills = (Array.isArray(bundle.skills) ? bundle.skills : []) as Array<
+      Record<string, unknown>
+    >;
+    const skillNames = skills
+      .map(s => (s.name as string) || (s.slug as string))
+      .filter(Boolean) as string[];
+
+    const bundleManifest = JSON.stringify(
+      {
+        apiVersion: 'skillimage.io/v1alpha1',
+        kind: 'SkillBundle',
+        metadata: {
+          name: safeName,
+          description: (bundle.description as string) || '',
+          author,
+          createdAt: (bundle.createdAt as string) || new Date().toISOString(),
+        },
+        skills: skills.map(s => ({
+          name: s.name,
+          slug: s.slug,
+          category: s.category,
+          description: s.description,
+        })),
+      },
+      null,
+      2,
+    );
+
+    const content = Buffer.from(bundleManifest, 'utf-8');
+    const annotations: Record<string, string> = {
+      [ANNOTATION_BUNDLE]: 'true',
+      [ANNOTATION_BUNDLE_SKILLS]: JSON.stringify(skillNames),
+      [ANNOTATION_LIFECYCLE_STATUS]: 'published',
+      [ANNOTATION_TITLE]: safeName,
+      [ANNOTATION_VERSION]: '1.0.0',
+      [ANNOTATION_CREATED]: new Date().toISOString(),
+      [ANNOTATION_VENDOR]: author,
+    };
+
+    return this.pushTarLayer(
+      publishConfig,
+      `skill-bundle-${safeName}`,
+      content,
+      'bundle.json',
+      annotations,
+      '1.0.0-published',
+    );
+  }
+
+  /**
+   * Shared OCI image push: single tar+gzip file layer, minimal image config, manifest with annotations.
+   */
+  private async pushTarLayer(
+    baseRegistry: OciRegistryConfig,
+    repoName: string,
+    layerFileContent: Buffer,
+    layerFilename: string,
+    annotations: Record<string, string>,
+    tag: string,
+  ): Promise<string> {
+    const repoRegistry: OciRegistryConfig = {
+      ...baseRegistry,
+      url: `${baseRegistry.url.replace(/\/$/, '')}/${repoName}`,
+      name: repoName,
+    };
+
+    this.logger.info(
+      `Pushing OCI image ${repoName} to ${repoRegistry.url}:${tag}`,
+    );
+
+    const { compressed: tarLayer, uncompressedDigest } =
+      this.buildTarGzipLayerFromEntries([
+        { name: layerFilename, data: layerFileContent },
+      ]);
+    const layerDigest = this.sha256Digest(tarLayer);
+    await this.uploadBlob(repoRegistry, tarLayer, layerDigest);
+
+    const imageConfig = JSON.stringify({
+      architecture: 'amd64',
+      os: 'linux',
+      rootfs: {
+        type: 'layers',
+        diff_ids: [uncompressedDigest],
+      },
+    });
+    const configBuf = Buffer.from(imageConfig, 'utf-8');
+    const configDigest = this.sha256Digest(configBuf);
+    await this.uploadBlob(repoRegistry, configBuf, configDigest);
+
+    const manifest: OciManifest = {
+      schemaVersion: 2,
+      mediaType: 'application/vnd.oci.image.manifest.v1+json',
+      config: {
+        mediaType: 'application/vnd.oci.image.config.v1+json',
+        digest: configDigest,
+        size: configBuf.length,
+      },
+      layers: [
+        {
+          mediaType: IMAGE_LAYER_MEDIA_TYPE,
+          digest: layerDigest,
+          size: tarLayer.length,
+        },
+      ],
+      annotations,
+    };
+
+    await this.putManifest(repoRegistry, tag, manifest);
+    const ociReference = `${repoRegistry.url}:${tag}`;
+    this.logger.info(`Successfully pushed OCI image to ${ociReference}`);
+
+    this.addRegistry({
+      url: repoRegistry.url,
+      name: repoName,
+      auth: baseRegistry.auth,
+    });
+    this.clearCache(baseRegistry.url);
+
+    return ociReference;
+  }
+
+  /**
    * Extract a named file from a gzipped tar archive.
    * Returns the file content as a string, or null if not found.
    */
@@ -1039,11 +1235,15 @@ export class OciRegistryService {
     cardBuf: Buffer,
     contentBuf: Buffer,
   ): { compressed: Buffer; uncompressedDigest: string } {
-    const entries: Array<{ name: string; data: Buffer }> = [
+    return this.buildTarGzipLayerFromEntries([
       { name: 'skill.yaml', data: cardBuf },
       { name: 'SKILL.md', data: contentBuf },
-    ];
+    ]);
+  }
 
+  private buildTarGzipLayerFromEntries(
+    entries: Array<{ name: string; data: Buffer }>,
+  ): { compressed: Buffer; uncompressedDigest: string } {
     const blocks: Buffer[] = [];
     for (const entry of entries) {
       const header = Buffer.alloc(512);
@@ -1054,7 +1254,9 @@ export class OciRegistryService {
       Buffer.from('0000000\0', 'utf-8').copy(header, 116); // gid
       const sizeOctal = entry.data.length.toString(8).padStart(11, '0');
       Buffer.from(`${sizeOctal}\0`, 'utf-8').copy(header, 124); // size
-      const mtime = Math.floor(Date.now() / 1000).toString(8).padStart(11, '0');
+      const mtime = Math.floor(Date.now() / 1000)
+        .toString(8)
+        .padStart(11, '0');
       Buffer.from(`${mtime}\0`, 'utf-8').copy(header, 136); // mtime
       Buffer.from('        ', 'utf-8').copy(header, 148); // checksum placeholder
       header[156] = 48; // '0' = regular file
@@ -1086,10 +1288,7 @@ export class OciRegistryService {
     data: Buffer,
     digest: string,
   ): Promise<void> {
-    const existsUrl = this.buildRegistryUrl(
-      registry.url,
-      `/blobs/${digest}`,
-    );
+    const existsUrl = this.buildRegistryUrl(registry.url, `/blobs/${digest}`);
     const headRes = await fetch(existsUrl, {
       method: 'HEAD',
       headers: { ...this.authHeader(registry) },
@@ -1100,10 +1299,7 @@ export class OciRegistryService {
       return;
     }
 
-    const uploadUrl = this.buildRegistryUrl(
-      registry.url,
-      '/blobs/uploads/',
-    );
+    const uploadUrl = this.buildRegistryUrl(registry.url, '/blobs/uploads/');
 
     this.logger.debug(`Initiating blob upload to ${uploadUrl}`);
     const initRes = await fetch(uploadUrl, {
@@ -1127,10 +1323,14 @@ export class OciRegistryService {
       throw new Error('No Location header in blob upload response');
     }
 
-    const registryOrigin = new URL(this.buildRegistryUrl(registry.url, '')).origin;
+    const registryOrigin = new URL(this.buildRegistryUrl(registry.url, ''))
+      .origin;
     if (putUrl.startsWith('/')) {
       putUrl = `${registryOrigin}${putUrl}`;
-    } else if (putUrl.startsWith('http') && new URL(putUrl).origin !== registryOrigin) {
+    } else if (
+      putUrl.startsWith('http') &&
+      new URL(putUrl).origin !== registryOrigin
+    ) {
       throw new Error(
         `Rejecting cross-origin Location redirect from registry: ${new URL(putUrl).origin}`,
       );
@@ -1164,10 +1364,7 @@ export class OciRegistryService {
     tag: string,
     manifest: OciManifest,
   ): Promise<void> {
-    const url = this.buildRegistryUrl(
-      registry.url,
-      `/manifests/${tag}`,
-    );
+    const url = this.buildRegistryUrl(registry.url, `/manifests/${tag}`);
 
     const body = JSON.stringify(manifest);
     this.logger.debug(`Pushing manifest to ${url}`);
@@ -1185,9 +1382,7 @@ export class OciRegistryService {
 
     if (!res.ok && res.status !== 201) {
       const text = await res.text();
-      throw new Error(
-        `Failed to push manifest (${res.status}): ${text}`,
-      );
+      throw new Error(`Failed to push manifest (${res.status}): ${text}`);
     }
   }
 
@@ -1196,7 +1391,8 @@ export class OciRegistryService {
     const afterLastSlash = lastSlash === -1 ? ref : ref.substring(lastSlash);
     const colonInSegment = afterLastSlash.lastIndexOf(':');
     if (colonInSegment === -1) return [ref, 'latest'];
-    const splitAt = lastSlash === -1 ? colonInSegment : lastSlash + colonInSegment;
+    const splitAt =
+      lastSlash === -1 ? colonInSegment : lastSlash + colonInSegment;
     return [ref.substring(0, splitAt), ref.substring(splitAt + 1)];
   }
 }

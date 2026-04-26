@@ -1,0 +1,152 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.bldPublishOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sm-scrim);
+  animation: bldPublishFadeIn 0.15s ease;
+}
+@keyframes bldPublishFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.bldPublishDialog {
+  background: var(--sm-surface-card);
+  border: 1px solid var(--sm-border-default);
+  border-radius: 12px;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: var(--sm-shadow-lg);
+  overflow: hidden;
+}
+
+.bldPublishHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--sm-border-default);
+}
+.bldPublishHeader h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bldPublishBody {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bldPublishField label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--sm-text-primary);
+}
+.bldPublishField input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--sm-border-default);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--sm-surface-input);
+  color: var(--sm-text-primary);
+  box-sizing: border-box;
+}
+.bldPublishField input:focus {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: -1px;
+}
+
+.bldPublishFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--sm-border-default);
+}
+.bldPublishCancel,
+.bldPublishSubmit {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+.bldPublishCancel {
+  background: transparent;
+  color: var(--sm-text-primary);
+}
+.bldPublishCancel:hover {
+  background: var(--sm-surface-hover);
+}
+.bldPublishSubmit {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+.bldPublishSubmit:hover {
+  opacity: 0.9;
+}
+.bldPublishSubmit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bldPublishError {
+  padding: 10px 14px;
+  background: var(--sm-danger);
+  color: var(--sm-text-on-brand);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.bldPublishSuccessCard {
+  text-align: center;
+  padding: 24px 20px;
+}
+.bldPublishSuccessCheck {
+  font-size: 32px;
+  color: var(--sm-success);
+  margin-bottom: 8px;
+}
+.bldPublishSuccessRef {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  word-break: break-all;
+  margin: 8px 0;
+}
+
+.bldPublishSuccessActions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}

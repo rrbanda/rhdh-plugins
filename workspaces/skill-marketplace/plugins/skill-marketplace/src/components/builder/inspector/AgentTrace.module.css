@@ -1,0 +1,177 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.bldTrace {
+  padding: 8px 0;
+}
+.bldTraceEmpty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--sm-text-secondary);
+  font-size: 13px;
+}
+
+.bldTraceHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  border-bottom: 1px solid var(--sm-border-subtle);
+  margin-bottom: 4px;
+}
+.bldTraceHeaderName {
+  flex: 0 0 40%;
+}
+.bldTraceHeaderBar {
+  flex: 1;
+  text-align: right;
+}
+
+.bldTraceRow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.bldTraceRow:hover {
+  background: var(--sm-surface-hover);
+}
+.bldTraceRowSelected {
+  background: var(--sm-brand-tint);
+}
+
+.bldTraceIndent {
+  display: flex;
+  flex-shrink: 0;
+}
+.bldTraceIndentLine {
+  width: 16px;
+  height: 100%;
+  border-left: 1px solid var(--sm-border-default);
+  margin-left: 8px;
+}
+
+.bldTraceIcon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+.bldTraceLabel {
+  flex: 0 0 calc(40% - var(--indent-width, 0px));
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+}
+.bldTraceName {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sm-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bldTraceNameTool {
+  font-weight: 400;
+  color: var(--sm-text-secondary);
+}
+.bldTraceDur {
+  font-size: 10px;
+  color: var(--sm-text-secondary);
+  flex-shrink: 0;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.bldTraceBarArea {
+  flex: 1;
+  height: 16px;
+  position: relative;
+  margin-right: 16px;
+}
+.bldTraceBar {
+  position: absolute;
+  height: 100%;
+  border-radius: 3px;
+  min-width: 3px;
+}
+.bldTraceBarAgent {
+  opacity: 0.85;
+}
+.bldTraceBarTool {
+  opacity: 0.6;
+}
+
+.bldTraceDetail {
+  padding: 8px 16px 8px 48px;
+  border-bottom: 1px solid var(--sm-border-subtle);
+  animation: bldDetailIn 0.15s ease;
+}
+@keyframes bldDetailIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.bldTraceDetailSection {
+  margin-bottom: 8px;
+}
+.bldTraceDetailLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--sm-text-secondary);
+  margin-bottom: 4px;
+}
+.bldTraceDetailPre {
+  font-size: 11px;
+  font-family: var(--pf-t--global--font--family--mono, 'Red Hat Mono', monospace);
+  background: var(--sm-surface-secondary);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  color: var(--sm-text-primary);
+}
+
+.bldTraceSummary {
+  display: flex;
+  gap: 12px;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  border-top: 1px solid var(--sm-border-subtle);
+  margin-top: 4px;
+}
+.bldTraceSummaryItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

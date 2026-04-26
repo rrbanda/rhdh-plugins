@@ -1,0 +1,225 @@
+/* Message row layout */
+.row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 20px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  transition: background-color 0.2s ease;
+  animation: bubbleIn 0.25s ease;
+}
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.row:hover {
+  background-color: color-mix(in srgb, var(--sm-brand) 5%, transparent);
+}
+.selected {
+  background-color: color-mix(in srgb, var(--sm-brand) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--sm-brand) 30%, transparent);
+}
+.rowUser {
+  flex-direction: row-reverse;
+}
+.rowAgent {
+  flex-direction: row;
+}
+
+/* Avatar */
+.avatarCol {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatarUser {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+}
+.avatarAgent {
+  background: var(--sm-surface-secondary);
+  color: var(--sm-brand);
+  border: 1px solid var(--sm-border-subtle);
+}
+
+/* Bubble content column */
+.bubble {
+  flex: 1;
+  min-width: 0;
+  max-width: 80%;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.role {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-text-primary);
+}
+.time {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  margin-left: auto;
+}
+.copyMsg {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.row:hover .copyMsg {
+  opacity: 1;
+}
+
+/* Thought chip */
+.thoughtChip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--sm-surface-secondary);
+  color: var(--sm-text-secondary);
+}
+
+/* Skill badge */
+.skillBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--sm-brand-tint);
+  color: var(--sm-brand);
+  font-family: var(--pf-t--global--font--family--mono, monospace);
+}
+
+/* Skill context indicator */
+.skillContext {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--sm-brand);
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--sm-brand-tint);
+  margin-bottom: 4px;
+}
+.skillContext strong {
+  font-weight: 600;
+  font-family: var(--pf-t--global--font--family--mono, monospace);
+}
+
+/* Card (the message body container) */
+.card {
+  border-radius: 20px;
+  padding: 12px 18px;
+  position: relative;
+}
+.cardUser {
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  border-bottom-right-radius: 6px;
+}
+.cardAgent {
+  background: var(--sm-surface-secondary);
+  color: var(--sm-text-primary);
+  border: 1px solid var(--sm-border-subtle);
+  border-bottom-left-radius: 6px;
+}
+.cardError {
+  background: var(--sm-danger-tint);
+  border-color: color-mix(in srgb, var(--sm-danger) 30%, transparent);
+  color: var(--sm-danger);
+}
+.cardThought {
+  background: transparent;
+  border: 1px dashed var(--sm-border-default);
+}
+
+.plainText {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Tool calls row */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Validation block */
+.validation {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--sm-success-tint);
+  border: 1px solid var(--sm-success);
+}
+.validationBody {
+  flex: 1;
+  min-width: 0;
+}
+.validationTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-success);
+  margin-bottom: 4px;
+}
+.validationText {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sm-text-primary);
+  white-space: pre-wrap;
+}
+.validationToggle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--sm-brand);
+  padding: 2px 0;
+  margin-top: 4px;
+}
+.validationToggle:hover {
+  text-decoration: underline;
+}
+
+/* Retry button */
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--sm-border-default);
+  border-radius: 8px;
+  background: var(--sm-surface-card);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--sm-text-primary);
+  transition: all 0.15s;
+}
+.retryBtn:hover {
+  background: var(--sm-surface-hover);
+  border-color: var(--sm-brand);
+}
+.retryBtn:focus-visible {
+  outline: 2px solid var(--sm-brand);
+}

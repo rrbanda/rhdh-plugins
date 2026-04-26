@@ -24,12 +24,15 @@ export function useAgenticAvailable(): boolean | null {
   const [available, setAvailable] = useState<boolean | null>(cachedResult);
 
   useEffect(() => {
-    if (cachedResult !== null) return;
+    if (cachedResult !== null) {
+      return undefined;
+    }
     let cancelled = false;
-    api.getHealth()
+    api
+      .getHealth()
       .then((health: Record<string, unknown>) => {
         if (cancelled) return;
-        const val = health.agenticConfigured === true;
+        const val = health.smpAgentsConfigured === true;
         cachedResult = val;
         setAvailable(val);
       })
@@ -39,7 +42,9 @@ export function useAgenticAvailable(): boolean | null {
           setAvailable(false);
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [api]);
 
   return available;

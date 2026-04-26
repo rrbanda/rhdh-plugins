@@ -13,8 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export { useBuilderSSE } from './useBuilderSSE';
-export type { UseBuilderSSEReturn, UseBuilderSSEOptions } from './useBuilderSSE';
 export { useBuilderChat } from './useBuilderChat';
 export type { UseBuilderChatReturn } from './useBuilderChat';
 export { useBuilderSession } from './useBuilderSession';

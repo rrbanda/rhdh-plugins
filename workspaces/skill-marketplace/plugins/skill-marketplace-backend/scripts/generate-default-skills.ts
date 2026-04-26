@@ -39,7 +39,8 @@ const MIN_CONTENT_WORDS = 80;
 const MAX_CONTENT_CHARS = 12_000;
 const MAX_SKILLS = 100;
 const MIN_DESCRIPTION_LEN = 30;
-const PROVENANCE_BASE = 'https://github.com/agent-skills-hub/agent-skills-hub/tree/main/skills';
+const PROVENANCE_BASE =
+  'https://github.com/agent-skills-hub/agent-skills-hub/tree/main/skills';
 
 interface Frontmatter {
   name?: string;
@@ -80,20 +81,201 @@ interface SkillEntry {
 // --- Category assignment ---
 
 const CATEGORY_RULES: Array<{ namespace: string; keywords: string[] }> = [
-  { namespace: 'security', keywords: ['security', 'vulnerability', 'owasp', 'pentest', 'penetration', 'exploit', 'cve', 'xss', 'sql-injection', 'csrf', 'secrets', 'authentication', 'authorization', 'cryptograph', 'threat', 'attack', 'burp', 'metasploit', 'reversing', 'fuzzing', 'bug-bounty'] },
-  { namespace: 'testing', keywords: ['test', 'playwright', 'cypress', 'jest', 'coverage', 'assertion', 'mock', 'spec', 'e2e', 'integration-test', 'unit-test', 'bats', 'selenium'] },
-  { namespace: 'devops', keywords: ['ci-cd', 'cicd', 'docker', 'kubernetes', 'k8s', 'helm', 'terraform', 'ansible', 'deploy', 'pipeline', 'github-actions', 'gitlab', 'jenkins', 'argocd', 'infrastructure', 'container', 'bazel', 'workflow-automate'] },
-  { namespace: 'api', keywords: ['api-design', 'openapi', 'swagger', 'rest-api', 'graphql', 'grpc', 'api-document', 'api-pattern', 'api-testing', 'api-mock'] },
-  { namespace: 'frontend', keywords: ['react', 'vue', 'angular', 'frontend', 'css', 'tailwind', 'next.js', 'nextjs', 'ui-ux', 'accessibility', 'responsive', 'svelte', 'web-component'] },
-  { namespace: 'backend', keywords: ['backend', 'database', 'sql', 'nosql', 'redis', 'postgres', 'mysql', 'mongodb', 'microservice', 'server', 'express', 'fastapi', 'django', 'spring', 'node', 'bullmq', 'queue'] },
-  { namespace: 'docs', keywords: ['documentation', 'markdown', 'readme', 'changelog', 'adr', 'architecture-decision', 'technical-writing', 'api-documenter', 'jsdoc'] },
-  { namespace: 'observability', keywords: ['monitoring', 'observability', 'logging', 'metrics', 'tracing', 'alerting', 'sentry', 'datadog', 'grafana', 'prometheus'] },
-  { namespace: 'ai-agents', keywords: ['agent', 'autonomous', 'llm', 'prompt', 'rag', 'embedding', 'langchain', 'ai-engineer', 'mcp', 'tool-calling', 'skill-creator'] },
-  { namespace: 'engineering', keywords: ['code-review', 'architect', 'refactor', 'clean-code', 'solid', 'design-pattern', 'commit', 'git', 'brainstorm', 'planning', 'coding-standard', 'performance', 'debug', 'error'] },
+  {
+    namespace: 'security',
+    keywords: [
+      'security',
+      'vulnerability',
+      'owasp',
+      'pentest',
+      'penetration',
+      'exploit',
+      'cve',
+      'xss',
+      'sql-injection',
+      'csrf',
+      'secrets',
+      'authentication',
+      'authorization',
+      'cryptograph',
+      'threat',
+      'attack',
+      'burp',
+      'metasploit',
+      'reversing',
+      'fuzzing',
+      'bug-bounty',
+    ],
+  },
+  {
+    namespace: 'testing',
+    keywords: [
+      'test',
+      'playwright',
+      'cypress',
+      'jest',
+      'coverage',
+      'assertion',
+      'mock',
+      'spec',
+      'e2e',
+      'integration-test',
+      'unit-test',
+      'bats',
+      'selenium',
+    ],
+  },
+  {
+    namespace: 'devops',
+    keywords: [
+      'ci-cd',
+      'cicd',
+      'docker',
+      'kubernetes',
+      'k8s',
+      'helm',
+      'terraform',
+      'ansible',
+      'deploy',
+      'pipeline',
+      'github-actions',
+      'gitlab',
+      'jenkins',
+      'argocd',
+      'infrastructure',
+      'container',
+      'bazel',
+      'workflow-automate',
+    ],
+  },
+  {
+    namespace: 'api',
+    keywords: [
+      'api-design',
+      'openapi',
+      'swagger',
+      'rest-api',
+      'graphql',
+      'grpc',
+      'api-document',
+      'api-pattern',
+      'api-testing',
+      'api-mock',
+    ],
+  },
+  {
+    namespace: 'frontend',
+    keywords: [
+      'react',
+      'vue',
+      'angular',
+      'frontend',
+      'css',
+      'tailwind',
+      'next.js',
+      'nextjs',
+      'ui-ux',
+      'accessibility',
+      'responsive',
+      'svelte',
+      'web-component',
+    ],
+  },
+  {
+    namespace: 'backend',
+    keywords: [
+      'backend',
+      'database',
+      'sql',
+      'nosql',
+      'redis',
+      'postgres',
+      'mysql',
+      'mongodb',
+      'microservice',
+      'server',
+      'express',
+      'fastapi',
+      'django',
+      'spring',
+      'node',
+      'bullmq',
+      'queue',
+    ],
+  },
+  {
+    namespace: 'docs',
+    keywords: [
+      'documentation',
+      'markdown',
+      'readme',
+      'changelog',
+      'adr',
+      'architecture-decision',
+      'technical-writing',
+      'api-documenter',
+      'jsdoc',
+    ],
+  },
+  {
+    namespace: 'observability',
+    keywords: [
+      'monitoring',
+      'observability',
+      'logging',
+      'metrics',
+      'tracing',
+      'alerting',
+      'sentry',
+      'datadog',
+      'grafana',
+      'prometheus',
+    ],
+  },
+  {
+    namespace: 'ai-agents',
+    keywords: [
+      'agent',
+      'autonomous',
+      'llm',
+      'prompt',
+      'rag',
+      'embedding',
+      'langchain',
+      'ai-engineer',
+      'mcp',
+      'tool-calling',
+      'skill-creator',
+    ],
+  },
+  {
+    namespace: 'engineering',
+    keywords: [
+      'code-review',
+      'architect',
+      'refactor',
+      'clean-code',
+      'solid',
+      'design-pattern',
+      'commit',
+      'git',
+      'brainstorm',
+      'planning',
+      'coding-standard',
+      'performance',
+      'debug',
+      'error',
+    ],
+  },
 ];
 
-function categorize(slug: string, description: string, content: string): { namespace: string; tags: string[] } {
-  const haystack = `${slug} ${description} ${content.slice(0, 2000)}`.toLowerCase();
+function categorize(
+  slug: string,
+  description: string,
+  content: string,
+): { namespace: string; tags: string[] } {
+  const haystack =
+    `${slug} ${description} ${content.slice(0, 2000)}`.toLowerCase();
   const tags: string[] = [];
 
   let bestNamespace = 'general';
@@ -125,24 +307,73 @@ function categorize(slug: string, description: string, content: string): { names
 // --- Exclusion list: niche / domain-specific skills ---
 
 const EXCLUDE_PATTERNS = [
-  /^(2d|3d)-game/, /game-development/, /latex/, /biopy/, /bioserv/, /biorxiv/,
-  /^alphafold/, /^chembl/, /^brenda/, /metabolom/, /^anndata/, /^gget/,
-  /^astropy/, /clinical/, /treatment-plan/, /scientific/, /research-grant/,
-  /^imaging-data/, /^venue-template/, /^literature-review/, /^peer-review/,
-  /^citation-management/, /^iso-13485/, /protein/, /genomic/,
-  /churn-prevention/, /market-research/, /^ad-creative/,
-  /^app-store-optimization/, /^seo-/, /^ai-seo/, /^marketing-psychology/,
-  /^startup-business/, /^ab-test-setup/, /^automate-whatsapp/,
-  /^backtesting/, /^alpha-vantage/, /^binance/, /cryptocurrency/,
-  /^avalonia/, /^adaptyv/, /^benchling/, /^timesfm/,
-  /^loki-mode/, /^track-management/,
-  /whisper/, /speech/, /^tts-/, /^voice/,
-  /^customer-support$/, /^churn/, /^email-/,
-  /^mobile-design$/, /^algorith.*art/,
-  /^fp-ts/, /^pptx-official/, /^docx-official/, /^pdf-official/, /^xlsx-official/,
-  /^document-skills/, /^internal-comms/, /^brand-guidelines/,
-  /^canvas-design/, /^theme-factory/, /^web-artifacts/,
-  /^hugging-face-jobs/, /^aeon$/,
+  /^(2d|3d)-game/,
+  /game-development/,
+  /latex/,
+  /biopy/,
+  /bioserv/,
+  /biorxiv/,
+  /^alphafold/,
+  /^chembl/,
+  /^brenda/,
+  /metabolom/,
+  /^anndata/,
+  /^gget/,
+  /^astropy/,
+  /clinical/,
+  /treatment-plan/,
+  /scientific/,
+  /research-grant/,
+  /^imaging-data/,
+  /^venue-template/,
+  /^literature-review/,
+  /^peer-review/,
+  /^citation-management/,
+  /^iso-13485/,
+  /protein/,
+  /genomic/,
+  /churn-prevention/,
+  /market-research/,
+  /^ad-creative/,
+  /^app-store-optimization/,
+  /^seo-/,
+  /^ai-seo/,
+  /^marketing-psychology/,
+  /^startup-business/,
+  /^ab-test-setup/,
+  /^automate-whatsapp/,
+  /^backtesting/,
+  /^alpha-vantage/,
+  /^binance/,
+  /cryptocurrency/,
+  /^avalonia/,
+  /^adaptyv/,
+  /^benchling/,
+  /^timesfm/,
+  /^loki-mode/,
+  /^track-management/,
+  /whisper/,
+  /speech/,
+  /^tts-/,
+  /^voice/,
+  /^customer-support$/,
+  /^churn/,
+  /^email-/,
+  /^mobile-design$/,
+  /^algorith.*art/,
+  /^fp-ts/,
+  /^pptx-official/,
+  /^docx-official/,
+  /^pdf-official/,
+  /^xlsx-official/,
+  /^document-skills/,
+  /^internal-comms/,
+  /^brand-guidelines/,
+  /^canvas-design/,
+  /^theme-factory/,
+  /^web-artifacts/,
+  /^hugging-face-jobs/,
+  /^aeon$/,
 ];
 
 function isExcluded(slug: string): boolean {
@@ -151,7 +382,10 @@ function isExcluded(slug: string): boolean {
 
 // --- Frontmatter parser ---
 
-function parseFrontmatter(raw: string): { frontmatter: Frontmatter; body: string } {
+function parseFrontmatter(raw: string): {
+  frontmatter: Frontmatter;
+  body: string;
+} {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!match) {
     return { frontmatter: {}, body: raw };
@@ -168,7 +402,7 @@ function parseFrontmatter(raw: string): { frontmatter: Frontmatter; body: string
   for (const line of yamlBlock.split('\n')) {
     if (inMultiline) {
       if (/^\s/.test(line)) {
-        currentValue += ' ' + line.trim();
+        currentValue += ` ${line.trim()}`;
         continue;
       }
       fm[currentKey] = currentValue.trim();
@@ -219,16 +453,37 @@ function toDisplayName(slug: string): string {
 function inferTools(content: string): string | undefined {
   const tools: string[] = [];
   const lower = content.toLowerCase();
-  if (lower.includes('read_file') || lower.includes('read file') || lower.includes('analyze') || lower.includes('review')) {
+  if (
+    lower.includes('read_file') ||
+    lower.includes('read file') ||
+    lower.includes('analyze') ||
+    lower.includes('review')
+  ) {
     tools.push('read_file');
   }
-  if (lower.includes('write_file') || lower.includes('write file') || lower.includes('create') || lower.includes('generate')) {
+  if (
+    lower.includes('write_file') ||
+    lower.includes('write file') ||
+    lower.includes('create') ||
+    lower.includes('generate')
+  ) {
     tools.push('write_file');
   }
-  if (lower.includes('exec') || lower.includes('bash') || lower.includes('command') || lower.includes('terminal') || lower.includes('shell')) {
+  if (
+    lower.includes('exec') ||
+    lower.includes('bash') ||
+    lower.includes('command') ||
+    lower.includes('terminal') ||
+    lower.includes('shell')
+  ) {
     tools.push('exec');
   }
-  if (lower.includes('web_fetch') || lower.includes('fetch') || lower.includes('http') || lower.includes('api call')) {
+  if (
+    lower.includes('web_fetch') ||
+    lower.includes('fetch') ||
+    lower.includes('http') ||
+    lower.includes('api call')
+  ) {
     tools.push('web_fetch');
   }
   return tools.length > 0 ? tools.join(' ') : undefined;
@@ -286,8 +541,11 @@ function selectBalanced(
   }
 
   const categories = [...byCategory.keys()];
-  const minPerCategory = Math.max(2, Math.floor(maxTotal / categories.length / 2));
-  const maxPerCategory = Math.ceil(maxTotal / categories.length * 1.8);
+  const minPerCategory = Math.max(
+    2,
+    Math.floor(maxTotal / categories.length / 2),
+  );
+  const maxPerCategory = Math.ceil((maxTotal / categories.length) * 1.8);
 
   // First pass: guarantee minimum per category
   for (const cat of categories) {
@@ -361,7 +619,13 @@ function main() {
     console.log(`  ${cat}: ${count}`);
   }
 
-  const outDir = path.join(__dirname, '..', 'src', 'services', 'default-skills');
+  const outDir = path.join(
+    __dirname,
+    '..',
+    'src',
+    'services',
+    'default-skills',
+  );
   fs.mkdirSync(outDir, { recursive: true });
 
   const outPath = path.join(outDir, 'index.ts');
@@ -377,7 +641,11 @@ function cloneRepo(): string {
   return tmpDir;
 }
 
-function processDirectory(dir: string, entries: SkillEntry[], seen: Set<string>) {
+function processDirectory(
+  dir: string,
+  entries: SkillEntry[],
+  seen: Set<string>,
+) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
 
@@ -385,7 +653,9 @@ function processDirectory(dir: string, entries: SkillEntry[], seen: Set<string>)
     const skillFile = path.join(subDir, 'SKILL.md');
 
     if (fs.existsSync(skillFile)) {
-      const licenseFile = fs.readdirSync(subDir).find(f => f.startsWith('LICENSE'));
+      const licenseFile = fs
+        .readdirSync(subDir)
+        .find(f => f.startsWith('LICENSE'));
       if (licenseFile) continue;
 
       processSkill(subDir, entry.name, entries, seen);
@@ -395,7 +665,12 @@ function processDirectory(dir: string, entries: SkillEntry[], seen: Set<string>)
   }
 }
 
-function processSkill(dir: string, dirName: string, entries: SkillEntry[], seen: Set<string>) {
+function processSkill(
+  dir: string,
+  dirName: string,
+  entries: SkillEntry[],
+  seen: Set<string>,
+) {
   const skillFile = path.join(dir, 'SKILL.md');
   const raw = fs.readFileSync(skillFile, 'utf-8');
   const { frontmatter, body } = parseFrontmatter(raw);
@@ -468,7 +743,9 @@ function writeGeneratedModule(outPath: string, entries: SkillEntry[]) {
 
   for (const entry of entries) {
     lines.push('  {');
-    lines.push(`    card: ${JSON.stringify(entry.card, null, 6).replace(/\n/g, '\n    ')},`);
+    lines.push(
+      `    card: ${JSON.stringify(entry.card, null, 6).replace(/\n/g, '\n    ')},`,
+    );
     lines.push(`    content: ${JSON.stringify(entry.content)},`);
     lines.push('  },');
   }

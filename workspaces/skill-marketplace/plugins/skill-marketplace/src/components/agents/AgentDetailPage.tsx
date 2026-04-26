@@ -19,9 +19,14 @@ import { useApi } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../../api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
+import styles from './AgentDetailPage.module.css';
 
 interface AgentDetail {
-  metadata?: { name: string; namespace: string; labels: Record<string, string> };
+  metadata?: {
+    name: string;
+    namespace: string;
+    labels: Record<string, string>;
+  };
   status?: Record<string, unknown> | string;
   readyStatus?: string;
   spec?: {
@@ -32,7 +37,10 @@ interface AgentDetail {
           image?: string;
           image_pull_policy?: string;
           env?: Array<{ name: string; value?: string; value_from?: unknown }>;
-          env_from?: Array<{ config_map_ref?: { name: string }; secret_ref?: { name: string } }>;
+          env_from?: Array<{
+            config_map_ref?: { name: string };
+            secret_ref?: { name: string };
+          }>;
           args?: string[];
           ports?: Array<{ container_port?: number; name?: string }>;
         }>;
@@ -54,8 +62,12 @@ export default function AgentDetailPage() {
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'logs'>('overview');
-  const [agentStatus, setAgentStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'logs'>(
+    'overview',
+  );
+  const [agentStatus, setAgentStatus] = useState<
+    'checking' | 'online' | 'offline'
+  >('checking');
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -67,7 +79,9 @@ export default function AgentDetailPage() {
   const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
-    if (!namespace || !name) return;
+    if (!namespace || !name) {
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
     api
@@ -84,15 +98,22 @@ export default function AgentDetailPage() {
           setLoading(false);
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [api, namespace, name]);
 
   useEffect(() => {
     let cancelled = false;
-    api.getHealth()
+    api
+      .getHealth()
       .then((health: Record<string, unknown>) => {
-        if (cancelled) return;
-        const kagenti = health.kagenti as { namespace?: string; agentName?: string } | undefined;
+        if (cancelled) {
+          return undefined;
+        }
+        const kagenti = health.kagenti as
+          | { namespace?: string; agentName?: string }
+          | undefined;
         return api.getAgentCard(
           (namespace || kagenti?.namespace) ?? undefined,
           (name || kagenti?.agentName) ?? undefined,
@@ -100,13 +121,17 @@ export default function AgentDetailPage() {
       })
       .then(data => {
         if (!cancelled) {
-          setAgentStatus(data && typeof data === 'object' ? 'online' : 'offline');
+          setAgentStatus(
+            data && typeof data === 'object' ? 'online' : 'offline',
+          );
         }
       })
       .catch(() => {
         if (!cancelled) setAgentStatus('offline');
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [api, namespace, name]);
 
   const sendChat = useCallback(async () => {
@@ -121,10 +146,17 @@ export default function AgentDetailPage() {
 
     try {
       const result = await api.chatWithAgent(msg, sessionId, namespace, name);
-      const data = result as { content?: string; response?: string; message?: string; session_id?: string; sessionId?: string };
+      const data = result as {
+        content?: string;
+        response?: string;
+        message?: string;
+        session_id?: string;
+        sessionId?: string;
+      };
       const sid = data.session_id ?? data.sessionId;
       if (sid) setSessionId(sid);
-      const agentContent = data.content ?? data.response ?? data.message ?? JSON.stringify(data);
+      const agentContent =
+        data.content ?? data.response ?? data.message ?? JSON.stringify(data);
       setChatMessages(prev => [
         ...prev,
         {
@@ -161,7 +193,9 @@ export default function AgentDetailPage() {
       };
       setLogs(result.logs || result.raw || JSON.stringify(result, null, 2));
     } catch (err) {
-      setLogs(`Error loading logs: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setLogs(
+        `Error loading logs: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      );
     } finally {
       setLogsLoading(false);
     }
@@ -176,43 +210,57 @@ export default function AgentDetailPage() {
   if (!agent) return <ErrorMessage message="Agent not found" />;
 
   const containers = agent.spec?.template?.spec?.containers ?? [];
-  const allEnvVars = containers.flatMap(c => (c.env ?? []).filter(e => e.value != null));
+  const allEnvVars = containers.flatMap(c =>
+    (c.env ?? []).filter(e => e.value !== null && e.value !== undefined),
+  );
   const primaryContainer = containers[0];
-  const llmProvider = allEnvVars.find(e => e.name === 'LLM_PROVIDER')?.value || 'N/A';
+  const llmProvider =
+    allEnvVars.find(e => e.name === 'LLM_PROVIDER')?.value || 'N/A';
   const llmModel = allEnvVars.find(e => e.name === 'LLM_MODEL')?.value || 'N/A';
 
   return (
-    <div className="ad-page">
-      <style>{detailStyles}</style>
-
-      <div className="ad-back-row">
-        <button className="ad-back-btn" onClick={() => navigate('..')}>
+    <div className={styles.adPage}>
+      <div className={styles.adBackRow}>
+        <button
+          className={styles.adBackBtn}
+          onClick={() => navigate('..')}
+          type="button"
+        >
           &larr; Back to Agents
         </button>
       </div>
 
-      <div className="ad-header">
+      <div className={styles.adHeader}>
         <div>
-          <h1 className="ad-name">{name}</h1>
-          <span className="ad-ns">{namespace}</span>
+          <h1 className={styles.adName}>{name}</h1>
+          <span className={styles.adNs}>{namespace}</span>
         </div>
         <span
-          className="ad-status"
+          className={styles.adStatus}
           style={{
-            backgroundColor: (agent.status ?? agent.readyStatus) === 'Ready' ? '#10b98120' : '#f59e0b20',
-            color: (agent.status ?? agent.readyStatus) === 'Ready' ? '#059669' : '#d97706',
+            backgroundColor:
+              (agent.status ?? agent.readyStatus) === 'Ready'
+                ? 'var(--sm-success-tint)'
+                : 'var(--sm-warning-tint)',
+            color:
+              (agent.status ?? agent.readyStatus) === 'Ready'
+                ? 'var(--sm-success)'
+                : 'var(--sm-warning)',
           }}
         >
-          {typeof agent.status === 'string' ? agent.status : (agent.readyStatus ?? 'Unknown')}
+          {typeof agent.status === 'string'
+            ? agent.status
+            : (agent.readyStatus ?? 'Unknown')}
         </span>
       </div>
 
-      <div className="ad-tabs">
+      <div className={styles.adTabs}>
         {(['overview', 'chat', 'logs'] as const).map(tab => (
           <button
             key={tab}
-            className={`ad-tab ${activeTab === tab ? 'active' : ''}`}
+            className={`${styles.adTab} ${activeTab === tab ? styles.adTabActive : ''}`}
             onClick={() => setActiveTab(tab)}
+            type="button"
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
@@ -220,36 +268,48 @@ export default function AgentDetailPage() {
       </div>
 
       {activeTab === 'overview' && (
-        <div className="ad-overview">
-          <div className="ad-info-grid">
-            <div className="ad-info-card">
+        <div>
+          <div className={styles.adInfoGrid}>
+            <div className={styles.adInfoCard}>
               <h4>Container Image</h4>
               <code>{primaryContainer?.image || 'N/A'}</code>
             </div>
-            <div className="ad-info-card">
+            <div className={styles.adInfoCard}>
               <h4>LLM Provider</h4>
               <span>{llmProvider}</span>
             </div>
-            <div className="ad-info-card">
+            <div className={styles.adInfoCard}>
               <h4>LLM Model</h4>
               <span>{llmModel}</span>
             </div>
-            <div className="ad-info-card">
+            <div className={styles.adInfoCard}>
               <h4>Containers</h4>
-              <span>{containers.map(c => c.name).filter(Boolean).join(', ') || 'N/A'}</span>
+              <span>
+                {containers
+                  .map(c => c.name)
+                  .filter(Boolean)
+                  .join(', ') || 'N/A'}
+              </span>
             </div>
           </div>
 
           {allEnvVars.length > 0 && (
-            <div className="ad-env-section">
+            <div className={styles.adEnvSection}>
               <h3>Environment Variables</h3>
-              <div className="ad-env-table">
+              <div className={styles.adEnvTable}>
                 {allEnvVars
-                  .filter(e => !/KEY|PASSWORD|TOKEN|SECRET|BEARER|CREDENTIAL/i.test(e.name))
+                  .filter(
+                    e =>
+                      !/KEY|PASSWORD|TOKEN|SECRET|BEARER|CREDENTIAL/i.test(
+                        e.name,
+                      ),
+                  )
                   .map(e => (
-                    <div key={e.name} className="ad-env-row">
-                      <code className="ad-env-name">{e.name}</code>
-                      <span className="ad-env-value">{e.value || '(from secret)'}</span>
+                    <div key={e.name} className={styles.adEnvRow}>
+                      <code className={styles.adEnvName}>{e.name}</code>
+                      <span className={styles.adEnvValue}>
+                        {e.value || '(from secret)'}
+                      </span>
                     </div>
                   ))}
               </div>
@@ -259,51 +319,66 @@ export default function AgentDetailPage() {
       )}
 
       {activeTab === 'chat' && (
-        <div className="ad-chat">
-          <div className="ad-chat-messages">
+        <div className={styles.adChat}>
+          <div className={styles.adChatMessages}>
             {chatMessages.length === 0 && (
-              <div className="ad-chat-empty">
+              <div className={styles.adChatEmpty}>
                 Send a message to start chatting with <strong>{name}</strong>
               </div>
             )}
             {chatMessages.map((msg, i) => (
               <div
                 key={i}
-                className={`ad-chat-msg ${msg.role === 'user' ? 'ad-chat-user' : 'ad-chat-agent'}`}
+                className={`${styles.adChatMsg} ${
+                  msg.role === 'user' ? styles.adChatUser : styles.adChatAgent
+                }`}
               >
-                <div className="ad-chat-role">
+                <div className={styles.adChatRole}>
                   {msg.role === 'user' ? 'You' : name}
                 </div>
-                <div className="ad-chat-content">{msg.content}</div>
+                <div className={styles.adChatContent}>{msg.content}</div>
               </div>
             ))}
             {chatLoading && (
-              <div className="ad-chat-msg ad-chat-agent">
-                <div className="ad-chat-role">{name}</div>
-                <div className="ad-chat-content ad-chat-typing">Thinking...</div>
+              <div className={`${styles.adChatMsg} ${styles.adChatAgent}`}>
+                <div className={styles.adChatRole}>{name}</div>
+                <div
+                  className={`${styles.adChatContent} ${styles.adChatTyping}`}
+                >
+                  Thinking...
+                </div>
               </div>
             )}
             <div ref={chatEndRef} />
           </div>
           {agentStatus === 'offline' && (
-            <div className="ad-offline-bar">
-              Agent is currently offline. Check your Kagenti connection to enable chat.
+            <div className={styles.adOfflineBar}>
+              Agent is currently offline. Check your Kagenti connection to
+              enable chat.
             </div>
           )}
-          <div className="ad-chat-input-row">
+          <div className={styles.adChatInputRow}>
             <input
               type="text"
-              className="ad-chat-input"
-              placeholder={agentStatus === 'offline' ? 'Agent is offline...' : 'Type a message...'}
+              className={styles.adChatInput}
+              placeholder={
+                agentStatus === 'offline'
+                  ? 'Agent is offline...'
+                  : 'Type a message...'
+              }
+              aria-label="Message to agent"
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendChat()}
               disabled={chatLoading || agentStatus === 'offline'}
             />
             <button
-              className="ad-chat-send"
+              className={styles.adChatSend}
               onClick={sendChat}
-              disabled={chatLoading || !chatInput.trim() || agentStatus === 'offline'}
+              disabled={
+                chatLoading || !chatInput.trim() || agentStatus === 'offline'
+              }
+              type="button"
             >
               Send
             </button>
@@ -312,106 +387,21 @@ export default function AgentDetailPage() {
       )}
 
       {activeTab === 'logs' && (
-        <div className="ad-logs">
-          <div className="ad-logs-header">
+        <div className={styles.adLogs}>
+          <div className={styles.adLogsHeader}>
             <h3>Pod Logs</h3>
-            <button className="ad-refresh-btn" onClick={loadLogs} disabled={logsLoading}>
+            <button
+              className={styles.adRefreshBtn}
+              onClick={loadLogs}
+              disabled={logsLoading}
+              type="button"
+            >
               {logsLoading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
-          <pre className="ad-logs-pre">{logs || 'No logs available'}</pre>
+          <pre className={styles.adLogsPre}>{logs || 'No logs available'}</pre>
         </div>
       )}
     </div>
   );
 }
-
-const detailStyles = `
-  .ad-page { padding: 24px 32px 40px; max-width: 1200px; }
-  .ad-back-row { margin-bottom: 16px; }
-  .ad-back-btn {
-    background: none; border: none; color: var(--pf-t--global--color--brand--default, #0066cc);
-    font-size: 14px; cursor: pointer; padding: 0; font-weight: 500;
-  }
-  .ad-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-  .ad-name { font-size: 28px; font-weight: 700; margin: 0; }
-  .ad-ns { font-size: 13px; color: var(--pf-t--global--text--color--subtle, #6a6e73); font-family: monospace; }
-  .ad-status {
-    display: inline-flex; padding: 4px 14px; border-radius: 999px;
-    font-size: 13px; font-weight: 600;
-  }
-
-  .ad-tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); }
-  .ad-tab {
-    padding: 8px 20px; background: none; border: none;
-    border-bottom: 2px solid transparent; font-size: 14px; font-weight: 500;
-    color: var(--pf-t--global--text--color--subtle, #6a6e73); cursor: pointer;
-  }
-  .ad-tab.active {
-    color: var(--pf-t--global--color--brand--default, #0066cc);
-    border-bottom-color: var(--pf-t--global--color--brand--default, #0066cc);
-    font-weight: 600;
-  }
-
-  .ad-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
-  .ad-info-card {
-    padding: 16px; border-radius: 8px;
-    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-    background: var(--pf-t--global--background--color--primary--default, #fff);
-  }
-  .ad-info-card h4 { margin: 0 0 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--pf-t--global--text--color--subtle, #6a6e73); }
-  .ad-info-card code, .ad-info-card span { font-size: 14px; word-break: break-all; }
-
-  .ad-env-section h3 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
-  .ad-env-table { border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); border-radius: 8px; overflow: hidden; }
-  .ad-env-row { display: flex; padding: 8px 16px; border-bottom: 1px solid var(--pf-t--global--border--color--default, #f0f0f0); }
-  .ad-env-row:last-child { border-bottom: none; }
-  .ad-env-name { flex: 0 0 260px; font-size: 13px; font-weight: 600; color: var(--pf-t--global--text--color--regular, #151515); }
-  .ad-env-value { font-size: 13px; color: var(--pf-t--global--text--color--subtle, #6a6e73); word-break: break-all; }
-
-  .ad-chat { display: flex; flex-direction: column; height: 500px; border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); border-radius: 12px; overflow: hidden; }
-  .ad-chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-  .ad-chat-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--pf-t--global--text--color--subtle, #6a6e73); font-size: 14px; }
-  .ad-chat-msg { max-width: 80%; padding: 10px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
-  .ad-chat-user { align-self: flex-end; background: var(--pf-t--global--color--brand--default, #0066cc); color: #fff; }
-  .ad-chat-agent { align-self: flex-start; background: var(--pf-t--global--background--color--secondary--default, #f0f0f0); }
-  .ad-chat-role { font-size: 11px; font-weight: 600; margin-bottom: 4px; opacity: 0.7; }
-  .ad-chat-typing { font-style: italic; opacity: 0.6; }
-  .ad-chat-input-row { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); }
-  .ad-chat-input {
-    flex: 1; padding: 10px 16px; border-radius: 8px;
-    border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-    font-size: 14px; outline: none;
-  }
-  .ad-chat-input:focus { border-color: var(--pf-t--global--color--brand--default, #0066cc); }
-  .ad-chat-send {
-    padding: 10px 24px; border-radius: 8px; border: none;
-    background: var(--pf-t--global--color--brand--default, #0066cc); color: #fff;
-    font-size: 14px; font-weight: 600; cursor: pointer;
-  }
-  .ad-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
-  .ad-offline-bar {
-    padding: 8px 16px;
-    background: #ef444412;
-    color: #dc2626;
-    font-size: 13px;
-    font-weight: 500;
-    text-align: center;
-    border-top: 1px solid #ef444430;
-  }
-
-  .ad-logs { border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); border-radius: 12px; overflow: hidden; }
-  .ad-logs-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--pf-t--global--border--color--default, #d2d2d2); }
-  .ad-logs-header h3 { margin: 0; font-size: 16px; }
-  .ad-refresh-btn {
-    padding: 6px 16px; border-radius: 6px; border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-    background: var(--pf-t--global--background--color--primary--default, #fff);
-    font-size: 13px; font-weight: 500; cursor: pointer;
-  }
-  .ad-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .ad-logs-pre {
-    padding: 16px; margin: 0; font-size: 12px; font-family: monospace;
-    background: #1e1e1e; color: #d4d4d4; overflow-x: auto; max-height: 500px; overflow-y: auto;
-    white-space: pre-wrap; word-break: break-all; line-height: 1.6;
-  }
-`;

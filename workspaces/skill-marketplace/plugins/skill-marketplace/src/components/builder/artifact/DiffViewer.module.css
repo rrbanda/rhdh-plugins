@@ -1,0 +1,79 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+.bldDiff {
+  font-family: var(--pf-t--global--font--family--mono, 'Red Hat Mono', monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+.bldDiffHunk {
+  padding: 4px 0;
+}
+.bldDiffLine {
+  display: flex;
+  min-height: 22px;
+}
+.bldDiffGutter {
+  width: 36px;
+  min-width: 36px;
+  text-align: right;
+  padding: 0 6px 0 0;
+  color: var(--sm-text-secondary);
+  user-select: none;
+  font-size: 12px;
+}
+.bldDiffMarker {
+  width: 20px;
+  min-width: 20px;
+  text-align: center;
+  font-weight: 600;
+  user-select: none;
+}
+.bldDiffText {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: 16px;
+}
+.bldDiffLineAdded {
+  background: var(--sm-success-tint);
+}
+.bldDiffLineAdded .bldDiffMarker {
+  color: var(--sm-success);
+}
+.bldDiffLineRemoved {
+  background: var(--sm-danger-tint);
+}
+.bldDiffLineRemoved .bldDiffMarker {
+  color: var(--sm-danger);
+}
+.bldDiffLineSame .bldDiffMarker {
+  color: transparent;
+}
+.bldDiffStats {
+  display: flex;
+  gap: 12px;
+  padding: 8px 16px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--sm-border-default);
+  color: var(--sm-text-secondary);
+}
+.bldDiffStatsAdded {
+  color: var(--sm-success);
+}
+.bldDiffStatsRemoved {
+  color: var(--sm-danger);
+}

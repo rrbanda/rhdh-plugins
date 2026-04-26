@@ -29,4 +29,6 @@ export { registerBundleRoutes } from './bundleRoutes';
 export { registerRagRoutes } from './ragRoutes';
 export { registerAgenticRoutes } from './agenticRoutes';
 export { registerLifecycleRoutes } from './lifecycleRoutes';
+export { registerCatalogRoutes } from './catalogRoutes';
+export { registerSmpAgentRoutes } from './smpAgentRoutes';
 export { requirePermission, parseIntParam } from './authUtils';

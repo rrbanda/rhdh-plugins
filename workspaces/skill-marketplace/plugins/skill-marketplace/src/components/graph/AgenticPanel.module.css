@@ -1,0 +1,632 @@
+/*
+ * Copyright Red Hat, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+@keyframes agenticSlideIn {
+  from {
+    transform: translateX(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes agenticFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes typingBounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+}
+
+.agenticRoot {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  max-width: 100%;
+  animation: agenticSlideIn 0.2s ease-out;
+}
+.resizeHandle {
+  position: relative;
+  z-index: 2;
+  width: 6px;
+  margin-left: -3px;
+  flex-shrink: 0;
+  cursor: ew-resize;
+  border: none;
+  padding: 0;
+  background: transparent;
+  touch-action: none;
+}
+.resizeHandle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 1px;
+  background: var(--sm-border-default);
+  transition: background 0.15s, width 0.15s;
+}
+.resizeHandle:hover::after,
+.resizeHandle:focus-visible::after {
+  background: var(--sm-brand);
+  width: 3px;
+}
+.resizeHandle:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}
+
+.agenticPanel {
+  min-width: 0;
+  flex: 1;
+  border-left: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 12px 12px 0;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agenticHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sm-border-default);
+  background: linear-gradient(135deg, var(--sm-brand-tint), var(--sm-brand-tint));
+}
+.agenticHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-brand);
+}
+.agenticHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.agenticClearBtn,
+.agenticCloseBtn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.agenticClearBtn:hover,
+.agenticCloseBtn:hover {
+  background: var(--sm-surface-hover);
+}
+
+.agenticBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agenticWelcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 12px 8px;
+  text-align: center;
+  gap: 14px;
+}
+.agenticWelcomeIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--sm-brand-tint), var(--sm-brand-tint));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sm-brand);
+}
+.agenticWelcomeText {
+  font-size: 13px;
+  color: var(--sm-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+  max-width: 280px;
+}
+.agenticSuggestionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  align-items: stretch;
+}
+.agenticSuggestionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sm-text-secondary);
+  margin: 0;
+  text-align: left;
+  padding-left: 2px;
+}
+.agenticSuggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.agenticSuggestion {
+  padding: 8px 12px;
+  border: 1px solid var(--sm-border-default);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sm-text-primary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: none;
+  font-family: inherit;
+}
+.agenticSuggestion:hover {
+  border-color: color-mix(in srgb, var(--sm-brand) 45%, var(--sm-border-default));
+  background: color-mix(in srgb, var(--sm-brand) 8%, var(--sm-surface-card));
+  color: var(--sm-brand);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sm-brand) 12%, transparent);
+}
+.agenticSuggestion:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}
+
+.agenticMsg {
+  max-width: 100%;
+  animation: agenticFadeIn 0.2s ease-out;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.agenticMsgUser {
+  align-self: flex-end;
+  max-width: min(100%, 92%);
+}
+.msgRowUser {
+  display: flex;
+  justify-content: flex-end;
+}
+.userBubble {
+  position: relative;
+  background: #4f46e5;
+  color: #fff;
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 14px 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 1px 2px color-mix(in srgb, #4f46e5 20%, transparent);
+}
+.userBubble::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  background: #4f46e5;
+  border-bottom-left-radius: 10px;
+  transform: skewX(-12deg);
+  z-index: 0;
+}
+.userText {
+  position: relative;
+  z-index: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.agenticMsgAssistant {
+  align-self: flex-start;
+  max-width: 100%;
+  width: 100%;
+}
+.assistantShell {
+  position: relative;
+  max-width: min(100%, 96%);
+}
+.assistantShell:hover .copyBtn,
+.assistantShell:focus-within .copyBtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.assistantBubble {
+  position: relative;
+  background: var(--sm-surface-secondary);
+  color: var(--sm-text-primary);
+  border-radius: 16px 16px 16px 4px;
+  padding: 10px 12px 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  border: 1px solid var(--sm-border-subtle, var(--sm-border-default));
+}
+.copyBtn {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--sm-surface-card) 92%, transparent);
+  color: var(--sm-text-secondary);
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--sm-text-primary) 8%, transparent);
+}
+.copyBtn:hover {
+  background: var(--sm-surface-hover);
+  color: var(--sm-brand);
+}
+.copyBtn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 1px;
+}
+.markdownInBubble {
+  position: relative;
+  z-index: 1;
+  word-break: break-word;
+}
+/* MarkdownContent inner elements */
+.markdownInBubble :global(p) {
+  margin: 0 0 0.65em 0;
+}
+.markdownInBubble :global(p:last-child) {
+  margin-bottom: 0;
+}
+.markdownInBubble :global(pre),
+.markdownInBubble :global(.hljs) {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.markdownInBubble :global(ul),
+.markdownInBubble :global(ol) {
+  margin: 0.4em 0 0.6em 1.1em;
+  padding: 0;
+}
+.markdownInBubble :global(a) {
+  color: var(--sm-brand);
+}
+
+.agenticStepsToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  border: none;
+  border-radius: 6px;
+  background: var(--sm-brand-tint);
+  color: var(--sm-brand);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: fit-content;
+  max-width: 100%;
+  font-family: inherit;
+  text-align: left;
+}
+.agenticStepsToggle:hover {
+  background: var(--sm-brand-hover);
+}
+.agenticStepsToggle:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}
+
+.agenticSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--sm-brand-tint);
+  border: 1px solid var(--sm-border-subtle);
+}
+.agenticStep {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 3px 0;
+}
+.agenticStepTool {
+  font-weight: 600;
+  color: var(--sm-brand);
+  flex-shrink: 0;
+}
+.agenticStepSummary {
+  color: var(--sm-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.agenticStepDuration {
+  font-size: 10px;
+  color: var(--sm-text-secondary);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.agenticSources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+.agenticSourcesLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sm-text-secondary);
+}
+.agenticSourcePill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sm-brand) 30%, transparent);
+  background: var(--sm-surface-card);
+  color: var(--sm-brand);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.agenticSourcePill:hover {
+  background: var(--sm-brand-tint);
+  border-color: var(--sm-brand);
+}
+.agenticSourcePill:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}
+
+.agenticRagResults {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 10px;
+}
+.agenticRagLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sm-text-secondary);
+}
+.agenticRagCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--sm-border-default);
+  border-radius: 999px;
+  background: var(--sm-surface-card);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.agenticRagCard:hover {
+  background: var(--sm-surface-hover);
+  border-color: var(--sm-brand);
+}
+.agenticRagCard:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}
+.ragCardCategory {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 0 1px 6px;
+  border-left: 3px solid var(--sm-border-default);
+  color: var(--sm-text-secondary);
+  flex-shrink: 0;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ragCardName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sm-text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ragCardScore {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--sm-brand) 12%, var(--sm-surface-secondary));
+  color: var(--sm-brand);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ragCardMatch {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.ragMatchSemantic {
+  color: #1d4ed8;
+  background: color-mix(in srgb, #3b82f6 16%, var(--sm-surface-secondary));
+}
+.ragMatchText {
+  color: #15803d;
+  background: color-mix(in srgb, #22c55e 16%, var(--sm-surface-secondary));
+}
+.ragMatchGraph {
+  color: #6d28d9;
+  background: color-mix(in srgb, #a855f7 16%, var(--sm-surface-secondary));
+}
+
+.agenticStreaming {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sm-surface-secondary);
+  border: 1px solid var(--sm-border-subtle, var(--sm-border-default));
+  animation: agenticFadeIn 0.2s ease-out;
+  max-width: min(100%, 88%);
+  align-self: flex-start;
+}
+.typingRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--sm-text-secondary);
+}
+.typingDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+}
+.typingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.65;
+  animation: typingBounce 1.2s infinite;
+}
+.typingDot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typingDot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.typingStepText {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  line-height: 1.3;
+  opacity: 0.9;
+}
+
+.agenticInputArea {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+}
+.agenticInput {
+  flex: 1;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--sm-border-default);
+  background: var(--sm-surface-card);
+  font-size: 13px;
+  outline: none;
+  color: var(--sm-text-primary);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.agenticInput:focus {
+  border-color: var(--sm-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sm-brand) 15%, transparent);
+}
+.agenticInput:disabled {
+  opacity: 0.6;
+}
+.agenticSendBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.agenticSendBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sm-brand) 88%, black);
+}
+.agenticSendBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.agenticSendBtn:focus-visible {
+  outline: 2px solid var(--sm-brand);
+  outline-offset: 2px;
+}

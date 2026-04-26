@@ -1,0 +1,9 @@
+const config = require('@backstage/cli/config/eslint-factory')(__dirname);
+config.rules = {
+  ...config.rules,
+  '@backstage/no-undeclared-imports': 'off',
+  'no-nested-ternary': 'off',
+  'no-console': 'off',
+  'no-alert': 'off',
+};
+module.exports = config;

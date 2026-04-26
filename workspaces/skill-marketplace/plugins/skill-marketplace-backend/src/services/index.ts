@@ -14,23 +14,29 @@
  * limitations under the License.
  */
 export { Neo4jService } from './Neo4jService';
-export { BuilderProxyService } from './BuilderProxyService';
 export { KagentiService } from './KagentiService';
 export type { KagentiConfig } from './KagentiService';
+export { SmpAgentClient } from './SmpAgentClient';
+export type { SmpAgentsConfig, SmpAgentName } from './SmpAgentClient';
 export { OciRegistryService } from './OciRegistryService';
 export type { OciRegistryServiceConfig } from './OciRegistryService';
-export { SkillGraphSyncService } from './SkillGraphSyncService';
-export type { GraphSyncConfig } from './SkillGraphSyncService';
+export {
+  SkillGraphSyncService,
+  SyncAbortedError,
+} from './SkillGraphSyncService';
+export type {
+  GraphSyncConfig,
+  SkillGraphSyncStatus,
+} from './SkillGraphSyncService';
 export { EmbeddingService } from './EmbeddingService';
 export { GraphSchemaManager } from './GraphSchemaManager';
 export { parseRelatedSkills } from './RelatedSkillsParser';
 export type { ParsedRelatedSkill } from './RelatedSkillsParser';
-export { LlmClient } from './LlmClient';
-export { AgenticRagService } from './AgenticRagService';
-export type { AgenticRagConfig } from './AgenticRagService';
-export { validateSkillCard, validateTypedSkillCard } from './SkillCardValidator';
+export {
+  validateSkillCard,
+  validateTypedSkillCard,
+} from './SkillCardValidator';
 export type { ValidationResult } from './SkillCardValidator';
-export { SkillContextBuilder } from './SkillContextBuilder';
 export { CypherQueryCatalog } from './CypherQueryCatalog';
-export { getToolRegistry, getToolByName } from './tools';
-export type { AgentTool, ToolContext } from './tools';
+export { SkillCatalogService } from './SkillCatalogService';
+export type { SkillCatalogConfig } from './SkillCatalogService';

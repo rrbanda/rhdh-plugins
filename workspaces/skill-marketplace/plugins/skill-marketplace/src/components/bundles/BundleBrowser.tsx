@@ -13,7 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useState, useEffect, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  type ChangeEvent,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi, useRouteRef } from '@backstage/core-plugin-api';
 import { skillMarketplaceApiRef } from '../../api';
@@ -21,174 +28,859 @@ import { rootRouteRef } from '../../routes';
 import { useBundle } from '../../hooks';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
+import AddToBundleButton from '../shared/AddToBundleButton';
+import type {
+  BundleSummary,
+  BundleDetail,
+  BundleStatus,
+  CatalogSkill,
+} from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import styles from './BundleBrowser.module.css';
 
-interface BundleSummary {
-  id: string;
-  name: string;
-  description: string;
-  author: string;
-  createdAt: string;
-  skillCount: number;
+/** Slugs from catalog `bundle_skills` (JSON array or comma-separated, per API). */
+function parseCatalogBundleSkillSlugs(
+  bundleSkills: string | undefined,
+): string[] {
+  if (!bundleSkills?.trim()) {
+    return [];
+  }
+  const t = bundleSkills.trim();
+  if (t.startsWith('[')) {
+    try {
+      const p = JSON.parse(t) as unknown;
+      if (Array.isArray(p)) {
+        return p.map(s => String(s).trim()).filter(Boolean);
+      }
+    } catch {
+      // fall through to comma split
+    }
+  }
+  return t
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
 }
 
-interface BundleDetail {
-  id: string;
-  name: string;
-  description: string;
-  author: string;
-  createdAt: string;
-  skills: Array<{ name: string; slug: string; category: string; description: string; addedBy: string }>;
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, { bg: string; text: string }> = {
+    draft: { bg: '#e0e0e0', text: '#616161' },
+    testing: { bg: '#fff3e0', text: '#e65100' },
+    published: { bg: '#e8f5e9', text: '#2e7d32' },
+    deprecated: { bg: '#fce4ec', text: '#c62828' },
+    archived: { bg: '#f5f5f5', text: '#9e9e9e' },
+  };
+  const c = colors[status] || colors.draft;
+  return (
+    <span
+      className={styles.statusBadge}
+      style={{ backgroundColor: c.bg, color: c.text }}
+      aria-label={`Status: ${status}`}
+    >
+      {status}
+    </span>
+  );
 }
 
 export default function BundleBrowser() {
   const api = useApi(skillMarketplaceApiRef);
-  const { toggleDrawer, skills: cartSkills } = useBundle();
+  const {
+    toggleDrawer,
+    setDrawerOpen,
+    addSkill,
+    hasSkill,
+    skills: cartSkills,
+    updateBundleStatus,
+  } = useBundle();
   const navigate = useNavigate();
   const basePath = useRouteRef(rootRouteRef)();
   const [bundles, setBundles] = useState<BundleSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedBundle, setSelectedBundle] = useState<BundleDetail | null>(null);
+  const [selectedBundle, setSelectedBundle] = useState<BundleDetail | null>(
+    null,
+  );
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const showFeedback = useCallback((type: 'success' | 'error', message: string) => {
-    setActionFeedback({ type, message });
-    setTimeout(() => setActionFeedback(null), 3000);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [catalogAvailable, setCatalogAvailable] = useState(false);
+  const [activeTab, setActiveTab] = useState<'my' | 'marketplace'>('my');
+  const [catalogBundles, setCatalogBundles] = useState<CatalogSkill[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    };
   }, []);
+
+  const showFeedback = useCallback(
+    (type: 'success' | 'error', message: string) => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+      setActionFeedback({ type, message });
+      feedbackTimeoutRef.current = setTimeout(
+        () => setActionFeedback(null),
+        3000,
+      );
+    },
+    [],
+  );
 
   const loadBundles = useCallback(() => {
     setLoading(true);
-    api.listBundles()
-      .then(r => { setBundles((r.bundles ?? []) as unknown as BundleSummary[]); setLoading(false); })
-      .catch(err => { setError(err.message || 'Failed to load bundles'); setLoading(false); });
+    api
+      .listBundles()
+      .then(r => {
+        setBundles(r.bundles ?? []);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message || 'Failed to load bundles');
+        setLoading(false);
+      });
   }, [api]);
 
-  useEffect(() => { loadBundles(); }, [loadBundles]);
+  useEffect(() => {
+    loadBundles();
+  }, [loadBundles]);
 
-  const openDetail = useCallback(async (id: string) => {
-    setSelectedBundle(null);
-    setDetailLoading(true);
-    setDetailError(null);
-    try {
-      const bundle = await api.getBundle(id) as unknown as BundleDetail;
-      setSelectedBundle(bundle);
-    } catch (err) {
-      setDetailError(err instanceof Error ? err.message : 'Failed to load bundle details');
-    }
-    setDetailLoading(false);
+  useEffect(() => {
+    api
+      .isCatalogAvailable()
+      .then(setCatalogAvailable)
+      .catch(() => {
+        setCatalogAvailable(false);
+      });
   }, [api]);
 
-  const handleFork = useCallback(async (id: string) => {
+  useEffect(() => {
+    if (!catalogAvailable || activeTab !== 'marketplace') {
+      return;
+    }
+    setCatalogLoading(true);
+    api
+      .listCatalogBundles()
+      .then(setCatalogBundles)
+      .catch(err => {
+        console.error('Failed to load marketplace bundles:', err);
+      })
+      .finally(() => {
+        setCatalogLoading(false);
+      });
+  }, [activeTab, api, catalogAvailable]);
+
+  const handleForkCatalogBundle = useCallback(
+    async (cb: CatalogSkill) => {
+      const skillSlugs = parseCatalogBundleSkillSlugs(cb.bundle_skills);
+      if (skillSlugs.length === 0) {
+        showFeedback(
+          'error',
+          'This bundle has no skills listed; cannot fork an empty bundle.',
+        );
+        return;
+      }
+      setActionLoading('catalog-fork');
+      try {
+        await api.createBundle({
+          name: `${cb.display_name || cb.name} (fork)`,
+          description: cb.description || '',
+          skillSlugs,
+        });
+        showFeedback('success', 'Bundle forked to My Bundles');
+        setActiveTab('my');
+        loadBundles();
+      } catch (err) {
+        showFeedback(
+          'error',
+          err instanceof Error ? err.message : 'Fork failed',
+        );
+        console.error('Fork failed:', err);
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [api, loadBundles, showFeedback],
+  );
+
+  const handleTestCatalogBundle = useCallback(
+    (cb: CatalogSkill) => {
+      const skillNames = parseCatalogBundleSkillSlugs(cb.bundle_skills);
+      const name = cb.display_name || cb.name;
+      const params = new URLSearchParams();
+      params.set('skills', skillNames.join(','));
+      params.set('bundleName', name);
+      params.set('bundleId', `${cb.namespace}/${cb.name}`);
+      navigate(`${basePath}/playground?${params.toString()}`);
+    },
+    [basePath, navigate],
+  );
+
+  const openDetail = useCallback(
+    async (id: string) => {
+      setSelectedBundle(null);
+      setDetailLoading(true);
+      setDetailError(null);
+      try {
+        const bundle = await api.getBundle(id);
+        setSelectedBundle(bundle);
+      } catch (err) {
+        setDetailError(
+          err instanceof Error ? err.message : 'Failed to load bundle details',
+        );
+      }
+      setDetailLoading(false);
+    },
+    [api],
+  );
+
+  const handleFork = useCallback(
+    async (id: string) => {
+      setActionLoading('fork');
+      try {
+        await api.forkBundle(id);
+        showFeedback('success', 'Bundle forked successfully');
+        loadBundles();
+      } catch (err) {
+        showFeedback(
+          'error',
+          err instanceof Error ? err.message : 'Failed to fork bundle',
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [api, loadBundles, showFeedback],
+  );
+
+  const handleDelete = useCallback(
+    async (id: string, name: string) => {
+      if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+      setActionLoading('delete');
+      try {
+        await api.deleteBundle(id);
+        if (selectedBundle?.id === id) setSelectedBundle(null);
+        showFeedback('success', 'Bundle deleted');
+        loadBundles();
+      } catch (err) {
+        showFeedback(
+          'error',
+          err instanceof Error ? err.message : 'Failed to delete bundle',
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [api, loadBundles, selectedBundle, showFeedback],
+  );
+
+  const handleImportBundleFile = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      setActionLoading('import');
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text) as {
+          name?: string;
+          description?: string;
+          skills?: Array<{ name?: string; slug?: string }>;
+        };
+        if (!parsed.name || typeof parsed.name !== 'string') {
+          showFeedback('error', 'Import file must include a "name" string');
+          return;
+        }
+        if (!Array.isArray(parsed.skills) || parsed.skills.length === 0) {
+          showFeedback(
+            'error',
+            'Import file must include a non-empty "skills" array',
+          );
+          return;
+        }
+        const skills = parsed.skills
+          .filter(s => s && (s.name || s.slug))
+          .map(s => ({
+            name: String(s.name || s.slug),
+            slug: s.slug ? String(s.slug) : undefined,
+          }));
+        if (skills.length === 0) {
+          showFeedback('error', 'No valid skills found in file');
+          return;
+        }
+        await api.importBundle({
+          name: parsed.name,
+          description:
+            typeof parsed.description === 'string'
+              ? parsed.description
+              : undefined,
+          skills,
+        });
+        showFeedback('success', 'Bundle imported');
+        loadBundles();
+      } catch (err) {
+        if (err instanceof SyntaxError) {
+          showFeedback('error', 'Invalid JSON file');
+        } else {
+          showFeedback(
+            'error',
+            err instanceof Error ? err.message : 'Failed to import bundle',
+          );
+        }
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [api, loadBundles, showFeedback],
+  );
+
+  const handleExport = useCallback(
+    async (id: string) => {
+      setActionLoading('export');
+      try {
+        const data = await api.exportBundle(id);
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: 'application/json',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bundle-${id}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showFeedback('success', 'Bundle exported');
+      } catch (err) {
+        showFeedback(
+          'error',
+          err instanceof Error ? err.message : 'Failed to export bundle',
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [api, showFeedback],
+  );
+
+  const handleLoadIntoCart = useCallback(
+    (bundle: BundleDetail) => {
+      let added = 0;
+      for (const skill of bundle.skills) {
+        if (!hasSkill(skill.name)) {
+          addSkill({
+            name: skill.name,
+            slug: skill.slug,
+            category: skill.category,
+            description: skill.description || '',
+          });
+          added++;
+        }
+      }
+      const msg =
+        added === 0
+          ? 'All skills already in cart'
+          : `Added ${added} skill(s) to cart (${bundle.skills.length - added} already present)`;
+      showFeedback(added === 0 ? 'error' : 'success', msg);
+      setDrawerOpen(true);
+    },
+    [addSkill, hasSkill, setDrawerOpen, showFeedback],
+  );
+
+  const handleStartEdit = useCallback(() => {
+    if (!selectedBundle) return;
+    setEditName(selectedBundle.name);
+    setEditDesc(selectedBundle.description);
+    setEditMode(true);
+  }, [selectedBundle]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!selectedBundle) return;
+    setActionLoading('edit');
     try {
-      await api.forkBundle(id);
-      showFeedback('success', 'Bundle forked successfully');
+      await api.updateBundle(selectedBundle.id, {
+        name: editName,
+        description: editDesc,
+      });
+      showFeedback('success', 'Bundle updated');
+      setEditMode(false);
+      openDetail(selectedBundle.id);
       loadBundles();
     } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Failed to fork bundle');
+      showFeedback(
+        'error',
+        err instanceof Error ? err.message : 'Failed to update bundle',
+      );
+    } finally {
+      setActionLoading(null);
     }
-  }, [api, loadBundles, showFeedback]);
+  }, [
+    api,
+    selectedBundle,
+    editName,
+    editDesc,
+    showFeedback,
+    openDetail,
+    loadBundles,
+  ]);
 
-  const handleDelete = useCallback(async (id: string, name: string) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const handleSetBundleStatus = useCallback(
+    async (newStatus: BundleStatus) => {
+      if (!selectedBundle) return;
+      setActionLoading('bundle-status');
+      try {
+        await updateBundleStatus(selectedBundle.id, newStatus);
+        showFeedback('success', 'Status updated');
+        loadBundles();
+        openDetail(selectedBundle.id);
+      } catch (err) {
+        showFeedback(
+          'error',
+          err instanceof Error ? err.message : 'Failed to update bundle status',
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [selectedBundle, updateBundleStatus, showFeedback, loadBundles, openDetail],
+  );
+
+  const handlePublishToMarketplace = useCallback(async () => {
+    if (!selectedBundle) return;
+    if (
+      !window.confirm(
+        'Publishing will push this bundle to the OCI registry and make it discoverable in the marketplace. Continue?',
+      )
+    ) {
+      return;
+    }
+    setActionLoading('bundle-status');
     try {
-      await api.deleteBundle(id);
-      if (selectedBundle?.id === id) setSelectedBundle(null);
-      showFeedback('success', 'Bundle deleted');
+      await updateBundleStatus(selectedBundle.id, 'published');
+      showFeedback('success', 'Bundle published');
       loadBundles();
+      openDetail(selectedBundle.id);
     } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Failed to delete bundle');
+      showFeedback(
+        'error',
+        err instanceof Error ? err.message : 'Failed to publish bundle',
+      );
+    } finally {
+      setActionLoading(null);
     }
-  }, [api, loadBundles, selectedBundle, showFeedback]);
+  }, [
+    selectedBundle,
+    updateBundleStatus,
+    showFeedback,
+    loadBundles,
+    openDetail,
+  ]);
 
-  const handleExport = useCallback(async (id: string) => {
-    try {
-      const data = await api.exportBundle(id);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `bundle-${id}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showFeedback('success', 'Bundle exported');
-    } catch (err) {
-      showFeedback('error', err instanceof Error ? err.message : 'Failed to export bundle');
-    }
-  }, [api, showFeedback]);
+  const handleRemoveSkillFromBundle = useCallback(
+    async (skillSlug: string) => {
+      if (!selectedBundle) return;
+      setActionLoading('remove-skill');
+      try {
+        const remaining = selectedBundle.skills
+          .filter(s => s.slug !== skillSlug)
+          .map(s => s.slug);
+        await api.updateBundle(selectedBundle.id, { skillSlugs: remaining });
+        showFeedback('success', 'Skill removed from bundle');
+        openDetail(selectedBundle.id);
+        loadBundles();
+      } catch (err) {
+        showFeedback(
+          'error',
+          err instanceof Error ? err.message : 'Failed to remove skill',
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [api, selectedBundle, showFeedback, openDetail, loadBundles],
+  );
+
+  const filteredBundles = useMemo(
+    () =>
+      statusFilter === 'all'
+        ? bundles
+        : bundles.filter(b => b.status === statusFilter),
+    [bundles, statusFilter],
+  );
 
   if (loading) return <LoadingSpinner message="Loading bundles..." />;
   if (error) return <ErrorMessage message={error} />;
 
   return (
-    <div className="bb-page">
-      <style>{browserStyles}</style>
-
+    <div className={styles.bbPage}>
       {actionFeedback && (
-        <div className={`bb-feedback bb-feedback-${actionFeedback.type}`}>{actionFeedback.message}</div>
+        <div
+          className={`${styles.bbFeedback} ${
+            actionFeedback.type === 'success'
+              ? styles.bbFeedbackSuccess
+              : styles.bbFeedbackError
+          }`}
+        >
+          {actionFeedback.message}
+        </div>
       )}
 
-      <div className="bb-header">
+      <div className={styles.bbHeader}>
         <div>
-          <h1 className="bb-title">Skill Bundles</h1>
-          <p className="bb-subtitle">
-            Curated collections of skills for specific use cases. Browse, fork, or create your own.
+          <h1 className={styles.bbTitle}>Skill Bundles</h1>
+          <p className={styles.bbSubtitle}>
+            Curated collections of skills for specific use cases. Browse, fork,
+            or create your own.
           </p>
         </div>
-        <div className="bb-header-actions">
-          <button className="bb-btn bb-btn-primary" onClick={() => navigate(`${basePath}/skills`)}>
-            + Create Bundle
+        <div className={styles.bbHeaderActions}>
+          <input
+            ref={importFileInputRef}
+            className={styles.bbHiddenFileInput}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleImportBundleFile}
+            aria-label="Choose bundle JSON file to import"
+            tabIndex={-1}
+          />
+          <button
+            className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+            onClick={() => importFileInputRef.current?.click()}
+            disabled={actionLoading === 'import'}
+            type="button"
+            aria-label="Import bundle from JSON file"
+          >
+            {actionLoading === 'import' ? 'Importing...' : 'Import Bundle'}
           </button>
-          <button className="bb-cart-btn" onClick={toggleDrawer}>
-            <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2}>
-              <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+          <button
+            className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
+            onClick={() => navigate(`${basePath}/skills?mode=select`)}
+            type="button"
+          >
+            + Build New Bundle
+          </button>
+          <button
+            className={styles.bbCartBtn}
+            onClick={toggleDrawer}
+            type="button"
+            aria-label="Open my skill bundle cart"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width={16}
+              height={16}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
               <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
             </svg>
             My Cart
-            {cartSkills.length > 0 && <span className="bb-cart-badge">{cartSkills.length}</span>}
+            {cartSkills.length > 0 && (
+              <span className={styles.bbCartBadge}>{cartSkills.length}</span>
+            )}
           </button>
         </div>
       </div>
 
-      {(detailLoading || detailError || selectedBundle) ? (
-        <div className="bb-detail">
-          <button className="bb-back" onClick={() => { setSelectedBundle(null); setDetailError(null); }}>&larr; Back to bundles</button>
+      {detailLoading || detailError || selectedBundle ? (
+        <div className={styles.bbDetail}>
+          <button
+            className={styles.bbBack}
+            onClick={() => {
+              setSelectedBundle(null);
+              setDetailError(null);
+              setEditMode(false);
+            }}
+            type="button"
+            aria-label="Back to bundle list"
+          >
+            &larr; Back to bundles
+          </button>
           {detailLoading ? (
             <LoadingSpinner message="Loading bundle..." />
           ) : detailError ? (
             <ErrorMessage message={detailError} />
           ) : selectedBundle ? (
             <>
-              <div className="bb-detail-header">
-                <h2 className="bb-detail-title">{selectedBundle.name}</h2>
-                <p className="bb-detail-desc">{selectedBundle.description}</p>
-                <div className="bb-detail-meta">
+              <div className={styles.bbDetailHeader}>
+                {editMode ? (
+                  <div className={styles.bbEditForm}>
+                    <input
+                      className={`${styles.bbEditInput} ${styles.bbEditTitleInput}`}
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      placeholder="Bundle name"
+                      aria-label="Bundle name"
+                    />
+                    <input
+                      className={styles.bbEditInput}
+                      value={editDesc}
+                      onChange={e => setEditDesc(e.target.value)}
+                      placeholder="Description"
+                      aria-label="Bundle description"
+                    />
+                    <div className={styles.bbEditActions}>
+                      <button
+                        className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
+                        onClick={handleSaveEdit}
+                        disabled={!editName.trim() || actionLoading === 'edit'}
+                        type="button"
+                      >
+                        {actionLoading === 'edit'
+                          ? 'Saving...'
+                          : 'Save Changes'}
+                      </button>
+                      <button
+                        className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                        onClick={() => setEditMode(false)}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.bbDetailTitleRow}>
+                      <h2 className={styles.bbDetailTitle}>
+                        {selectedBundle.name}
+                      </h2>
+                      <StatusBadge status={selectedBundle.status} />
+                    </div>
+                    <p className={styles.bbDetailDesc}>
+                      {selectedBundle.description}
+                    </p>
+                  </>
+                )}
+                <div className={styles.bbDetailMeta}>
                   <span>By {selectedBundle.author}</span>
                   <span>&middot;</span>
                   <span>{selectedBundle.skills.length} skills</span>
                 </div>
-                <div className="bb-detail-actions">
-                  <button
-                    className="bb-btn bb-btn-primary"
-                    onClick={() => {
-                      const skillNames = selectedBundle.skills.map(s => s.name).join(',');
-                      navigate(`${basePath}/playground?skills=${encodeURIComponent(skillNames)}`);
-                    }}
+                {!editMode && (
+                  <div
+                    className={styles.bbDetailLifecycle}
+                    role="group"
+                    aria-label="Bundle lifecycle actions"
                   >
-                    Test Skills in Playground
+                    {selectedBundle.status === 'draft' && (
+                      <button
+                        className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
+                        onClick={() => {
+                          void handleSetBundleStatus('testing');
+                        }}
+                        disabled={actionLoading === 'bundle-status'}
+                        type="button"
+                        aria-label="Start testing this bundle"
+                      >
+                        Start Testing
+                      </button>
+                    )}
+                    {selectedBundle.status === 'testing' && (
+                      <>
+                        <button
+                          className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
+                          onClick={() => {
+                            void handlePublishToMarketplace();
+                          }}
+                          disabled={actionLoading === 'bundle-status'}
+                          type="button"
+                          aria-label="Publish bundle to the marketplace"
+                        >
+                          Publish to Marketplace
+                        </button>
+                        <button
+                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                          onClick={() => {
+                            void handleSetBundleStatus('draft');
+                          }}
+                          disabled={actionLoading === 'bundle-status'}
+                          type="button"
+                          aria-label="Move bundle back to draft"
+                        >
+                          Back to Draft
+                        </button>
+                      </>
+                    )}
+                    {selectedBundle.status === 'published' && (
+                      <>
+                        <button
+                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                          onClick={() => {
+                            void handleSetBundleStatus('deprecated');
+                          }}
+                          disabled={actionLoading === 'bundle-status'}
+                          type="button"
+                          aria-label="Deprecate this bundle"
+                        >
+                          Deprecate
+                        </button>
+                        <button
+                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                          onClick={() => {
+                            void handleSetBundleStatus('testing');
+                          }}
+                          disabled={actionLoading === 'bundle-status'}
+                          type="button"
+                          aria-label="Move bundle back to testing"
+                        >
+                          Back to Testing
+                        </button>
+                      </>
+                    )}
+                    {selectedBundle.status === 'deprecated' && (
+                      <>
+                        <button
+                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                          onClick={() => {
+                            void handleSetBundleStatus('published');
+                          }}
+                          disabled={actionLoading === 'bundle-status'}
+                          type="button"
+                          aria-label="Restore bundle to published"
+                        >
+                          Restore to Published
+                        </button>
+                        <button
+                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                          onClick={() => {
+                            void handleSetBundleStatus('archived');
+                          }}
+                          disabled={actionLoading === 'bundle-status'}
+                          type="button"
+                          aria-label="Archive this bundle"
+                        >
+                          Archive
+                        </button>
+                      </>
+                    )}
+                    {selectedBundle.status === 'archived' && (
+                      <p className={styles.bbDetailLifecycleInfo} role="status">
+                        This bundle is archived. No further status changes are
+                        available.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div className={styles.bbDetailActions}>
+                  <button
+                    className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
+                    onClick={() => handleLoadIntoCart(selectedBundle)}
+                    type="button"
+                  >
+                    Load into Cart
                   </button>
-                  <button className="bb-btn bb-btn-secondary" onClick={() => handleFork(selectedBundle.id)}>Fork</button>
-                  <button className="bb-btn bb-btn-secondary" onClick={() => handleExport(selectedBundle.id)}>Export JSON</button>
-                  <button className="bb-btn bb-btn-ghost" onClick={() => handleDelete(selectedBundle.id, selectedBundle.name)}>Delete</button>
+                  <button
+                    className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      params.set(
+                        'skills',
+                        selectedBundle.skills.map(s => s.name).join(','),
+                      );
+                      params.set('bundleName', selectedBundle.name);
+                      params.set('bundleId', selectedBundle.id);
+                      navigate(`${basePath}/playground?${params.toString()}`);
+                    }}
+                    type="button"
+                    aria-label={`Test bundle ${selectedBundle.name} in Playground`}
+                  >
+                    Test in Playground
+                  </button>
+                  {!editMode && (
+                    <button
+                      className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                      onClick={handleStartEdit}
+                      type="button"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                    onClick={() => handleFork(selectedBundle.id)}
+                    disabled={actionLoading === 'fork'}
+                    type="button"
+                  >
+                    {actionLoading === 'fork' ? 'Forking...' : 'Fork'}
+                  </button>
+                  <button
+                    className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                    onClick={() => handleExport(selectedBundle.id)}
+                    disabled={actionLoading === 'export'}
+                    type="button"
+                  >
+                    {actionLoading === 'export'
+                      ? 'Exporting...'
+                      : 'Export JSON'}
+                  </button>
+                  <button
+                    className={`${styles.bbBtn} ${styles.bbBtnGhost}`}
+                    onClick={() =>
+                      handleDelete(selectedBundle.id, selectedBundle.name)
+                    }
+                    disabled={actionLoading === 'delete'}
+                    type="button"
+                  >
+                    {actionLoading === 'delete' ? 'Deleting...' : 'Delete'}
+                  </button>
                 </div>
               </div>
-              <div className="bb-skill-list">
+              <div className={styles.bbSkillList}>
                 {selectedBundle.skills.map(skill => (
-                  <div key={skill.name} className="bb-skill-item">
-                    <span className="bb-skill-cat" style={{ background: '#0066cc20', color: '#0066cc' }}>{skill.category}</span>
-                    <span className="bb-skill-name">{skill.name.split(':').pop() || skill.name}</span>
-                    {skill.description && <span className="bb-skill-desc">{skill.description.slice(0, 120)}</span>}
+                  <div key={skill.name} className={styles.bbSkillItem}>
+                    <span
+                      className={styles.bbSkillCat}
+                      style={{
+                        background: 'var(--sm-brand-tint)',
+                        color: 'var(--sm-brand)',
+                      }}
+                    >
+                      {skill.category}
+                    </span>
+                    <span className={styles.bbSkillName}>
+                      {skill.name.split(':').pop() || skill.name}
+                    </span>
+                    {skill.description && (
+                      <span className={styles.bbSkillDesc}>
+                        {skill.description.slice(0, 120)}
+                      </span>
+                    )}
+                    <div className={styles.bbSkillActions}>
+                      <AddToBundleButton
+                        skill={{
+                          name: skill.name,
+                          slug: skill.slug,
+                          category: skill.category,
+                          description: skill.description || '',
+                        }}
+                        variant="icon"
+                      />
+                      {editMode && (
+                        <button
+                          className={styles.bbSkillRemoveBtn}
+                          onClick={() =>
+                            handleRemoveSkillFromBundle(skill.slug)
+                          }
+                          disabled={actionLoading === 'remove-skill'}
+                          title="Remove from bundle"
+                          type="button"
+                          aria-label={`Remove ${skill.name.split(':').pop() || skill.name} from bundle`}
+                        >
+                          &times;
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -197,35 +889,201 @@ export default function BundleBrowser() {
         </div>
       ) : (
         <>
-          {bundles.length === 0 ? (
-            <div className="bb-empty">
-              <h3>No bundles yet</h3>
-              <p>
-                Browse skills and click &ldquo;Add to Bundle&rdquo; to start curating a collection.
-                Then save it from the cart to share with others.
-              </p>
-              <div className="bb-empty-actions">
-                <button className="bb-btn bb-btn-primary" onClick={() => navigate(`${basePath}/skills`)}>
-                  + Create Bundle
-                </button>
-                <button className="bb-btn bb-btn-secondary" onClick={toggleDrawer}>Open Cart</button>
-              </div>
+          {catalogAvailable && (
+            <div
+              className={styles.bbTabs}
+              role="tablist"
+              aria-label="Bundle views"
+            >
+              <button
+                id="bundle-tab-my"
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'my'}
+                aria-controls="bundle-panel-my"
+                className={`${styles.bbTab} ${activeTab === 'my' ? styles.bbTabActive : ''}`}
+                onClick={() => setActiveTab('my')}
+                aria-label="My Bundles: local and draft skill bundles"
+              >
+                My Bundles
+              </button>
+              <button
+                id="bundle-tab-marketplace"
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'marketplace'}
+                aria-controls="bundle-panel-marketplace"
+                className={`${styles.bbTab} ${activeTab === 'marketplace' ? styles.bbTabActive : ''}`}
+                onClick={() => setActiveTab('marketplace')}
+                aria-label="Marketplace: published bundles from the catalog"
+              >
+                Marketplace
+              </button>
             </div>
-          ) : (
-            <div className="bb-grid">
-              {bundles.map(bundle => (
-                <button key={bundle.id} className="bb-card" onClick={() => openDetail(bundle.id)}>
-                  <div className="bb-card-top">
-                    <h3 className="bb-card-name">{bundle.name}</h3>
-                    <span className="bb-card-count">{bundle.skillCount} skills</span>
+          )}
+
+          <div
+            id="bundle-panel-my"
+            role={catalogAvailable ? 'tabpanel' : undefined}
+            aria-labelledby={catalogAvailable ? 'bundle-tab-my' : undefined}
+            hidden={!!catalogAvailable && activeTab !== 'my'}
+          >
+            {bundles.length === 0 ? (
+              <div className={styles.bbEmpty}>
+                <h3>No bundles yet</h3>
+                <p>
+                  Start by selecting skills from the catalog using &ldquo;Select
+                  for Bundle&rdquo; mode, or add them individually. Then save
+                  your curated collection from the cart.
+                </p>
+                <div className={styles.bbEmptyActions}>
+                  <button
+                    className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
+                    onClick={() => navigate(`${basePath}/skills?mode=select`)}
+                    type="button"
+                  >
+                    + Build New Bundle
+                  </button>
+                  <button
+                    className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                    onClick={() => navigate(`${basePath}/skills`)}
+                    type="button"
+                  >
+                    Browse Skills
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className={styles.bbListToolbar}>
+                  <label
+                    htmlFor="bundle-status-filter"
+                    className={styles.bbFilterLabel}
+                  >
+                    Status
+                  </label>
+                  <select
+                    id="bundle-status-filter"
+                    className={styles.statusFilter}
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    aria-label="Filter bundles by status"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="draft">Draft</option>
+                    <option value="testing">Testing</option>
+                    <option value="published">Published</option>
+                    <option value="deprecated">Deprecated</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+                {filteredBundles.length === 0 ? (
+                  <p className={styles.bbFilterEmpty} role="status">
+                    No bundles match this status. Try a different filter or
+                    create a new bundle.
+                  </p>
+                ) : (
+                  <div className={styles.bbGrid}>
+                    {filteredBundles.map(bundle => (
+                      <button
+                        key={bundle.id}
+                        className={styles.bbCard}
+                        onClick={() => openDetail(bundle.id)}
+                        type="button"
+                        aria-label={`Open bundle ${bundle.name}`}
+                      >
+                        <div className={styles.bbCardTop}>
+                          <div className={styles.bbCardNameRow}>
+                            <h3 className={styles.bbCardName}>{bundle.name}</h3>
+                            <StatusBadge status={bundle.status} />
+                          </div>
+                          <span className={styles.bbCardCount}>
+                            {bundle.skillCount} skills
+                          </span>
+                        </div>
+                        {bundle.description && (
+                          <p className={styles.bbCardDesc}>
+                            {bundle.description}
+                          </p>
+                        )}
+                        <div className={styles.bbCardMeta}>
+                          <span>{bundle.author}</span>
+                          {bundle.createdAt && (
+                            <span>
+                              {new Date(bundle.createdAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                  {bundle.description && <p className="bb-card-desc">{bundle.description}</p>}
-                  <div className="bb-card-meta">
-                    <span>{bundle.author}</span>
-                    {bundle.createdAt && <span>{new Date(bundle.createdAt).toLocaleDateString()}</span>}
-                  </div>
-                </button>
-              ))}
+                )}
+              </>
+            )}
+          </div>
+
+          {catalogAvailable && (
+            <div
+              id="bundle-panel-marketplace"
+              role="tabpanel"
+              aria-labelledby="bundle-tab-marketplace"
+              hidden={activeTab !== 'marketplace'}
+            >
+              {catalogLoading ? (
+                <div className={styles.bbLoading}>
+                  Loading marketplace bundles...
+                </div>
+              ) : catalogBundles.length === 0 ? (
+                <div className={styles.bbEmpty} role="status">
+                  No published bundles in the marketplace yet.
+                </div>
+              ) : (
+                <div className={styles.bbGrid}>
+                  {catalogBundles.map(cb => (
+                    <div
+                      key={`${cb.namespace}-${cb.name}-${cb.version || ''}`}
+                      className={styles.bbMarketplaceCard}
+                    >
+                      <div className={styles.bbCardNameRow}>
+                        <strong className={styles.bbMarketplaceTitle}>
+                          {cb.display_name || cb.name}
+                        </strong>
+                        <StatusBadge status={cb.status || 'published'} />
+                      </div>
+                      <div className={styles.bbCardMeta}>
+                        {cb.namespace ? <span>by {cb.namespace}</span> : null}
+                        {cb.version ? <span>v{cb.version}</span> : null}
+                      </div>
+                      <p className={styles.bbMarketplaceDesc}>
+                        {cb.description || 'No description'}
+                      </p>
+                      <div className={styles.bbCardActions}>
+                        <button
+                          type="button"
+                          className={styles.bbActionBtn}
+                          disabled={actionLoading === 'catalog-fork'}
+                          onClick={() => {
+                            void handleForkCatalogBundle(cb);
+                          }}
+                          aria-label={`Fork ${cb.display_name || cb.name} to My Bundles`}
+                        >
+                          {actionLoading === 'catalog-fork'
+                            ? 'Forking...'
+                            : 'Fork to My Bundles'}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.bbActionBtn}
+                          onClick={() => handleTestCatalogBundle(cb)}
+                          aria-label={`Test ${cb.display_name || cb.name} in Playground`}
+                        >
+                          Test in Playground
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -233,110 +1091,3 @@ export default function BundleBrowser() {
     </div>
   );
 }
-
-const browserStyles = `
-.bb-page { padding: 24px 32px 40px; max-width: 1400px; position: relative; }
-.bb-feedback {
-  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px;
-  animation: bb-fade-in 0.2s ease-out;
-}
-@keyframes bb-fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-.bb-feedback-success { background: #10b98115; color: #059669; }
-.bb-feedback-error { background: #ef444415; color: #dc2626; }
-.bb-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 16px; }
-.bb-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.bb-title { font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
-.bb-subtitle { margin: 4px 0 0; font-size: 14px; color: var(--pf-t--global--text--color--subtle, #6a6e73); }
-.bb-cart-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 16px; border-radius: 8px;
-  border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-  font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
-  color: var(--pf-t--global--text--color--regular, #151515);
-}
-.bb-cart-btn:hover { border-color: var(--pf-t--global--color--brand--default, #0066cc); }
-.bb-cart-badge {
-  font-size: 11px; padding: 1px 6px; border-radius: 999px;
-  background: var(--pf-t--global--color--brand--default, #0066cc); color: #fff; font-weight: 700;
-}
-.bb-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
-.bb-card {
-  display: flex; flex-direction: column; text-align: left;
-  padding: 20px; border-radius: 12px;
-  border: 1px solid var(--pf-t--global--border--color--default, #d2d2d2);
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-  cursor: pointer; transition: all 0.15s; font-family: inherit; color: inherit;
-}
-.bb-card:hover {
-  border-color: var(--pf-t--global--color--brand--default, #0066cc);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-}
-.bb-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.bb-card-name { font-size: 16px; font-weight: 600; margin: 0; }
-.bb-card-count {
-  font-size: 12px; padding: 2px 8px; border-radius: 999px;
-  background: var(--pf-t--global--color--brand--default, #0066cc); color: #fff; font-weight: 600;
-}
-.bb-card-desc {
-  font-size: 13px; color: var(--pf-t--global--text--color--subtle, #6a6e73);
-  line-height: 1.5; margin: 0 0 12px;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.bb-card-meta {
-  display: flex; gap: 12px; font-size: 12px;
-  color: var(--pf-t--global--text--color--subtle, #6a6e73);
-  margin-top: auto; padding-top: 12px;
-  border-top: 1px solid var(--pf-t--global--border--color--default, #f0f0f0);
-}
-.bb-empty {
-  text-align: center; padding: 80px 20px;
-  color: var(--pf-t--global--text--color--subtle, #6a6e73);
-}
-.bb-empty h3 { font-size: 18px; font-weight: 600; margin: 0 0 8px; color: var(--pf-t--global--text--color--regular, #151515); }
-.bb-empty p { font-size: 14px; margin: 0 0 20px; max-width: 480px; margin-left: auto; margin-right: auto; }
-.bb-empty-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
-
-.bb-detail { }
-.bb-back {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600;
-  color: var(--pf-t--global--color--brand--default, #0066cc); padding: 0; margin-bottom: 16px; font-family: inherit;
-}
-.bb-detail-header { margin-bottom: 24px; }
-.bb-detail-title { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
-.bb-detail-desc { font-size: 14px; color: var(--pf-t--global--text--color--subtle, #6a6e73); margin: 0 0 8px; }
-.bb-detail-meta { display: flex; gap: 8px; font-size: 13px; color: var(--pf-t--global--text--color--subtle, #6a6e73); margin-bottom: 16px; }
-.bb-detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.bb-skill-list { display: flex; flex-direction: column; gap: 8px; }
-.bb-skill-item {
-  display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 8px;
-  border: 1px solid var(--pf-t--global--border--color--default, #f0f0f0);
-}
-.bb-skill-cat {
-  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
-  text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;
-}
-.bb-skill-name { font-size: 14px; font-weight: 500; }
-.bb-skill-desc { font-size: 12px; color: var(--pf-t--global--text--color--subtle, #6a6e73); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.bb-btn {
-  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
-  cursor: pointer; border: 1px solid transparent; font-family: inherit; white-space: nowrap;
-}
-.bb-btn-primary { background: var(--pf-t--global--color--brand--default, #0066cc); color: #fff; }
-.bb-btn-primary:hover { opacity: 0.9; }
-.bb-btn-secondary {
-  background: var(--pf-t--global--background--color--primary--default, #fff);
-  border-color: var(--pf-t--global--border--color--default, #d2d2d2);
-  color: var(--pf-t--global--text--color--regular, #151515);
-}
-.bb-btn-secondary:hover { background: var(--pf-t--global--background--color--secondary--default, #f5f5f5); }
-.bb-btn-ghost { background: none; color: var(--pf-t--global--text--color--subtle, #6a6e73); }
-.bb-btn-ghost:hover { background: rgba(0,0,0,0.04); }
-`;

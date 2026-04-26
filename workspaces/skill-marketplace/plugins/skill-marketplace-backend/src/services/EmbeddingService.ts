@@ -52,7 +52,8 @@ export class EmbeddingService {
       model: options.model ?? EMBEDDING_DEFAULTS.model,
       dimensions: options.dimensions ?? EMBEDDING_DEFAULTS.dimensions,
       timeoutMs: options.timeoutMs ?? EMBEDDING_DEFAULTS.timeoutMs,
-      maxInputLength: options.maxInputLength ?? EMBEDDING_DEFAULTS.maxInputLength,
+      maxInputLength:
+        options.maxInputLength ?? EMBEDDING_DEFAULTS.maxInputLength,
     };
   }
 
@@ -60,9 +61,21 @@ export class EmbeddingService {
     return this.config.dimensions;
   }
 
-  async generate(text: string): Promise<number[] | null> {
+  async generate(
+    text: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<number[] | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
+    const external = options?.signal;
+    if (external) {
+      if (external.aborted) {
+        return null;
+      }
+      external.addEventListener('abort', () => controller.abort(), {
+        once: true,
+      });
+    }
 
     try {
       const res = await fetch(this.config.apiUrl, {
@@ -79,7 +92,9 @@ export class EmbeddingService {
       });
 
       if (!res.ok) {
-        this.logger.warn(`Embedding API error: ${res.status} ${res.statusText}`);
+        this.logger.warn(
+          `Embedding API error: ${res.status} ${res.statusText}`,
+        );
         return null;
       }
 
@@ -89,9 +104,13 @@ export class EmbeddingService {
       return data.data?.[0]?.embedding ?? null;
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
-        this.logger.warn(`Embedding request timed out after ${this.config.timeoutMs}ms`);
+        this.logger.warn(
+          `Embedding request timed out after ${this.config.timeoutMs}ms`,
+        );
       } else {
-        this.logger.warn(`Embedding generation failed: ${(err as Error).message}`);
+        this.logger.warn(
+          `Embedding generation failed: ${(err as Error).message}`,
+        );
       }
       return null;
     } finally {

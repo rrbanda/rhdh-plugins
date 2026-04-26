@@ -33,7 +33,7 @@
 
 import { mockServices } from '@backstage/backend-test-utils';
 import { KagentiService, type KagentiConfig } from './services/KagentiService';
-import type { KagentiAgent } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
+import { KagentiAgent } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 
 const KAGENTI_API_URL = process.env.KAGENTI_API_URL || '';
 const KAGENTI_KEYCLOAK_URL = process.env.KAGENTI_KEYCLOAK_URL || '';
@@ -43,7 +43,10 @@ const KAGENTI_PASSWORD = process.env.KAGENTI_PASSWORD || '';
 const KAGENTI_NAMESPACE = process.env.KAGENTI_NAMESPACE || '';
 
 const isConfigured =
-  KAGENTI_API_URL && KAGENTI_KEYCLOAK_URL && KAGENTI_USERNAME && KAGENTI_PASSWORD;
+  KAGENTI_API_URL &&
+  KAGENTI_KEYCLOAK_URL &&
+  KAGENTI_USERNAME &&
+  KAGENTI_PASSWORD;
 
 const describeIfKagenti = isConfigured ? describe : describe.skip;
 
@@ -69,8 +72,19 @@ describeIfKagenti('Kagenti integration (real cluster)', () => {
   describe('authentication', () => {
     it('validates Keycloak config at construction time', () => {
       expect(() => {
+        // eslint-disable-next-line no-new -- constructor invoked for throw assertion
         new KagentiService(
-          { apiUrl: '', agentName: '', namespace: '', keycloak: { tokenUrl: '', clientId: '', username: '', password: '' } },
+          {
+            apiUrl: '',
+            agentName: '',
+            namespace: '',
+            keycloak: {
+              tokenUrl: '',
+              clientId: '',
+              username: '',
+              password: '',
+            },
+          },
           logger,
         );
       }).toThrow(/apiUrl is required/);
@@ -78,8 +92,19 @@ describeIfKagenti('Kagenti integration (real cluster)', () => {
 
     it('validates Keycloak credentials at construction time', () => {
       expect(() => {
+        // eslint-disable-next-line no-new
         new KagentiService(
-          { apiUrl: 'http://example.com', agentName: '', namespace: '', keycloak: { tokenUrl: '', clientId: '', username: '', password: '' } },
+          {
+            apiUrl: 'http://example.com',
+            agentName: '',
+            namespace: '',
+            keycloak: {
+              tokenUrl: '',
+              clientId: '',
+              username: '',
+              password: '',
+            },
+          },
           logger,
         );
       }).toThrow(/keycloak.*required/i);
@@ -117,7 +142,9 @@ describeIfKagenti('Kagenti integration (real cluster)', () => {
       }
 
       if (allAgents.length === 0) {
-        console.warn('No agents found in any namespace, skipping shape validation');
+        console.warn(
+          'No agents found in any namespace, skipping shape validation',
+        );
         return;
       }
 
@@ -191,9 +218,11 @@ describeIfKagenti('Kagenti integration (real cluster)', () => {
       expect(container.image).toBeDefined();
       // Verify snake_case is used (not camelCase)
       if (container.env_from) {
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(container.envFrom).toBeUndefined();
       }
       if (container.image_pull_policy) {
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(container.imagePullPolicy).toBeUndefined();
       }
     });
@@ -222,7 +251,9 @@ describeIfKagenti('Kagenti integration (real cluster)', () => {
 
       const result = await service.getAgentSkills(testNs, testName);
       expect(result.status).toBe(200);
-      const data = result.data as { skills: Array<{ name: string; source: string }> };
+      const data = result.data as {
+        skills: Array<{ name: string; source: string }>;
+      };
       expect(data.skills).toBeDefined();
       expect(Array.isArray(data.skills)).toBe(true);
     });
@@ -235,44 +266,35 @@ describeIfKagenti('Kagenti integration (real cluster)', () => {
       expect([200, 500]).toContain(result.status);
       if (result.status === 200) {
         const data = result.data as Record<string, unknown>;
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(data.name).toBeDefined();
       }
     });
   });
 
-  describe('sendMessage (chat proxy)', () => {
-    it('sends a message through Kagenti proxy', async () => {
-      const result = await service.sendMessage('Hello, this is a test');
-      expect(result.status).toBe(200);
-
-      const data = result.data as { content: string; session_id: string; is_complete: boolean };
-      expect(data.content).toBeDefined();
-      expect(typeof data.content).toBe('string');
-      expect(data.session_id).toBeDefined();
-      expect(typeof data.is_complete).toBe('boolean');
-    });
-  });
-
-  describe('streamMessage', () => {
-    it('returns SSE content type', async () => {
-      const response = await service.streamMessage('Hello stream test');
-      expect(response.ok).toBe(true);
-      const contentType = response.headers.get('content-type') || '';
-      expect(contentType).toContain('text/event-stream');
-      // Consume the body to prevent resource leak
-      await response.text();
+  describe('getToken', () => {
+    it('obtains a Keycloak token', async () => {
+      const token = await service.getToken();
+      expect(typeof token).toBe('string');
+      expect(token.length).toBeGreaterThan(0);
     });
   });
 
   describe('constructor validation', () => {
     it('rejects empty apiUrl', () => {
       expect(() => {
+        // eslint-disable-next-line no-new
         new KagentiService(
           {
             apiUrl: '',
             agentName: 'test',
             namespace: 'test',
-            keycloak: { tokenUrl: 'http://kc', clientId: 'c', username: 'u', password: 'p' },
+            keycloak: {
+              tokenUrl: 'http://kc',
+              clientId: 'c',
+              username: 'u',
+              password: 'p',
+            },
           },
           logger,
         );
@@ -281,12 +303,18 @@ describeIfKagenti('Kagenti integration (real cluster)', () => {
 
     it('rejects missing keycloak fields', () => {
       expect(() => {
+        // eslint-disable-next-line no-new
         new KagentiService(
           {
             apiUrl: 'http://api',
             agentName: 'test',
             namespace: 'test',
-            keycloak: { tokenUrl: '', clientId: 'c', username: 'u', password: 'p' },
+            keycloak: {
+              tokenUrl: '',
+              clientId: 'c',
+              username: 'u',
+              password: 'p',
+            },
           },
           logger,
         );

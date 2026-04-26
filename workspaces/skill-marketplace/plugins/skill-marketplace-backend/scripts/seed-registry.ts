@@ -41,7 +41,8 @@ import * as crypto from 'crypto';
 import * as zlib from 'zlib';
 import { execSync } from 'child_process';
 
-const SKILLS_HUB_REPO = 'https://github.com/agent-skills-hub/agent-skills-hub.git';
+const SKILLS_HUB_REPO =
+  'https://github.com/agent-skills-hub/agent-skills-hub.git';
 const IMAGE_LAYER_MEDIA_TYPE = 'application/vnd.oci.image.layer.v1.tar+gzip';
 const MIN_CONTENT_WORDS = 80;
 const MAX_CONTENT_CHARS = 12_000;
@@ -68,11 +69,21 @@ function parseArgs(): CliArgs {
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--registry': registry = args[++i]; break;
-      case '--token': token = args[++i]; break;
-      case '--source': source = args[++i]; break;
-      case '--concurrency': concurrency = parseInt(args[++i], 10); break;
-      case '--dry-run': dryRun = true; break;
+      case '--registry':
+        registry = args[++i];
+        break;
+      case '--token':
+        token = args[++i];
+        break;
+      case '--source':
+        source = args[++i];
+        break;
+      case '--concurrency':
+        concurrency = parseInt(args[++i], 10);
+        break;
+      case '--dry-run':
+        dryRun = true;
+        break;
       default:
         if (!args[i].startsWith('-')) {
           source = source || args[i];
@@ -85,11 +96,19 @@ function parseArgs(): CliArgs {
     process.exit(1);
   }
   if (!token && !dryRun) {
-    console.error('ERROR: --token or OCI_REGISTRY_TOKEN is required (or use --dry-run)');
+    console.error(
+      'ERROR: --token or OCI_REGISTRY_TOKEN is required (or use --dry-run)',
+    );
     process.exit(1);
   }
 
-  return { registry: registry.replace(/\/$/, ''), token, source, concurrency, dryRun };
+  return {
+    registry: registry.replace(/\/$/, ''),
+    token,
+    source,
+    concurrency,
+    dryRun,
+  };
 }
 
 // ---- OCI helpers ----
@@ -98,7 +117,10 @@ function sha256Digest(buf: Buffer): string {
   return `sha256:${crypto.createHash('sha256').update(buf).digest('hex')}`;
 }
 
-function buildTarGzipLayer(cardYaml: string, content: string): { compressed: Buffer; uncompressedDigest: string } {
+function buildTarGzipLayer(
+  cardYaml: string,
+  content: string,
+): { compressed: Buffer; uncompressedDigest: string } {
   const files: Array<{ name: string; data: Buffer }> = [
     { name: 'skill.yaml', data: Buffer.from(cardYaml, 'utf-8') },
     { name: 'SKILL.md', data: Buffer.from(content, 'utf-8') },
@@ -116,7 +138,9 @@ function buildTarGzipLayer(cardYaml: string, content: string): { compressed: Buf
     Buffer.from('0000000\0').copy(header, 108);
     Buffer.from('0000000\0').copy(header, 116);
 
-    const now = Math.floor(Date.now() / 1000).toString(8).padStart(11, '0');
+    const now = Math.floor(Date.now() / 1000)
+      .toString(8)
+      .padStart(11, '0');
     Buffer.from(now).copy(header, 136);
 
     header[156] = 0x30; // '0' = regular file
@@ -124,7 +148,10 @@ function buildTarGzipLayer(cardYaml: string, content: string): { compressed: Buf
     Buffer.from('        ').copy(header, 148);
     let checksum = 0;
     for (let j = 0; j < 512; j++) checksum += header[j];
-    Buffer.from(checksum.toString(8).padStart(6, '0') + '\0 ').copy(header, 148);
+    Buffer.from(`${checksum.toString(8).padStart(6, '0')}\0 `).copy(
+      header,
+      148,
+    );
 
     blocks.push(header);
     blocks.push(file.data);
@@ -140,7 +167,12 @@ function buildTarGzipLayer(cardYaml: string, content: string): { compressed: Buf
   return { compressed, uncompressedDigest };
 }
 
-async function uploadBlob(registryUrl: string, token: string, data: Buffer, digest: string): Promise<void> {
+async function uploadBlob(
+  registryUrl: string,
+  token: string,
+  data: Buffer,
+  digest: string,
+): Promise<void> {
   const headRes = await fetch(`${registryUrl}/blobs/${digest}`, {
     method: 'HEAD',
     headers: { Authorization: `Bearer ${token}` },
@@ -153,7 +185,9 @@ async function uploadBlob(registryUrl: string, token: string, data: Buffer, dige
   });
 
   if (!uploadRes.ok) {
-    throw new Error(`Blob upload initiation failed: ${uploadRes.status} ${await uploadRes.text()}`);
+    throw new Error(
+      `Blob upload initiation failed: ${uploadRes.status} ${await uploadRes.text()}`,
+    );
   }
 
   let location = uploadRes.headers.get('location') || '';
@@ -180,7 +214,12 @@ async function uploadBlob(registryUrl: string, token: string, data: Buffer, dige
   }
 }
 
-async function putManifest(registryUrl: string, token: string, tag: string, manifest: object): Promise<void> {
+async function putManifest(
+  registryUrl: string,
+  token: string,
+  tag: string,
+  manifest: object,
+): Promise<void> {
   const body = JSON.stringify(manifest);
   const res = await fetch(`${registryUrl}/manifests/${tag}`, {
     method: 'PUT',
@@ -207,32 +246,190 @@ interface SkillEntry {
 }
 
 const CATEGORY_RULES: Array<{ namespace: string; keywords: string[] }> = [
-  { namespace: 'security', keywords: ['security', 'vulnerability', 'owasp', 'pentest', 'exploit', 'cve', 'xss', 'threat', 'attack'] },
-  { namespace: 'testing', keywords: ['test', 'playwright', 'cypress', 'jest', 'coverage', 'mock', 'e2e', 'selenium'] },
-  { namespace: 'devops', keywords: ['ci-cd', 'docker', 'kubernetes', 'k8s', 'helm', 'terraform', 'deploy', 'pipeline', 'github-actions', 'container'] },
-  { namespace: 'api', keywords: ['api-design', 'openapi', 'swagger', 'rest-api', 'graphql', 'grpc'] },
-  { namespace: 'frontend', keywords: ['react', 'vue', 'angular', 'frontend', 'css', 'tailwind', 'nextjs', 'svelte'] },
-  { namespace: 'backend', keywords: ['backend', 'database', 'sql', 'nosql', 'redis', 'postgres', 'microservice', 'express', 'fastapi'] },
-  { namespace: 'docs', keywords: ['documentation', 'markdown', 'readme', 'changelog', 'adr', 'technical-writing'] },
-  { namespace: 'observability', keywords: ['monitoring', 'observability', 'logging', 'metrics', 'tracing', 'alerting'] },
-  { namespace: 'ai-agents', keywords: ['agent', 'llm', 'prompt', 'rag', 'embedding', 'langchain', 'mcp', 'tool-calling'] },
-  { namespace: 'engineering', keywords: ['code-review', 'architect', 'refactor', 'clean-code', 'design-pattern', 'git', 'performance', 'debug'] },
+  {
+    namespace: 'security',
+    keywords: [
+      'security',
+      'vulnerability',
+      'owasp',
+      'pentest',
+      'exploit',
+      'cve',
+      'xss',
+      'threat',
+      'attack',
+    ],
+  },
+  {
+    namespace: 'testing',
+    keywords: [
+      'test',
+      'playwright',
+      'cypress',
+      'jest',
+      'coverage',
+      'mock',
+      'e2e',
+      'selenium',
+    ],
+  },
+  {
+    namespace: 'devops',
+    keywords: [
+      'ci-cd',
+      'docker',
+      'kubernetes',
+      'k8s',
+      'helm',
+      'terraform',
+      'deploy',
+      'pipeline',
+      'github-actions',
+      'container',
+    ],
+  },
+  {
+    namespace: 'api',
+    keywords: [
+      'api-design',
+      'openapi',
+      'swagger',
+      'rest-api',
+      'graphql',
+      'grpc',
+    ],
+  },
+  {
+    namespace: 'frontend',
+    keywords: [
+      'react',
+      'vue',
+      'angular',
+      'frontend',
+      'css',
+      'tailwind',
+      'nextjs',
+      'svelte',
+    ],
+  },
+  {
+    namespace: 'backend',
+    keywords: [
+      'backend',
+      'database',
+      'sql',
+      'nosql',
+      'redis',
+      'postgres',
+      'microservice',
+      'express',
+      'fastapi',
+    ],
+  },
+  {
+    namespace: 'docs',
+    keywords: [
+      'documentation',
+      'markdown',
+      'readme',
+      'changelog',
+      'adr',
+      'technical-writing',
+    ],
+  },
+  {
+    namespace: 'observability',
+    keywords: [
+      'monitoring',
+      'observability',
+      'logging',
+      'metrics',
+      'tracing',
+      'alerting',
+    ],
+  },
+  {
+    namespace: 'ai-agents',
+    keywords: [
+      'agent',
+      'llm',
+      'prompt',
+      'rag',
+      'embedding',
+      'langchain',
+      'mcp',
+      'tool-calling',
+    ],
+  },
+  {
+    namespace: 'engineering',
+    keywords: [
+      'code-review',
+      'architect',
+      'refactor',
+      'clean-code',
+      'design-pattern',
+      'git',
+      'performance',
+      'debug',
+    ],
+  },
 ];
 
 const EXCLUDE_PATTERNS = [
-  /^(2d|3d)-game/, /game-development/, /latex/, /biopy/, /bioserv/, /biorxiv/,
-  /^alphafold/, /^chembl/, /^brenda/, /metabolom/, /^anndata/, /^gget/,
-  /^astropy/, /clinical/, /treatment-plan/, /scientific/, /research-grant/,
-  /^imaging-data/, /^venue-template/, /^literature-review/, /^peer-review/,
-  /protein/, /genomic/, /churn-prevention/, /market-research/, /^ad-creative/,
-  /^seo-/, /^ai-seo/, /^marketing-psychology/, /^startup-business/,
-  /^backtesting/, /^alpha-vantage/, /^binance/, /cryptocurrency/,
-  /whisper/, /speech/, /^tts-/, /^voice/, /^customer-support$/,
-  /^fp-ts/, /^pptx-official/, /^docx-official/, /^pdf-official/, /^xlsx-official/,
+  /^(2d|3d)-game/,
+  /game-development/,
+  /latex/,
+  /biopy/,
+  /bioserv/,
+  /biorxiv/,
+  /^alphafold/,
+  /^chembl/,
+  /^brenda/,
+  /metabolom/,
+  /^anndata/,
+  /^gget/,
+  /^astropy/,
+  /clinical/,
+  /treatment-plan/,
+  /scientific/,
+  /research-grant/,
+  /^imaging-data/,
+  /^venue-template/,
+  /^literature-review/,
+  /^peer-review/,
+  /protein/,
+  /genomic/,
+  /churn-prevention/,
+  /market-research/,
+  /^ad-creative/,
+  /^seo-/,
+  /^ai-seo/,
+  /^marketing-psychology/,
+  /^startup-business/,
+  /^backtesting/,
+  /^alpha-vantage/,
+  /^binance/,
+  /cryptocurrency/,
+  /whisper/,
+  /speech/,
+  /^tts-/,
+  /^voice/,
+  /^customer-support$/,
+  /^fp-ts/,
+  /^pptx-official/,
+  /^docx-official/,
+  /^pdf-official/,
+  /^xlsx-official/,
 ];
 
-function categorize(slug: string, description: string, content: string): { namespace: string; tags: string[] } {
-  const haystack = `${slug} ${description} ${content.slice(0, 2000)}`.toLowerCase();
+function categorize(
+  slug: string,
+  description: string,
+  content: string,
+): { namespace: string; tags: string[] } {
+  const haystack =
+    `${slug} ${description} ${content.slice(0, 2000)}`.toLowerCase();
   const tags: string[] = [];
   let bestNs = 'general';
   let bestScore = 0;
@@ -245,13 +442,19 @@ function categorize(slug: string, description: string, content: string): { names
         if (!tags.includes(tag)) tags.push(tag);
       }
     }
-    if (score > bestScore) { bestScore = score; bestNs = rule.namespace; }
+    if (score > bestScore) {
+      bestScore = score;
+      bestNs = rule.namespace;
+    }
   }
   if (tags.length === 0) tags.push(bestNs);
   return { namespace: bestNs, tags: tags.slice(0, 8) };
 }
 
-function parseFrontmatter(raw: string): { frontmatter: Record<string, string>; body: string } {
+function parseFrontmatter(raw: string): {
+  frontmatter: Record<string, string>;
+  body: string;
+} {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!match) return { frontmatter: {}, body: raw };
   const fm: Record<string, string> = {};
@@ -267,20 +470,36 @@ function parseFrontmatter(raw: string): { frontmatter: Record<string, string>; b
 }
 
 function sanitizeSlug(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 64);
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64);
 }
 
 function toDisplayName(slug: string): string {
-  return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return slug
+    .split('-')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 function inferTools(content: string): string | undefined {
   const tools: string[] = [];
   const l = content.toLowerCase();
-  if (l.includes('read_file') || l.includes('analyze') || l.includes('review')) tools.push('read_file');
-  if (l.includes('write_file') || l.includes('create') || l.includes('generate')) tools.push('write_file');
-  if (l.includes('exec') || l.includes('bash') || l.includes('shell')) tools.push('exec');
-  if (l.includes('web_fetch') || l.includes('fetch') || l.includes('http')) tools.push('web_fetch');
+  if (l.includes('read_file') || l.includes('analyze') || l.includes('review'))
+    tools.push('read_file');
+  if (
+    l.includes('write_file') ||
+    l.includes('create') ||
+    l.includes('generate')
+  )
+    tools.push('write_file');
+  if (l.includes('exec') || l.includes('bash') || l.includes('shell'))
+    tools.push('exec');
+  if (l.includes('web_fetch') || l.includes('fetch') || l.includes('http'))
+    tools.push('web_fetch');
   return tools.length > 0 ? tools.join(' ') : undefined;
 }
 
@@ -362,7 +581,9 @@ async function pushSkill(
   entry: SkillEntry,
 ): Promise<string> {
   const meta = (entry.card as any).metadata;
-  const repoName = meta.name.startsWith('skill-') ? meta.name : `skill-${meta.name}`;
+  const repoName = meta.name.startsWith('skill-')
+    ? meta.name
+    : `skill-${meta.name}`;
   const repoUrl = `${registryUrl}/${repoName}`;
   const tag = meta.version || '1.0.0';
 
@@ -370,7 +591,10 @@ async function pushSkill(
     .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
     .join('\n');
 
-  const { compressed, uncompressedDigest } = buildTarGzipLayer(yaml, entry.content);
+  const { compressed, uncompressedDigest } = buildTarGzipLayer(
+    yaml,
+    entry.content,
+  );
   const layerDigest = sha256Digest(compressed);
 
   await uploadBlob(repoUrl, token, compressed, layerDigest);
@@ -387,12 +611,17 @@ async function pushSkill(
   const annotations: Record<string, string> = {
     'org.opencontainers.image.title': meta['display-name'] || meta.name,
     'org.opencontainers.image.version': meta.version || tag,
-    'org.opencontainers.image.description': (meta.description || '').slice(0, 256),
+    'org.opencontainers.image.description': (meta.description || '').slice(
+      0,
+      256,
+    ),
     'org.opencontainers.image.created': new Date().toISOString(),
     'io.skillimage.status': 'published',
   };
-  if (meta.license) annotations['org.opencontainers.image.licenses'] = meta.license;
-  if (meta.namespace) annotations['org.opencontainers.image.vendor'] = meta.namespace;
+  if (meta.license)
+    annotations['org.opencontainers.image.licenses'] = meta.license;
+  if (meta.namespace)
+    annotations['org.opencontainers.image.vendor'] = meta.namespace;
 
   const manifest = {
     schemaVersion: 2,
@@ -402,11 +631,13 @@ async function pushSkill(
       digest: configDigest,
       size: configBuf.length,
     },
-    layers: [{
-      mediaType: IMAGE_LAYER_MEDIA_TYPE,
-      digest: layerDigest,
-      size: compressed.length,
-    }],
+    layers: [
+      {
+        mediaType: IMAGE_LAYER_MEDIA_TYPE,
+        digest: layerDigest,
+        size: compressed.length,
+      },
+    ],
     annotations,
   };
 
@@ -423,7 +654,9 @@ async function main() {
   if (!hubPath) {
     hubPath = path.join('/tmp', `skills-hub-seed-${Date.now()}`);
     console.log(`Cloning agent-skills-hub to ${hubPath}...`);
-    execSync(`git clone --depth 1 ${SKILLS_HUB_REPO} ${hubPath}`, { stdio: 'pipe' });
+    execSync(`git clone --depth 1 ${SKILLS_HUB_REPO} ${hubPath}`, {
+      stdio: 'pipe',
+    });
   }
 
   const skills = collectSkills(hubPath);
@@ -450,14 +683,23 @@ async function main() {
       try {
         const ref = await pushSkill(args.registry, args.token, skill);
         pushed++;
-        console.log(`[${pushed + skipped + errors}/${skills.length}] Pushed: ${skill.slug} -> ${ref}`);
+        console.log(
+          `[${pushed + skipped + errors}/${skills.length}] Pushed: ${skill.slug} -> ${ref}`,
+        );
       } catch (err: any) {
-        if (err.message?.includes('409') || err.message?.includes('MANIFEST_INVALID')) {
+        if (
+          err.message?.includes('409') ||
+          err.message?.includes('MANIFEST_INVALID')
+        ) {
           skipped++;
-          console.log(`[${pushed + skipped + errors}/${skills.length}] Exists: ${skill.slug}`);
+          console.log(
+            `[${pushed + skipped + errors}/${skills.length}] Exists: ${skill.slug}`,
+          );
         } else {
           errors++;
-          console.error(`[${pushed + skipped + errors}/${skills.length}] FAILED: ${skill.slug}: ${err.message}`);
+          console.error(
+            `[${pushed + skipped + errors}/${skills.length}] FAILED: ${skill.slug}: ${err.message}`,
+          );
         }
       }
     }
