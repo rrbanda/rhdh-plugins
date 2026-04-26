@@ -63,14 +63,14 @@ export function BundleExportPanel({
         <div className={styles.saveForm}>
           <input
             className={styles.input}
-            placeholder="Bundle name"
+            placeholder="Skill bundle name"
             value={bundleName}
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setBundleName(e.target.value)
             }
             // eslint-disable-next-line jsx-a11y/no-autofocus -- focus name field when save form is shown
             autoFocus
-            aria-label="Bundle name"
+            aria-label="Skill bundle name"
           />
           <input
             className={styles.input}
@@ -79,7 +79,7 @@ export function BundleExportPanel({
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setBundleDesc(e.target.value)
             }
-            aria-label="Bundle description"
+            aria-label="Skill bundle description"
           />
           <div className={styles.saveActions}>
             <button
@@ -87,15 +87,15 @@ export function BundleExportPanel({
               className={`${styles.btn} ${styles.btnPrimary}`}
               onClick={onSave}
               disabled={saving || !bundleName.trim()}
-              aria-label="Save bundle to the server"
+              aria-label="Save skill bundle to the server"
             >
-              {saving ? 'Saving...' : 'Save Bundle'}
+              {saving ? 'Saving...' : 'Save Skill Bundle'}
             </button>
             <button
               type="button"
               className={`${styles.btn} ${styles.btnSecondary}`}
               onClick={() => setShowSaveForm(false)}
-              aria-label="Cancel save bundle form"
+              aria-label="Cancel save skill bundle form"
             >
               Cancel
             </button>
@@ -107,9 +107,9 @@ export function BundleExportPanel({
             type="button"
             className={`${styles.btn} ${styles.btnPrimary}`}
             onClick={() => setShowSaveForm(true)}
-            aria-label="Open form to save bundle to the server"
+            aria-label="Open form to save skill bundle to the server"
           >
-            Save Bundle
+            Save Skill Bundle
           </button>
           <div className={exportStyles.formatRow}>
             <div
@@ -142,8 +142,8 @@ export function BundleExportPanel({
               onClick={() => onExport(exportFormat)}
               aria-label={
                 exportFormat === 'json'
-                  ? 'Export bundle as a JSON file'
-                  : 'Export bundle as a YAML file'
+                  ? 'Export skill bundle as a JSON file'
+                  : 'Export skill bundle as a YAML file'
               }
             >
               Export
@@ -160,7 +160,7 @@ export function BundleExportPanel({
               )
                 onClearCart();
             }}
-            aria-label="Remove all skills from the bundle cart"
+            aria-label="Remove all skills from the skill bundle cart"
           >
             Clear
           </button>

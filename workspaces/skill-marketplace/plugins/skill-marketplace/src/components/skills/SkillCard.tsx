@@ -150,7 +150,7 @@ export function SkillCard({
                 color: '#7c3aed',
               }}
             >
-              Bundle
+              Skill Bundle
             </span>
           )}
         </div>

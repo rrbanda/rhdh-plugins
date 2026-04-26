@@ -255,10 +255,10 @@ export default function OverviewPage() {
           <div className={`${styles.ovSecHdr} ${styles.ovSecHdrWithSub}`}>
             <div>
               <h2 className={styles.ovH2} id="featured-bundles-heading">
-                Featured Bundles
+                Featured Skill Bundles
               </h2>
               <p className={styles.ovSecSub}>
-                Curated skill bundles ready to use
+                Curated skill bundles ready to deploy
               </p>
             </div>
             <button
@@ -278,7 +278,7 @@ export default function OverviewPage() {
               const title =
                 (fromCatalog
                   ? bundle.display_name || bundle.name
-                  : bundle.name) || 'Bundle';
+                  : bundle.name) || 'Skill Bundle';
               const desc = bundle.description?.trim() || 'No description';
               const count = fromCatalog
                 ? catalogBundleSkillCount(bundle)
@@ -297,7 +297,7 @@ export default function OverviewPage() {
                       navigate('bundles');
                     }
                   }}
-                  aria-label={`Open bundles: ${title}`}
+                  aria-label={`Open skill bundle: ${title}`}
                 >
                   <div className={styles.ovBunCardHdr}>
                     <span className={styles.ovBunIcon} aria-hidden />

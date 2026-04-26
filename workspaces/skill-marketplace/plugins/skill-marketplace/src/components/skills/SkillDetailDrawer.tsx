@@ -521,9 +521,9 @@ export function SkillDetailDrawer({
               color="primary"
               className={styles.actionBtn}
               onClick={handleAddToBundle}
-              aria-label="Add this skill to bundle cart"
+              aria-label="Add this skill to skill bundle cart"
             >
-              Add to Bundle
+              Add to Skill Bundle
             </Button>
             <Button
               variant="outlined"

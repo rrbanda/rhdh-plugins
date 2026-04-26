@@ -191,7 +191,7 @@ export function ArtifactPanel({
                 onClick={() => setDrawerOpen(true)}
                 aria-label="Open skill bundle shopping cart"
               >
-                View bundle cart
+                View skill bundle cart
               </button>
             </div>
           </div>

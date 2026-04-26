@@ -282,15 +282,15 @@ export function PlaygroundSidebar({
           <div className={styles.bundleContext}>
             <div className={styles.bundleHeader}>
               {bundleName
-                ? `Bundle: ${bundleName}`
-                : `Testing ${bundleSkillNames.length} skills from bundle`}
+                ? `Skill Bundle: ${bundleName}`
+                : `Testing ${bundleSkillNames.length} skills from skill bundle`}
             </div>
             <div
               className={styles.label}
               id={bundleSkillsLabelId}
               style={{ marginTop: 8 }}
             >
-              Bundle Skills
+              Skill Bundle Skills
             </div>
             <div
               className={styles.bundleChips}
@@ -403,7 +403,7 @@ export function PlaygroundSidebar({
             </div>
             {testedCount === bundleSkillNames.length && testedCount > 0 && (
               <div className={pgStyles.testComplete} role="status">
-                All skills tested! Bundle is ready for status promotion.
+                All skills tested! Skill bundle is ready for status promotion.
               </div>
             )}
           </details>

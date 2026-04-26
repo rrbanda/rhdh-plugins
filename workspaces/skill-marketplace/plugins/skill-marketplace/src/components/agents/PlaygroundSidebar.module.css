@@ -110,7 +110,7 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  color: #fff;
+  color: var(--sm-text-on-brand);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -194,10 +194,10 @@
   border-color: var(--sm-brand);
   color: var(--sm-text-on-brand);
 }
-.chipPassed { color: #4caf50; margin-right: 4px; }
-.chipFailed { color: #f44336; margin-right: 4px; }
-.chipTested { color: #2196f3; margin-right: 4px; }
-.chipUntested { color: #bdbdbd; margin-right: 4px; }
+.chipPassed { color: var(--sm-success); margin-right: 4px; }
+.chipFailed { color: var(--sm-danger); margin-right: 4px; }
+.chipTested { color: var(--sm-brand); margin-right: 4px; }
+.chipUntested { color: var(--sm-text-secondary); margin-right: 4px; }
 
 .toolList {
   display: flex;

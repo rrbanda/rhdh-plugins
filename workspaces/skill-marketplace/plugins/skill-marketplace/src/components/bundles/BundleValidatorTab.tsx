@@ -83,7 +83,9 @@ export function BundleValidatorTab({
             <div className={`${styles.finding} ${styles.findingSuccess}`}>
               <span className={styles.findingIcon}>✓</span>
               <div className={styles.findingBody}>
-                <span className={styles.findingTitle}>Bundle looks good!</span>
+                <span className={styles.findingTitle}>
+                  Skill bundle looks good!
+                </span>
                 <span className={styles.findingDetail}>
                   No issues detected. Your skill selection appears complete and
                   well-structured.

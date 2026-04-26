@@ -197,13 +197,13 @@ export default function SkillsPage() {
             aria-label={
               selectionMode
                 ? 'Exit selection mode'
-                : 'Enter selection mode for bundle'
+                : 'Enter selection mode for skill bundle'
             }
           >
             <svg viewBox="0 0 16 16" width={14} height={14} fill="currentColor">
               <path d="M2 0a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V2a2 2 0 00-2-2H2zm10.03 4.97a.75.75 0 010 1.06l-5 5a.75.75 0 01-1.06 0l-2.5-2.5a.75.75 0 111.06-1.06L6.5 9.44l4.47-4.47a.75.75 0 011.06 0z" />
             </svg>
-            {selectionMode ? 'Exit Selection' : 'Select for Bundle'}
+            {selectionMode ? 'Exit Selection' : 'Select for Skill Bundle'}
           </button>
           <span className={styles.count}>
             {filtered.length} of {skills.length} skills
@@ -712,7 +712,7 @@ export default function SkillsPage() {
           <button
             className={styles.floatingBtnPrimary}
             onClick={handleAddSelectedToCart}
-            aria-label="Add selected skills to bundle cart"
+            aria-label="Add selected skills to skill bundle cart"
           >
             <svg
               viewBox="0 0 24 24"
@@ -726,7 +726,7 @@ export default function SkillsPage() {
               <circle cx="20" cy="21" r="1" />
               <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
             </svg>
-            Add to Bundle Cart
+            Add to Skill Bundle Cart
           </button>
           <button
             className={styles.floatingBtnGhost}

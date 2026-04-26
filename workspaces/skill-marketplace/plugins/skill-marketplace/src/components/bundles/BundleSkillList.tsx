@@ -127,7 +127,7 @@ function ExpandableSkillBranch({
                 onRemoveSkill(skill.name);
               }}
               title="Remove"
-              aria-label={`Remove ${display} from bundle`}
+              aria-label={`Remove ${display} from skill bundle`}
             >
               &times;
             </button>
@@ -256,7 +256,7 @@ export function BundleSkillList({
                     className={styles.removeButton}
                     onClick={() => onRemoveSkill(skill.name)}
                     title="Remove"
-                    aria-label={`Remove ${display} from bundle`}
+                    aria-label={`Remove ${display} from skill bundle`}
                   >
                     &times;
                   </button>

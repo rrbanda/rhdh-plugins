@@ -81,14 +81,14 @@ export function BundleCartAiBar({
             ? 'Validation requires agentic backend configuration'
             : skillCount < 2
               ? 'Add at least 2 skills to validate'
-              : 'Validate bundle completeness'
+              : 'Validate skill bundle completeness'
         }
         aria-label={
           aiUnavailable
-            ? 'Bundle validation unavailable'
+            ? 'Skill bundle validation unavailable'
             : skillCount < 2
               ? 'Add at least two skills to use validation'
-              : 'Toggle bundle validation panel'
+              : 'Toggle skill bundle validation panel'
         }
       >
         <svg
@@ -111,7 +111,7 @@ export function BundleCartAiBar({
           className={styles.aiTab}
           onClick={onTestInPlayground}
           title="Test these skills in the Skills Playground"
-          aria-label="Open skills playground with current bundle"
+          aria-label="Open skills playground with current skill bundle"
         >
           <svg
             viewBox="0 0 24 24"

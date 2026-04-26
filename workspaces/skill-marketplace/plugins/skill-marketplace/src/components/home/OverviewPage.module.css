@@ -306,7 +306,7 @@
   width: 4px;
   flex-shrink: 0;
   transition: width 0.15s;
-  background-color: var(--fc-bar-color, #6b7280);
+  background-color: var(--fc-bar-color, var(--sm-text-secondary));
 }
 .ovFcBody {
   flex: 1;
@@ -363,8 +363,8 @@
 .ovFcModel {
   font-size: 12px;
   font-weight: 600;
-  color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.08);
+  color: var(--sm-brand);
+  background: var(--sm-brand-tint);
   padding: 2px 8px;
   border-radius: 999px;
   margin-left: auto;

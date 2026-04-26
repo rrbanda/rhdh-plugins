@@ -66,9 +66,9 @@ export function BundleDependencyTree({
   if (skills.length === 0) {
     return (
       <div className={styles.empty}>
-        <p>Your bundle is empty.</p>
+        <p>Your skill bundle is empty.</p>
         <p className={styles.emptyHint}>
-          Click &quot;Add to Bundle&quot; on any skill to get started.
+          Click &quot;Add to Skill Bundle&quot; on any skill to get started.
         </p>
       </div>
     );
@@ -127,7 +127,7 @@ export function BundleDependencyTree({
           <div
             className={`${treeStyles.tree} ${treeStyles.treeIndent}`}
             role="tree"
-            aria-label="Tool requirements for this bundle"
+            aria-label="Tool requirements for this skill bundle"
           >
             {resolved.tools.map(tool => (
               <div
@@ -155,7 +155,7 @@ export function BundleDependencyTree({
           <div
             className={`${treeStyles.tree} ${treeStyles.treeIndent}`}
             role="tree"
-            aria-label="Similar skills you might add to this bundle"
+            aria-label="Similar skills you might add to this skill bundle"
           >
             {resolved.similar.slice(0, 5).map(sim => {
               const n = sim.name.split(':').pop() || sim.name;

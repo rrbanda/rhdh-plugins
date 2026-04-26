@@ -115,7 +115,7 @@ export function useBundleValidator() {
 
       setState({
         status: 'validating',
-        statusText: 'Analyzing bundle composition...',
+        statusText: 'Analyzing skill bundle composition...',
         findings: [],
         summary: '',
         error: null,
@@ -133,14 +133,14 @@ export function useBundleValidator() {
           'validator',
           [
             'Validate this skill bundle for completeness, redundancy, and gaps.',
-            `Skills in the bundle: ${skillNames.join(', ')}`,
+            `Skills in the skill bundle: ${skillNames.join(', ')}`,
             depContext,
             toolContext,
             '',
             'Analyze:',
             '1. Are there missing skills that would typically complement these?',
             '2. Are there redundant or overlapping skills?',
-            '3. Is the bundle well-balanced for its apparent use case?',
+            '3. Is the skill bundle well-balanced for its apparent use case?',
             '4. What is the overall completeness score?',
             '',
             'Format each finding as a bullet point with a short title followed by a colon and detail.',

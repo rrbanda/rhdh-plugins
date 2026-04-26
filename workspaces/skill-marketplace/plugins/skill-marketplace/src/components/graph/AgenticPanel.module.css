@@ -238,13 +238,13 @@
 }
 .userBubble {
   position: relative;
-  background: #4f46e5;
-  color: #fff;
+  background: var(--sm-brand);
+  color: var(--sm-text-on-brand);
   border-radius: 16px 16px 4px 16px;
   padding: 10px 14px 10px 14px;
   font-size: 13px;
   line-height: 1.5;
-  box-shadow: 0 1px 2px color-mix(in srgb, #4f46e5 20%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--sm-brand) 20%, transparent);
 }
 .userBubble::after {
   content: '';
@@ -253,7 +253,7 @@
   right: -5px;
   width: 10px;
   height: 10px;
-  background: #4f46e5;
+  background: var(--sm-brand);
   border-bottom-left-radius: 10px;
   transform: skewX(-12deg);
   z-index: 0;
@@ -519,16 +519,16 @@
   flex-shrink: 0;
 }
 .ragMatchSemantic {
-  color: #1d4ed8;
-  background: color-mix(in srgb, #3b82f6 16%, var(--sm-surface-secondary));
+  color: var(--sm-brand);
+  background: color-mix(in srgb, var(--sm-brand) 16%, var(--sm-surface-secondary));
 }
 .ragMatchText {
-  color: #15803d;
-  background: color-mix(in srgb, #22c55e 16%, var(--sm-surface-secondary));
+  color: var(--sm-success);
+  background: color-mix(in srgb, var(--sm-success) 16%, var(--sm-surface-secondary));
 }
 .ragMatchGraph {
-  color: #6d28d9;
-  background: color-mix(in srgb, #a855f7 16%, var(--sm-surface-secondary));
+  color: var(--sm-warning);
+  background: color-mix(in srgb, var(--sm-warning) 16%, var(--sm-surface-secondary));
 }
 
 .agenticStreaming {

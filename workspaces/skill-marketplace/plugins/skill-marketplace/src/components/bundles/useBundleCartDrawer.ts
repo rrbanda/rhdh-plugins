@@ -94,7 +94,7 @@ export function useBundleCartDrawer() {
       const result = await saveBundle(bundleName, bundleDesc);
       const unmatched = result.unmatchedSlugs;
       setSaveError('');
-      const base = `Bundle "${bundleName}" saved!`;
+      const base = `Skill bundle "${bundleName}" saved!`;
       setSaveSuccess(
         unmatched?.length
           ? `${base} (${unmatched.length} skill slug(s) not found)`
@@ -110,7 +110,8 @@ export function useBundleCartDrawer() {
       }, 2000);
     } catch (err: unknown) {
       setSaveSuccess('');
-      const msg = err instanceof Error ? err.message : 'Failed to save bundle';
+      const msg =
+        err instanceof Error ? err.message : 'Failed to save skill bundle';
       setSaveError(msg);
       if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
       errorTimeoutRef.current = setTimeout(() => setSaveError(''), 4000);

@@ -127,6 +127,15 @@ const smThemeVars = (isDark: boolean): Record<string, string> => ({
   '--sm-chat-bubble-radius': '20px',
   '--sm-chat-code-bg': isDark ? '#1a1a2e' : '#f8f9fa',
   '--sm-chat-thought-color': isDark ? '#9aa0a6' : '#80868b',
+  '--sm-graph-toolbar-bg': isDark
+    ? 'color-mix(in srgb, #0f172a 86%, rgba(15,23,42,0.55))'
+    : 'color-mix(in srgb, #ffffff 86%, rgba(255,255,255,0.72))',
+  '--sm-graph-toolbar-border': isDark
+    ? 'color-mix(in srgb, #3a3a3a 70%, rgba(255,255,255,0.08))'
+    : 'color-mix(in srgb, #d2d2d2 85%, transparent)',
+  '--sm-graph-canvas-pulse': isDark
+    ? 'rgba(129,140,248,0.12)'
+    : 'rgba(99,102,241,0.08)',
 });
 
 const SkillMarketplacePageInner = () => {
@@ -139,6 +148,17 @@ const SkillMarketplacePageInner = () => {
     () => smThemeVars(isDark) as React.CSSProperties,
     [isDark],
   );
+
+  useEffect(() => {
+    const vars = smThemeVars(isDark);
+    const root = document.documentElement;
+    const keys = Object.keys(vars);
+    keys.forEach(k => root.style.setProperty(k, vars[k]));
+    return () => {
+      keys.forEach(k => root.style.removeProperty(k));
+    };
+  }, [isDark]);
+
   const { skills, marketplace, loading } = useSkills();
   const {
     toggleDrawer,
@@ -166,7 +186,7 @@ const SkillMarketplacePageInner = () => {
   const navItems = [
     { label: 'Overview', path: '' },
     { label: 'Skills', path: 'skills' },
-    { label: 'Bundles', path: 'bundles' },
+    { label: 'Skill Bundles', path: 'bundles' },
     { label: 'Skill Graph', path: 'graph' },
     { label: 'Skill Builder', path: 'builder' },
     { label: 'Skills Playground', path: 'playground' },
@@ -188,10 +208,13 @@ const SkillMarketplacePageInner = () => {
   if (showIntro) {
     if (loading) {
       return (
-        <div className={smLayoutStyles.smRoot} style={themeStyle}>
+        <div
+          className={`${smLayoutStyles.smRoot} skill-marketplace-plugin-root`}
+          style={themeStyle}
+        >
           <div
             className={smLayoutStyles.smContent}
-            style={{ background: '#000' }}
+            style={{ background: 'var(--sm-surface-primary)' }}
           >
             <LoadingSpinner message="" />
           </div>
@@ -199,7 +222,10 @@ const SkillMarketplacePageInner = () => {
       );
     }
     return plugins.length > 0 ? (
-      <div className={smLayoutStyles.smRoot} style={themeStyle}>
+      <div
+        className={`${smLayoutStyles.smRoot} skill-marketplace-plugin-root`}
+        style={themeStyle}
+      >
         <div className={smLayoutStyles.smContent}>
           <SkillIntro
             plugins={plugins}
@@ -214,7 +240,10 @@ const SkillMarketplacePageInner = () => {
   }
 
   return (
-    <div className={smLayoutStyles.smRoot} style={themeStyle}>
+    <div
+      className={`${smLayoutStyles.smRoot} skill-marketplace-plugin-root`}
+      style={themeStyle}
+    >
       <nav
         className={smLayoutStyles.smTopnav}
         aria-label="Skill Marketplace navigation"
@@ -301,7 +330,7 @@ const SkillMarketplacePageInner = () => {
             <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6" />
           </svg>
           <span className={smLayoutStyles.smFloatingCartLabel}>
-            Bundle Cart:{' '}
+            Skill Bundle Cart:{' '}
             <strong>
               {cartSkills.length} skill{cartSkills.length !== 1 ? 's' : ''}
             </strong>
@@ -315,6 +344,7 @@ const SkillMarketplacePageInner = () => {
           </button>
         </div>
       )}
+      <BundleCart />
     </div>
   );
 };
@@ -323,7 +353,6 @@ export const SkillMarketplacePage = () => (
   <SkillsProvider>
     <BundleProvider>
       <SkillMarketplacePageInner />
-      <BundleCart />
     </BundleProvider>
   </SkillsProvider>
 );

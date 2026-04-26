@@ -48,7 +48,7 @@ export function BundleAdvisorTab({
         <input
           className={`${styles.input} ${styles.advisorInput}`}
           placeholder="Describe what you need..."
-          aria-label="Describe what you need for bundle advice"
+          aria-label="Describe what you need for skill bundle advice"
           value={advisorInput}
           onChange={(e: ChangeEvent<HTMLInputElement>) =>
             setAdvisorInput(e.target.value)

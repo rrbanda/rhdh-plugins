@@ -281,7 +281,7 @@
   border-radius: 14px;
   background: var(--sm-surface-card);
   border: 1px solid var(--sm-brand);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  box-shadow: var(--sm-shadow-lg);
   animation: barIn 0.2s ease-out;
 }
 @keyframes barIn {
@@ -458,9 +458,9 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.ssMatchSemantic { composes: ssMatchBadge; background: rgba(139,92,246,0.12); color: #7c3aed; }
-.ssMatchFulltext { composes: ssMatchBadge; background: rgba(6,182,212,0.12); color: #0891b2; }
-.ssMatchGraph { composes: ssMatchBadge; background: var(--sm-warning-tint); color: #d97706; }
+.ssMatchSemantic { composes: ssMatchBadge; background: color-mix(in srgb, var(--sm-brand) 12%, transparent); color: var(--sm-brand); }
+.ssMatchFulltext { composes: ssMatchBadge; background: var(--sm-success-tint); color: var(--sm-success); }
+.ssMatchGraph { composes: ssMatchBadge; background: var(--sm-warning-tint); color: var(--sm-warning); }
 .ssScore {
   margin-left: auto;
   font-size: 13px;

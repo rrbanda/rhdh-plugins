@@ -145,7 +145,7 @@ export default function BundleBrowser() {
         setLoading(false);
       })
       .catch(err => {
-        setError(err.message || 'Failed to load bundles');
+        setError(err.message || 'Failed to load skill bundles');
         setLoading(false);
       });
   }, [api]);
@@ -185,7 +185,7 @@ export default function BundleBrowser() {
       if (skillSlugs.length === 0) {
         showFeedback(
           'error',
-          'This bundle has no skills listed; cannot fork an empty bundle.',
+          'This skill bundle has no skills listed; cannot fork an empty skill bundle.',
         );
         return;
       }
@@ -196,7 +196,7 @@ export default function BundleBrowser() {
           description: cb.description || '',
           skillSlugs,
         });
-        showFeedback('success', 'Bundle forked to My Bundles');
+        showFeedback('success', 'Skill bundle forked to My Skill Bundles');
         setActiveTab('my');
         loadBundles();
       } catch (err) {
@@ -235,7 +235,9 @@ export default function BundleBrowser() {
         setSelectedBundle(bundle);
       } catch (err) {
         setDetailError(
-          err instanceof Error ? err.message : 'Failed to load bundle details',
+          err instanceof Error
+            ? err.message
+            : 'Failed to load skill bundle details',
         );
       }
       setDetailLoading(false);
@@ -248,12 +250,12 @@ export default function BundleBrowser() {
       setActionLoading('fork');
       try {
         await api.forkBundle(id);
-        showFeedback('success', 'Bundle forked successfully');
+        showFeedback('success', 'Skill bundle forked successfully');
         loadBundles();
       } catch (err) {
         showFeedback(
           'error',
-          err instanceof Error ? err.message : 'Failed to fork bundle',
+          err instanceof Error ? err.message : 'Failed to fork skill bundle',
         );
       } finally {
         setActionLoading(null);
@@ -269,12 +271,12 @@ export default function BundleBrowser() {
       try {
         await api.deleteBundle(id);
         if (selectedBundle?.id === id) setSelectedBundle(null);
-        showFeedback('success', 'Bundle deleted');
+        showFeedback('success', 'Skill bundle deleted');
         loadBundles();
       } catch (err) {
         showFeedback(
           'error',
-          err instanceof Error ? err.message : 'Failed to delete bundle',
+          err instanceof Error ? err.message : 'Failed to delete skill bundle',
         );
       } finally {
         setActionLoading(null);
@@ -325,7 +327,7 @@ export default function BundleBrowser() {
               : undefined,
           skills,
         });
-        showFeedback('success', 'Bundle imported');
+        showFeedback('success', 'Skill bundle imported');
         loadBundles();
       } catch (err) {
         if (err instanceof SyntaxError) {
@@ -333,7 +335,9 @@ export default function BundleBrowser() {
         } else {
           showFeedback(
             'error',
-            err instanceof Error ? err.message : 'Failed to import bundle',
+            err instanceof Error
+              ? err.message
+              : 'Failed to import skill bundle',
           );
         }
       } finally {
@@ -357,11 +361,11 @@ export default function BundleBrowser() {
         a.download = `bundle-${id}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        showFeedback('success', 'Bundle exported');
+        showFeedback('success', 'Skill bundle exported');
       } catch (err) {
         showFeedback(
           'error',
-          err instanceof Error ? err.message : 'Failed to export bundle',
+          err instanceof Error ? err.message : 'Failed to export skill bundle',
         );
       } finally {
         setActionLoading(null);
@@ -409,14 +413,14 @@ export default function BundleBrowser() {
         name: editName,
         description: editDesc,
       });
-      showFeedback('success', 'Bundle updated');
+      showFeedback('success', 'Skill bundle updated');
       setEditMode(false);
       openDetail(selectedBundle.id);
       loadBundles();
     } catch (err) {
       showFeedback(
         'error',
-        err instanceof Error ? err.message : 'Failed to update bundle',
+        err instanceof Error ? err.message : 'Failed to update skill bundle',
       );
     } finally {
       setActionLoading(null);
@@ -443,7 +447,9 @@ export default function BundleBrowser() {
       } catch (err) {
         showFeedback(
           'error',
-          err instanceof Error ? err.message : 'Failed to update bundle status',
+          err instanceof Error
+            ? err.message
+            : 'Failed to update skill bundle status',
         );
       } finally {
         setActionLoading(null);
@@ -456,7 +462,7 @@ export default function BundleBrowser() {
     if (!selectedBundle) return;
     if (
       !window.confirm(
-        'Publishing will push this bundle to the OCI registry and make it discoverable in the marketplace. Continue?',
+        'Publishing will push this skill bundle to the OCI registry and make it discoverable in the marketplace. Continue?',
       )
     ) {
       return;
@@ -464,13 +470,13 @@ export default function BundleBrowser() {
     setActionLoading('bundle-status');
     try {
       await updateBundleStatus(selectedBundle.id, 'published');
-      showFeedback('success', 'Bundle published');
+      showFeedback('success', 'Skill bundle published');
       loadBundles();
       openDetail(selectedBundle.id);
     } catch (err) {
       showFeedback(
         'error',
-        err instanceof Error ? err.message : 'Failed to publish bundle',
+        err instanceof Error ? err.message : 'Failed to publish skill bundle',
       );
     } finally {
       setActionLoading(null);
@@ -492,7 +498,7 @@ export default function BundleBrowser() {
           .filter(s => s.slug !== skillSlug)
           .map(s => s.slug);
         await api.updateBundle(selectedBundle.id, { skillSlugs: remaining });
-        showFeedback('success', 'Skill removed from bundle');
+        showFeedback('success', 'Skill removed from skill bundle');
         openDetail(selectedBundle.id);
         loadBundles();
       } catch (err) {
@@ -515,7 +521,7 @@ export default function BundleBrowser() {
     [bundles, statusFilter],
   );
 
-  if (loading) return <LoadingSpinner message="Loading bundles..." />;
+  if (loading) return <LoadingSpinner message="Loading skill bundles..." />;
   if (error) return <ErrorMessage message={error} />;
 
   return (
@@ -547,7 +553,7 @@ export default function BundleBrowser() {
             type="file"
             accept=".json,application/json"
             onChange={handleImportBundleFile}
-            aria-label="Choose bundle JSON file to import"
+            aria-label="Choose skill bundle JSON file to import"
             tabIndex={-1}
           />
           <button
@@ -555,16 +561,18 @@ export default function BundleBrowser() {
             onClick={() => importFileInputRef.current?.click()}
             disabled={actionLoading === 'import'}
             type="button"
-            aria-label="Import bundle from JSON file"
+            aria-label="Import skill bundle from JSON file"
           >
-            {actionLoading === 'import' ? 'Importing...' : 'Import Bundle'}
+            {actionLoading === 'import'
+              ? 'Importing...'
+              : 'Import Skill Bundle'}
           </button>
           <button
             className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
             onClick={() => navigate(`${basePath}/skills?mode=select`)}
             type="button"
           >
-            + Build New Bundle
+            + Build New Skill Bundle
           </button>
           <button
             className={styles.bbCartBtn}
@@ -602,12 +610,12 @@ export default function BundleBrowser() {
               setEditMode(false);
             }}
             type="button"
-            aria-label="Back to bundle list"
+            aria-label="Back to skill bundle list"
           >
-            &larr; Back to bundles
+            &larr; Back to skill bundles
           </button>
           {detailLoading ? (
-            <LoadingSpinner message="Loading bundle..." />
+            <LoadingSpinner message="Loading skill bundle..." />
           ) : detailError ? (
             <ErrorMessage message={detailError} />
           ) : selectedBundle ? (
@@ -619,15 +627,15 @@ export default function BundleBrowser() {
                       className={`${styles.bbEditInput} ${styles.bbEditTitleInput}`}
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
-                      placeholder="Bundle name"
-                      aria-label="Bundle name"
+                      placeholder="Skill bundle name"
+                      aria-label="Skill bundle name"
                     />
                     <input
                       className={styles.bbEditInput}
                       value={editDesc}
                       onChange={e => setEditDesc(e.target.value)}
                       placeholder="Description"
-                      aria-label="Bundle description"
+                      aria-label="Skill bundle description"
                     />
                     <div className={styles.bbEditActions}>
                       <button
@@ -671,7 +679,7 @@ export default function BundleBrowser() {
                   <div
                     className={styles.bbDetailLifecycle}
                     role="group"
-                    aria-label="Bundle lifecycle actions"
+                    aria-label="Skill bundle lifecycle actions"
                   >
                     {selectedBundle.status === 'draft' && (
                       <button
@@ -681,7 +689,7 @@ export default function BundleBrowser() {
                         }}
                         disabled={actionLoading === 'bundle-status'}
                         type="button"
-                        aria-label="Start testing this bundle"
+                        aria-label="Start testing this skill bundle"
                       >
                         Start Testing
                       </button>
@@ -695,7 +703,7 @@ export default function BundleBrowser() {
                           }}
                           disabled={actionLoading === 'bundle-status'}
                           type="button"
-                          aria-label="Publish bundle to the marketplace"
+                          aria-label="Publish skill bundle to the marketplace"
                         >
                           Publish to Marketplace
                         </button>
@@ -706,7 +714,7 @@ export default function BundleBrowser() {
                           }}
                           disabled={actionLoading === 'bundle-status'}
                           type="button"
-                          aria-label="Move bundle back to draft"
+                          aria-label="Move skill bundle back to draft"
                         >
                           Back to Draft
                         </button>
@@ -721,7 +729,7 @@ export default function BundleBrowser() {
                           }}
                           disabled={actionLoading === 'bundle-status'}
                           type="button"
-                          aria-label="Deprecate this bundle"
+                          aria-label="Deprecate this skill bundle"
                         >
                           Deprecate
                         </button>
@@ -732,7 +740,7 @@ export default function BundleBrowser() {
                           }}
                           disabled={actionLoading === 'bundle-status'}
                           type="button"
-                          aria-label="Move bundle back to testing"
+                          aria-label="Move skill bundle back to testing"
                         >
                           Back to Testing
                         </button>
@@ -747,7 +755,7 @@ export default function BundleBrowser() {
                           }}
                           disabled={actionLoading === 'bundle-status'}
                           type="button"
-                          aria-label="Restore bundle to published"
+                          aria-label="Restore skill bundle to published"
                         >
                           Restore to Published
                         </button>
@@ -758,7 +766,7 @@ export default function BundleBrowser() {
                           }}
                           disabled={actionLoading === 'bundle-status'}
                           type="button"
-                          aria-label="Archive this bundle"
+                          aria-label="Archive this skill bundle"
                         >
                           Archive
                         </button>
@@ -766,8 +774,8 @@ export default function BundleBrowser() {
                     )}
                     {selectedBundle.status === 'archived' && (
                       <p className={styles.bbDetailLifecycleInfo} role="status">
-                        This bundle is archived. No further status changes are
-                        available.
+                        This skill bundle is archived. No further status changes
+                        are available.
                       </p>
                     )}
                   </div>
@@ -793,7 +801,7 @@ export default function BundleBrowser() {
                       navigate(`${basePath}/playground?${params.toString()}`);
                     }}
                     type="button"
-                    aria-label={`Test bundle ${selectedBundle.name} in Playground`}
+                    aria-label={`Test skill bundle ${selectedBundle.name} in Playground`}
                   >
                     Test in Playground
                   </button>
@@ -873,9 +881,9 @@ export default function BundleBrowser() {
                             handleRemoveSkillFromBundle(skill.slug)
                           }
                           disabled={actionLoading === 'remove-skill'}
-                          title="Remove from bundle"
+                          title="Remove from skill bundle"
                           type="button"
-                          aria-label={`Remove ${skill.name.split(':').pop() || skill.name} from bundle`}
+                          aria-label={`Remove ${skill.name.split(':').pop() || skill.name} from skill bundle`}
                         >
                           &times;
                         </button>
@@ -893,7 +901,7 @@ export default function BundleBrowser() {
             <div
               className={styles.bbTabs}
               role="tablist"
-              aria-label="Bundle views"
+              aria-label="Skill bundle views"
             >
               <button
                 id="bundle-tab-my"
@@ -903,9 +911,9 @@ export default function BundleBrowser() {
                 aria-controls="bundle-panel-my"
                 className={`${styles.bbTab} ${activeTab === 'my' ? styles.bbTabActive : ''}`}
                 onClick={() => setActiveTab('my')}
-                aria-label="My Bundles: local and draft skill bundles"
+                aria-label="My Skill Bundles: local and draft skill bundles"
               >
-                My Bundles
+                My Skill Bundles
               </button>
               <button
                 id="bundle-tab-marketplace"
@@ -915,7 +923,7 @@ export default function BundleBrowser() {
                 aria-controls="bundle-panel-marketplace"
                 className={`${styles.bbTab} ${activeTab === 'marketplace' ? styles.bbTabActive : ''}`}
                 onClick={() => setActiveTab('marketplace')}
-                aria-label="Marketplace: published bundles from the catalog"
+                aria-label="Marketplace: published skill bundles from the catalog"
               >
                 Marketplace
               </button>
@@ -930,11 +938,11 @@ export default function BundleBrowser() {
           >
             {bundles.length === 0 ? (
               <div className={styles.bbEmpty}>
-                <h3>No bundles yet</h3>
+                <h3>No skill bundles yet</h3>
                 <p>
                   Start by selecting skills from the catalog using &ldquo;Select
-                  for Bundle&rdquo; mode, or add them individually. Then save
-                  your curated collection from the cart.
+                  for Skill Bundle&rdquo; mode, or add them individually. Then
+                  save your curated collection from the cart.
                 </p>
                 <div className={styles.bbEmptyActions}>
                   <button
@@ -942,7 +950,7 @@ export default function BundleBrowser() {
                     onClick={() => navigate(`${basePath}/skills?mode=select`)}
                     type="button"
                   >
-                    + Build New Bundle
+                    + Build New Skill Bundle
                   </button>
                   <button
                     className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
@@ -967,7 +975,7 @@ export default function BundleBrowser() {
                     className={styles.statusFilter}
                     value={statusFilter}
                     onChange={e => setStatusFilter(e.target.value)}
-                    aria-label="Filter bundles by status"
+                    aria-label="Filter skill bundles by status"
                   >
                     <option value="all">All Statuses</option>
                     <option value="draft">Draft</option>
@@ -979,8 +987,8 @@ export default function BundleBrowser() {
                 </div>
                 {filteredBundles.length === 0 ? (
                   <p className={styles.bbFilterEmpty} role="status">
-                    No bundles match this status. Try a different filter or
-                    create a new bundle.
+                    No skill bundles match this status. Try a different filter
+                    or create a new skill bundle.
                   </p>
                 ) : (
                   <div className={styles.bbGrid}>
@@ -990,7 +998,7 @@ export default function BundleBrowser() {
                         className={styles.bbCard}
                         onClick={() => openDetail(bundle.id)}
                         type="button"
-                        aria-label={`Open bundle ${bundle.name}`}
+                        aria-label={`Open skill bundle ${bundle.name}`}
                       >
                         <div className={styles.bbCardTop}>
                           <div className={styles.bbCardNameRow}>
@@ -1031,11 +1039,11 @@ export default function BundleBrowser() {
             >
               {catalogLoading ? (
                 <div className={styles.bbLoading}>
-                  Loading marketplace bundles...
+                  Loading marketplace skill bundles...
                 </div>
               ) : catalogBundles.length === 0 ? (
                 <div className={styles.bbEmpty} role="status">
-                  No published bundles in the marketplace yet.
+                  No published skill bundles in the marketplace yet.
                 </div>
               ) : (
                 <div className={styles.bbGrid}>
@@ -1065,11 +1073,11 @@ export default function BundleBrowser() {
                           onClick={() => {
                             void handleForkCatalogBundle(cb);
                           }}
-                          aria-label={`Fork ${cb.display_name || cb.name} to My Bundles`}
+                          aria-label={`Fork ${cb.display_name || cb.name} to My Skill Bundles`}
                         >
                           {actionLoading === 'catalog-fork'
                             ? 'Forking...'
-                            : 'Fork to My Bundles'}
+                            : 'Fork to My Skill Bundles'}
                         </button>
                         <button
                           type="button"

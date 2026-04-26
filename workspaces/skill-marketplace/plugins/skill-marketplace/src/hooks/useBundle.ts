@@ -189,7 +189,7 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
         return [...prev, { ...skill }];
       });
       showToast(
-        `Added "${skill.name.split(':').pop() || skill.name}" to bundle cart`,
+        `Added "${skill.name.split(':').pop() || skill.name}" to skill bundle cart`,
       );
     },
     [showToast],
@@ -212,7 +212,9 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
         return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
       });
       if (added > 0) {
-        showToast(`Added ${added} skill${added > 1 ? 's' : ''} to bundle cart`);
+        showToast(
+          `Added ${added} skill${added > 1 ? 's' : ''} to skill bundle cart`,
+        );
       }
       return added;
     },

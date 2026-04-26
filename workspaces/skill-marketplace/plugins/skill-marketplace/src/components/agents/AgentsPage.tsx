@@ -230,7 +230,7 @@ export default function SkillsPlayground() {
 
   const placeholder =
     isBundleMode && bundleSkillNames.length > 0
-      ? `Test ${bundleSkillNames.length} bundle skills${selectedSkill ? ` (active: ${selectedSkill})` : ''}...`
+      ? `Test ${bundleSkillNames.length} skill bundle skills${selectedSkill ? ` (active: ${selectedSkill})` : ''}...`
       : selectedSkill
         ? `Test "${selectedSkill}" skill...`
         : 'Send a message to the agent...';
@@ -242,7 +242,7 @@ export default function SkillsPlayground() {
         <>
           <p className={pgStyles.emptyDesc}>
             Testing <strong>{bundleSkillNames.length} skills</strong> from your
-            bundle. Select an active skill from the sidebar, then send a
+            skill bundle. Select an active skill from the sidebar, then send a
             message.
           </p>
           <div className={pgStyles.suggestions}>
@@ -338,7 +338,7 @@ export default function SkillsPlayground() {
                 aria-valuenow={testedPercent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-label="Bundle test progress"
+                aria-label="Skill bundle test progress"
               >
                 <div
                   className={pgStyles.progressFill}

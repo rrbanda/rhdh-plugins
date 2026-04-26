@@ -90,3 +90,82 @@
   margin-right: 6px;
   flex-shrink: 0;
 }
+
+/*
+ * PatternFly v6 dark-mode overrides — scoped to the plugin root so they
+ * inherit --sm-* tokens and don't leak into other Backstage pages.
+ */
+
+/* Page sections */
+.skill-marketplace-plugin-root .pf-v6-c-page__main-section,
+.skill-marketplace-plugin-root [class*="pf-v6-c-page__main-section"] {
+  background-color: var(--sm-surface-primary);
+  color: var(--sm-text-primary);
+}
+
+/* Cards */
+.skill-marketplace-plugin-root .pf-v6-c-card {
+  background-color: var(--sm-surface-card);
+  color: var(--sm-text-primary);
+  box-shadow: var(--sm-shadow);
+}
+.skill-marketplace-plugin-root .pf-v6-c-card__title {
+  color: var(--sm-text-primary);
+}
+.skill-marketplace-plugin-root .pf-v6-c-card__body {
+  color: var(--sm-text-primary);
+}
+
+/* Tabs */
+.skill-marketplace-plugin-root .pf-v6-c-tabs__link {
+  color: var(--sm-text-secondary);
+}
+.skill-marketplace-plugin-root .pf-v6-c-tabs__link::after {
+  background-color: var(--sm-brand);
+}
+.skill-marketplace-plugin-root .pf-v6-c-tabs__item.pf-m-current .pf-v6-c-tabs__link {
+  color: var(--sm-brand);
+}
+
+/* Breadcrumbs */
+.skill-marketplace-plugin-root .pf-v6-c-breadcrumb__link {
+  color: var(--sm-text-link);
+}
+.skill-marketplace-plugin-root .pf-v6-c-breadcrumb__link:hover {
+  color: var(--sm-brand);
+}
+.skill-marketplace-plugin-root .pf-v6-c-breadcrumb__item {
+  color: var(--sm-text-secondary);
+}
+
+/* Titles / Content */
+.skill-marketplace-plugin-root .pf-v6-c-title {
+  color: var(--sm-text-primary);
+}
+.skill-marketplace-plugin-root .pf-v6-c-content {
+  color: var(--sm-text-primary);
+}
+
+/* Code blocks */
+.skill-marketplace-plugin-root .pf-v6-c-code-block {
+  background-color: var(--sm-chat-code-bg);
+  border: 1px solid var(--sm-border-default);
+}
+.skill-marketplace-plugin-root .pf-v6-c-code-block__content {
+  color: var(--sm-text-primary);
+}
+
+/* Dividers */
+.skill-marketplace-plugin-root .pf-v6-c-divider {
+  background-color: var(--sm-border-subtle);
+}
+
+/* Buttons — outlined variant */
+.skill-marketplace-plugin-root .pf-v6-c-button.pf-m-link {
+  color: var(--sm-text-link);
+}
+
+/* Expandable section */
+.skill-marketplace-plugin-root .pf-v6-c-expandable-section__toggle-text {
+  color: var(--sm-text-primary);
+}

@@ -32,21 +32,21 @@ export default function AddToBundleButton({
   const inBundle = hasSkill(skill.name);
   const label = inBundle
     ? variant === 'full'
-      ? 'In Bundle'
+      ? 'In Skill Bundle'
       : '✓'
     : variant === 'full'
-      ? '+ Add to Bundle'
+      ? '+ Add to Skill Bundle'
       : '+';
 
   return (
     <button
       type="button"
       className={`${styles.atbBtn} ${variant === 'full' ? styles.atbFull : styles.atbIcon} ${inBundle ? styles.atbAdded : ''} ${className}`.trim()}
-      title={inBundle ? 'Already in bundle' : 'Add to Bundle'}
+      title={inBundle ? 'Already in skill bundle' : 'Add to Skill Bundle'}
       aria-label={
         inBundle
-          ? `${skill.name} already in bundle`
-          : `Add ${skill.name} to bundle`
+          ? `${skill.name} already in skill bundle`
+          : `Add ${skill.name} to skill bundle`
       }
       disabled={inBundle}
       onClick={e => {
