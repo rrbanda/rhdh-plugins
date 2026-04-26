@@ -20,6 +20,7 @@ import type {
 } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import { humanize } from '@red-hat-developer-hub/backstage-plugin-skill-marketplace-common';
 import AddToBundleButton from '../shared/AddToBundleButton';
+import styles from './SkillCard.module.css';
 
 interface SkillCardProps {
   skill: SkillData;
@@ -95,7 +96,7 @@ export function SkillCard({
       role={selectionMode ? 'checkbox' : 'link'}
       aria-checked={selectionMode ? selected : undefined}
       tabIndex={0}
-      className={`sm-card ${selectionMode && selected ? 'sm-card-selected' : ''}`}
+      className={`${styles.smCard} ${selectionMode && selected ? styles.smCardSelected : ''}`}
       onClick={handleClick}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -110,13 +111,16 @@ export function SkillCard({
       }
     >
       {/* Left color bar */}
-      <span className="sm-card-bar" style={{ backgroundColor: pluginColor }} />
+      <span
+        className={styles.smCardBar}
+        style={{ backgroundColor: pluginColor }}
+      />
 
-      <div className="sm-card-inner">
+      <div className={styles.smCardInner}>
         {/* Top row: plugin badge + lifecycle + version */}
-        <div className="sm-card-top">
+        <div className={styles.smCardTop}>
           <span
-            className="sm-card-plugin"
+            className={styles.smCardPlugin}
             style={{ backgroundColor: pluginColor }}
           >
             {skill.pluginName}
@@ -128,7 +132,7 @@ export function SkillCard({
                 LIFECYCLE_STYLES.draft;
               return (
                 <span
-                  className="sm-card-lifecycle"
+                  className={styles.smCardLifecycle}
                   style={{ backgroundColor: ls.bg, color: ls.fg }}
                 >
                   {ls.label}
@@ -136,11 +140,11 @@ export function SkillCard({
               );
             })()}
           {skill.version && (
-            <span className="sm-card-version">v{skill.version}</span>
+            <span className={styles.smCardVersion}>v{skill.version}</span>
           )}
           {skill.bundle && (
             <span
-              className="sm-card-lifecycle"
+              className={styles.smCardLifecycle}
               style={{
                 backgroundColor: 'rgba(139,92,246,0.09)',
                 color: '#7c3aed',
@@ -152,21 +156,21 @@ export function SkillCard({
         </div>
 
         {/* Title */}
-        <h3 className="sm-card-title">{title}</h3>
+        <h3 className={styles.smCardTitle}>{title}</h3>
 
         {/* Description */}
-        <p className="sm-card-desc">{cleanDescription}</p>
+        <p className={styles.smCardDesc}>{cleanDescription}</p>
 
         {/* Tags */}
         {skill.tags && skill.tags.length > 0 && (
-          <div className="sm-card-tags">
+          <div className={styles.smCardTags}>
             {skill.tags.slice(0, 4).map(t => (
-              <span key={t} className="sm-card-tag">
+              <span key={t} className={styles.smCardTag}>
                 {t}
               </span>
             ))}
             {skill.tags.length > 4 && (
-              <span className="sm-card-tag sm-card-tag-more">
+              <span className={`${styles.smCardTag} ${styles.smCardTagMore}`}>
                 +{skill.tags.length - 4}
               </span>
             )}
@@ -175,21 +179,21 @@ export function SkillCard({
 
         {/* Authors */}
         {skill.authors && (
-          <span className="sm-card-authors">{skill.authors}</span>
+          <span className={styles.smCardAuthors}>{skill.authors}</span>
         )}
 
         {/* Bottom row: complexity + meta + arrow */}
-        <div className="sm-card-bottom">
-          <div className="sm-card-badges">
+        <div className={styles.smCardBottom}>
+          <div className={styles.smCardBadges}>
             <span
-              className="sm-card-complexity"
+              className={styles.smCardComplexity}
               style={{ backgroundColor: cStyles.bg, color: cStyles.fg }}
             >
               {complexity}
             </span>
 
             {skill.sections.workflow.length > 0 && (
-              <span className="sm-card-meta-badge">
+              <span className={styles.smCardMetaBadge}>
                 <svg
                   width={12}
                   height={12}
@@ -204,7 +208,7 @@ export function SkillCard({
             )}
 
             {(skill.model || skill.compatibility) && (
-              <span className="sm-card-meta-badge">
+              <span className={styles.smCardMetaBadge}>
                 <svg
                   width={12}
                   height={12}
@@ -219,7 +223,7 @@ export function SkillCard({
             )}
 
             {typeof skill.wordCount === 'number' && skill.wordCount > 0 && (
-              <span className="sm-card-meta-badge">
+              <span className={styles.smCardMetaBadge}>
                 <svg
                   width={12}
                   height={12}
@@ -235,7 +239,7 @@ export function SkillCard({
             )}
 
             {skill.license && (
-              <span className="sm-card-meta-badge">
+              <span className={styles.smCardMetaBadge}>
                 <svg
                   width={12}
                   height={12}
@@ -250,7 +254,7 @@ export function SkillCard({
             )}
 
             {skill.created && (
-              <span className="sm-card-meta-badge">
+              <span className={styles.smCardMetaBadge}>
                 {new Date(skill.created).toLocaleDateString(undefined, {
                   month: 'short',
                   day: 'numeric',
@@ -261,7 +265,7 @@ export function SkillCard({
 
           {selectionMode ? (
             <span
-              className={`sm-card-checkbox ${selected ? 'sm-card-checkbox-checked' : ''}`}
+              className={`${styles.smCardCheckbox} ${selected ? styles.smCardCheckboxChecked : ''}`}
             >
               {selected && (
                 <svg
@@ -285,7 +289,7 @@ export function SkillCard({
               variant="icon"
             />
           )}
-          {!selectionMode && <span className="sm-card-arrow">→</span>}
+          {!selectionMode && <span className={styles.smCardArrow}>→</span>}
         </div>
       </div>
     </div>

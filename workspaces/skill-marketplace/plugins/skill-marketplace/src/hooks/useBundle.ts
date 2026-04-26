@@ -159,9 +159,8 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
         console.warn('useBundle: dependency resolution failed', err);
         if (!cancelled) {
           setResolved(null);
-          setResolveError(
-            err instanceof Error ? err.message : 'Dependency resolution failed',
-          );
+          // Graceful degradation: do not surface raw HTTP/backstage error text in the UI
+          setResolveError(null);
         }
       })
       .finally(() => {

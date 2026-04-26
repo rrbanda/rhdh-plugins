@@ -124,31 +124,29 @@ export default function OverviewPage() {
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .listCatalogBundles()
-      .then(bundles => {
+    (async () => {
+      try {
+        const bundles = await api.listCatalogBundles();
         if (cancelled) return;
         const published = (bundles || []).filter(b =>
           isPublishedCatalogStatus(b.status),
         );
         setFeaturedBundles(published.slice(0, 6));
-      })
-      .catch(() => {
-        api
-          .listBundles()
-          .then(result => {
-            if (cancelled) return;
-            const published = (result?.bundles || []).filter(
-              (b: BundleSummary) => b.status === 'published',
-            );
-            setFeaturedBundles(published.slice(0, 6));
-          })
-          .catch(() => {
-            if (!cancelled) {
-              setFeaturedBundles([]);
-            }
-          });
-      });
+      } catch {
+        try {
+          const result = await api.listBundles();
+          if (cancelled) return;
+          const published = (result?.bundles || []).filter(
+            (b: BundleSummary) => b.status === 'published',
+          );
+          setFeaturedBundles(published.slice(0, 6));
+        } catch {
+          if (!cancelled) {
+            setFeaturedBundles([]);
+          }
+        }
+      }
+    })();
     return () => {
       cancelled = true;
     };

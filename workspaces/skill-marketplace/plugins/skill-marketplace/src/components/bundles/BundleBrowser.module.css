@@ -142,13 +142,24 @@
   padding: 20px;
   border-radius: 12px;
   border: 1px solid var(--sm-border-default);
-  background: var(--sm-surface-card);
+  border-left: 3px solid var(--sm-brand);
+  background: color-mix(
+    in srgb,
+    var(--sm-brand-tint) 24%,
+    var(--sm-surface-card) 76%
+  );
+  box-shadow: var(--sm-shadow);
   font-family: inherit;
   color: inherit;
-  transition: border-color 0.15s;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 .bbMarketplaceCard:hover {
   border-color: var(--sm-brand);
+  transform: translateY(-3px);
+  box-shadow: var(--sm-shadow-lg);
 }
 .bbMarketplaceTitle {
   font-size: 16px;
@@ -226,7 +237,7 @@
 .bbGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 .bbCard {
   display: flex;
@@ -236,14 +247,18 @@
   border-radius: 12px;
   border: 1px solid var(--sm-border-default);
   background: var(--sm-surface-card);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--sm-text-primary) 4%, transparent);
   cursor: pointer;
-  transition: all 0.15s;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
   font-family: inherit;
   color: inherit;
 }
 .bbCard:hover {
   border-color: var(--sm-brand);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow: var(--sm-shadow-lg);
 }
 .bbCardTop {

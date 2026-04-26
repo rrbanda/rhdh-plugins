@@ -19,6 +19,8 @@
 
 /* Hero */
 .ovHero {
+  position: relative;
+  z-index: 950;
   display: flex;
   align-items: center;
   gap: 36px;
@@ -27,17 +29,23 @@
   border-radius: 16px;
   padding: 32px 36px;
   margin: 6px 32px 28px;
+  overflow: visible;
 }
 .ovHeroLeft {
   flex: 1;
   min-width: 0;
 }
 .ovHeroStats {
+  position: relative;
+  z-index: 951;
   display: flex;
   gap: 12px;
   flex-shrink: 0;
+  overflow: visible;
+  pointer-events: auto;
 }
 .ovStat {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -48,6 +56,7 @@
   border-radius: 12px;
   text-align: center;
   min-width: 100px;
+  pointer-events: auto;
 }
 .ovStatV {
   font-size: 28px;

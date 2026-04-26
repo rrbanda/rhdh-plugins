@@ -15,32 +15,60 @@
  */
 .aiBanner {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 20px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 20px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--sm-warning) 90%, var(--sm-text-primary) 10%);
+  background: color-mix(
+    in srgb,
+    var(--sm-warning-tint) 70%,
+    var(--sm-surface-secondary) 30%
+  );
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--sm-warning) 22%, var(--sm-border-subtle) 78%);
+  flex-shrink: 0;
+}
+.aiBanner svg {
+  flex-shrink: 0;
+  margin-top: 1px;
   color: var(--sm-warning);
-  background: var(--sm-warning-tint);
-  border-bottom: 1px solid var(--sm-border-subtle);
-  line-height: 1.4;
+  opacity: 0.95;
 }
 .overlay {
   position: fixed;
   inset: 0;
-  background: var(--sm-scrim);
-  z-index: 1000;
+  z-index: 1200;
   display: flex;
   justify-content: flex-end;
+  background: color-mix(in srgb, var(--sm-scrim) 88%, transparent);
+  backdrop-filter: blur(4px) saturate(1.05);
+  -webkit-backdrop-filter: blur(4px) saturate(1.05);
+  animation: cartOverlayIn 0.2s ease-out;
+}
+@keyframes cartOverlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .drawer {
   width: 420px;
   max-width: 90vw;
+  height: 100%;
+  max-height: 100dvh;
   background: var(--sm-surface-card);
   display: flex;
   flex-direction: column;
-  box-shadow: -4px 0 24px var(--sm-scrim);
-  animation: slideIn 0.2s ease-out;
+  min-height: 0;
+  box-shadow:
+    -8px 0 32px color-mix(in srgb, var(--sm-text-primary) 12%, transparent),
+    -1px 0 0 var(--sm-border-subtle);
+  animation: slideIn 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @keyframes slideIn {
   from {
@@ -276,9 +304,16 @@
   line-height: 1.4;
 }
 .footer {
+  margin-top: auto;
   border-top: 1px solid var(--sm-border-default);
-  padding: 16px 20px;
+  padding: 18px 20px 20px;
   flex-shrink: 0;
+  background: color-mix(
+    in srgb,
+    var(--sm-surface-secondary) 55%,
+    var(--sm-surface-card) 45%
+  );
+  box-shadow: 0 -4px 12px color-mix(in srgb, var(--sm-text-primary) 4%, transparent);
 }
 .actions {
   display: flex;
