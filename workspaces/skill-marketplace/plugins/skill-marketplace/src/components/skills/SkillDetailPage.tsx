@@ -248,7 +248,22 @@ export default function SkillDetailPage() {
       <PageSection
         variant="default"
         className="sm-detail-header"
-        style={{ backgroundColor: isDark ? '#1e1e1e' : undefined }}
+        style={
+          {
+            backgroundColor: isDark ? '#1e1e1e' : undefined,
+            color: isDark ? '#e0e0e0' : undefined,
+            '--pf-v6-c-title--Color': isDark ? '#e0e0e0' : undefined,
+            '--pf-v5-c-title--Color': isDark ? '#e0e0e0' : undefined,
+            '--pf-v6-c-content--Color': isDark ? '#e0e0e0' : undefined,
+            '--pf-v5-c-content--Color': isDark ? '#e0e0e0' : undefined,
+            '--pf-t--global--text--color--regular': isDark
+              ? '#e0e0e0'
+              : undefined,
+            '--pf-t--global--text--color--subtle': isDark
+              ? '#a3a3a3'
+              : undefined,
+          } as React.CSSProperties
+        }
       >
         <Breadcrumb style={{ marginBottom: 12 }}>
           <BreadcrumbItem>
@@ -275,12 +290,20 @@ export default function SkillDetailPage() {
             </Button>
           </SplitItem>
           <SplitItem isFilled>
-            <Title headingLevel="h1" size="2xl">
+            <Title
+              headingLevel="h1"
+              size="2xl"
+              style={{ color: isDark ? '#e0e0e0' : undefined }}
+            >
               {title}
             </Title>
             <Content
               component={ContentVariants.p}
-              style={{ marginTop: 4, maxWidth: 800 }}
+              style={{
+                marginTop: 4,
+                maxWidth: 800,
+                color: isDark ? '#a3a3a3' : undefined,
+              }}
             >
               {skill.description}
             </Content>
@@ -361,10 +384,21 @@ export default function SkillDetailPage() {
           activeKey={activeTab}
           onSelect={(_e, key) => setActiveTab(key as number)}
           isFilled
-          style={{
-            backgroundColor: isDark ? '#252525' : '#ffffff',
-            borderColor: isDark ? '#3a3a3a' : undefined,
-          }}
+          style={
+            {
+              backgroundColor: isDark ? '#252525' : '#ffffff',
+              borderColor: isDark ? '#3a3a3a' : undefined,
+              '--pf-v6-c-tabs__link--Color': isDark ? '#a3a3a3' : undefined,
+              '--pf-v5-c-tabs__link--Color': isDark ? '#a3a3a3' : undefined,
+              '--pf-v6-c-tabs__item--m-current__link--Color': isDark
+                ? '#4d9de0'
+                : undefined,
+              '--pf-v5-c-tabs__item--m-current__link--Color': isDark
+                ? '#4d9de0'
+                : undefined,
+              color: isDark ? '#a3a3a3' : undefined,
+            } as React.CSSProperties
+          }
         >
           <Tab
             eventKey={0}
