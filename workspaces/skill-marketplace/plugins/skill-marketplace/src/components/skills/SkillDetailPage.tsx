@@ -64,6 +64,44 @@ import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
 import AddToBundleButton from '../shared/AddToBundleButton';
 
+function renderContentWithCode(
+  text: string,
+  isDarkMode: boolean,
+): React.ReactNode {
+  const codeBg = isDarkMode ? '#1e1e1e' : '#f6f8fa';
+  const codeBorder = isDarkMode ? '#383838' : '#d0d7de';
+  const codeColor = isDarkMode ? '#d4d4d4' : '#24292f';
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('```') && part.endsWith('```')) {
+      const inner = part.slice(3, -3);
+      const newlineIdx = inner.indexOf('\n');
+      const code = newlineIdx >= 0 ? inner.slice(newlineIdx + 1) : inner;
+      return (
+        <pre
+          key={i}
+          style={{
+            backgroundColor: codeBg,
+            border: `1px solid ${codeBorder}`,
+            borderRadius: 6,
+            padding: '12px 16px',
+            margin: '8px 0',
+            overflowX: 'auto',
+            fontSize: '0.82rem',
+            lineHeight: 1.5,
+            color: codeColor,
+            fontFamily: 'monospace',
+          }}
+        >
+          <code>{code.trim()}</code>
+        </pre>
+      );
+    }
+    if (!part.trim()) return null;
+    return <span key={i}>{part}</span>;
+  });
+}
+
 export default function SkillDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -71,15 +109,28 @@ export default function SkillDetailPage() {
   const api = useApi(skillMarketplaceApiRef);
   const muiTheme = useTheme();
   const isDark = muiTheme.palette.type === 'dark';
+  const textColor = isDark ? '#e0e0e0' : '#151515';
+  const textSecondary = isDark ? '#a3a3a3' : '#6a6e73';
   const cardStyle = useMemo(
-    (): React.CSSProperties => ({
-      backgroundColor: isDark ? '#252525' : '#ffffff',
-      color: isDark ? '#e0e0e0' : '#151515',
-      boxShadow: isDark
-        ? '0 1px 3px rgba(0,0,0,0.4)'
-        : '0 1px 3px rgba(0,0,0,0.06)',
-    }),
-    [isDark],
+    (): React.CSSProperties =>
+      ({
+        backgroundColor: isDark ? '#252525' : '#ffffff',
+        color: textColor,
+        boxShadow: isDark
+          ? '0 1px 3px rgba(0,0,0,0.4)'
+          : '0 1px 3px rgba(0,0,0,0.06)',
+        '--pf-v6-c-card__title-text--Color': textColor,
+        '--pf-v6-c-card__body--Color': textColor,
+        '--pf-v6-c-card__footer--Color': textSecondary,
+        '--pf-v6-c-content--Color': textColor,
+        '--pf-v6-c-content--small--Color': textSecondary,
+        '--pf-v5-c-card__title-text--Color': textColor,
+        '--pf-v5-c-card__body--Color': textColor,
+        '--pf-v5-c-content--Color': textColor,
+        '--pf-t--global--text--color--regular': textColor,
+        '--pf-t--global--text--color--subtle': textSecondary,
+      }) as React.CSSProperties,
+    [isDark, textColor, textSecondary],
   );
   const [skill, setSkill] = useState<SkillData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -381,15 +432,15 @@ export default function SkillDetailPage() {
                             >
                               {step.title}
                             </Title>
-                            <Content
-                              component={ContentVariants.p}
+                            <div
                               style={{
-                                color: 'var(--sm-text-secondary)',
+                                color: isDark ? '#a3a3a3' : '#6a6e73',
                                 lineHeight: 1.6,
+                                fontSize: '0.9rem',
                               }}
                             >
-                              {step.content}
-                            </Content>
+                              {renderContentWithCode(step.content, isDark)}
+                            </div>
                           </div>
                         ))}
                       </CardBody>
