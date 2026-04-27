@@ -245,7 +245,11 @@ export default function SkillDetailPage() {
 
   return (
     <>
-      <PageSection variant="default" className="sm-detail-header">
+      <PageSection
+        variant="default"
+        className="sm-detail-header"
+        style={{ backgroundColor: isDark ? '#1e1e1e' : undefined }}
+      >
         <Breadcrumb style={{ marginBottom: 12 }}>
           <BreadcrumbItem>
             <Button variant="link" isInline onClick={() => navigate('..')}>
@@ -352,11 +356,15 @@ export default function SkillDetailPage() {
         </Split>
       </PageSection>
 
-      <PageSection>
+      <PageSection style={{ backgroundColor: isDark ? '#1e1e1e' : undefined }}>
         <Tabs
           activeKey={activeTab}
           onSelect={(_e, key) => setActiveTab(key as number)}
           isFilled
+          style={{
+            backgroundColor: isDark ? '#252525' : '#ffffff',
+            borderColor: isDark ? '#3a3a3a' : undefined,
+          }}
         >
           <Tab
             eventKey={0}
