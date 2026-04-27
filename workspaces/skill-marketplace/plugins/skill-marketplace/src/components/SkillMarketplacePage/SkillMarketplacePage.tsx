@@ -246,7 +246,11 @@ const SkillMarketplacePageInner = () => {
   return (
     <div
       className={`${smLayoutStyles.smRoot} skill-marketplace-plugin-root`}
-      style={themeStyle}
+      style={{
+        ...themeStyle,
+        backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+        minHeight: '100vh',
+      }}
       data-theme={isDark ? 'dark' : 'light'}
     >
       <nav
