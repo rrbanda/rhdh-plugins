@@ -33,8 +33,6 @@ import {
   Label,
   LabelGroup,
   Button,
-  CodeBlock,
-  CodeBlockCode,
   Breadcrumb,
   BreadcrumbItem,
   Grid,
@@ -696,13 +694,27 @@ export default function SkillDetailPage() {
               </>
             }
           >
-            <Card style={{ marginTop: 16, ...cardStyle }}>
-              <CardBody>
-                <CodeBlock>
-                  <CodeBlockCode>{skill.rawContent}</CodeBlockCode>
-                </CodeBlock>
-              </CardBody>
-            </Card>
+            <div style={{ marginTop: 16, position: 'relative' }}>
+              <CopyButton text={skill.rawContent} isDarkMode={isDark} />
+              <pre
+                style={{
+                  backgroundColor: isDark ? '#1e1e1e' : '#f6f8fa',
+                  border: `1px solid ${isDark ? '#383838' : '#d0d7de'}`,
+                  borderRadius: 8,
+                  padding: '16px 20px',
+                  paddingRight: 80,
+                  overflowX: 'auto',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.6,
+                  color: isDark ? '#d4d4d4' : '#24292f',
+                  fontFamily: 'monospace',
+                  maxHeight: '70vh',
+                  overflowY: 'auto',
+                }}
+              >
+                <code>{skill.rawContent}</code>
+              </pre>
+            </div>
           </Tab>
 
           {hasAssets && (
@@ -734,9 +746,25 @@ export default function SkillDetailPage() {
                           toggleText={a.name}
                           isIndented
                         >
-                          <CodeBlock>
-                            <CodeBlockCode>{a.content}</CodeBlockCode>
-                          </CodeBlock>
+                          <div style={{ position: 'relative' }}>
+                            <CopyButton text={a.content} isDarkMode={isDark} />
+                            <pre
+                              style={{
+                                backgroundColor: isDark ? '#1e1e1e' : '#f6f8fa',
+                                border: `1px solid ${isDark ? '#383838' : '#d0d7de'}`,
+                                borderRadius: 6,
+                                padding: '12px 16px',
+                                paddingRight: 80,
+                                overflowX: 'auto',
+                                fontSize: '0.82rem',
+                                lineHeight: 1.5,
+                                color: isDark ? '#d4d4d4' : '#24292f',
+                                fontFamily: 'monospace',
+                              }}
+                            >
+                              <code>{a.content}</code>
+                            </pre>
+                          </div>
                         </ExpandableSection>
                       ))}
                     </CardBody>
@@ -752,9 +780,25 @@ export default function SkillDetailPage() {
                           toggleText={a.name}
                           isIndented
                         >
-                          <CodeBlock>
-                            <CodeBlockCode>{a.content}</CodeBlockCode>
-                          </CodeBlock>
+                          <div style={{ position: 'relative' }}>
+                            <CopyButton text={a.content} isDarkMode={isDark} />
+                            <pre
+                              style={{
+                                backgroundColor: isDark ? '#1e1e1e' : '#f6f8fa',
+                                border: `1px solid ${isDark ? '#383838' : '#d0d7de'}`,
+                                borderRadius: 6,
+                                padding: '12px 16px',
+                                paddingRight: 80,
+                                overflowX: 'auto',
+                                fontSize: '0.82rem',
+                                lineHeight: 1.5,
+                                color: isDark ? '#d4d4d4' : '#24292f',
+                                fontFamily: 'monospace',
+                              }}
+                            >
+                              <code>{a.content}</code>
+                            </pre>
+                          </div>
                         </ExpandableSection>
                       ))}
                     </CardBody>
@@ -770,9 +814,25 @@ export default function SkillDetailPage() {
                           toggleText={a.name}
                           isIndented
                         >
-                          <CodeBlock>
-                            <CodeBlockCode>{a.content}</CodeBlockCode>
-                          </CodeBlock>
+                          <div style={{ position: 'relative' }}>
+                            <CopyButton text={a.content} isDarkMode={isDark} />
+                            <pre
+                              style={{
+                                backgroundColor: isDark ? '#1e1e1e' : '#f6f8fa',
+                                border: `1px solid ${isDark ? '#383838' : '#d0d7de'}`,
+                                borderRadius: 6,
+                                padding: '12px 16px',
+                                paddingRight: 80,
+                                overflowX: 'auto',
+                                fontSize: '0.82rem',
+                                lineHeight: 1.5,
+                                color: isDark ? '#d4d4d4' : '#24292f',
+                                fontFamily: 'monospace',
+                              }}
+                            >
+                              <code>{a.content}</code>
+                            </pre>
+                          </div>
                         </ExpandableSection>
                       ))}
                     </CardBody>
