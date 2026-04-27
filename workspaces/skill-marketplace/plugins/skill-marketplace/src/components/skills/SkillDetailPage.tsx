@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi, useRouteRef } from '@backstage/core-plugin-api';
+import { useTheme } from '@material-ui/core/styles';
 import { rootRouteRef } from '../../routes';
 import {
   PageSection,
@@ -68,6 +69,18 @@ export default function SkillDetailPage() {
   const navigate = useNavigate();
   const basePath = useRouteRef(rootRouteRef)();
   const api = useApi(skillMarketplaceApiRef);
+  const muiTheme = useTheme();
+  const isDark = muiTheme.palette.type === 'dark';
+  const cardStyle = useMemo(
+    (): React.CSSProperties => ({
+      backgroundColor: isDark ? '#252525' : '#ffffff',
+      color: isDark ? '#e0e0e0' : '#151515',
+      boxShadow: isDark
+        ? '0 1px 3px rgba(0,0,0,0.4)'
+        : '0 1px 3px rgba(0,0,0,0.06)',
+    }),
+    [isDark],
+  );
   const [skill, setSkill] = useState<SkillData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +260,7 @@ export default function SkillDetailPage() {
             <div style={{ marginTop: 16 }}>
               <Grid hasGutter>
                 <GridItem md={8}>
-                  <Card isCompact style={{ marginBottom: 16 }}>
+                  <Card isCompact style={{ marginBottom: 16, ...cardStyle }}>
                     <CardTitle>About this Skill</CardTitle>
                     <CardBody>
                       <Content
@@ -260,7 +273,7 @@ export default function SkillDetailPage() {
                   </Card>
 
                   {skill.sections.whenToUse && (
-                    <Card isCompact style={{ marginBottom: 16 }}>
+                    <Card isCompact style={{ marginBottom: 16, ...cardStyle }}>
                       <CardTitle>
                         <span
                           className="sm-section-title"
@@ -283,7 +296,10 @@ export default function SkillDetailPage() {
 
                   {skill.sections.prerequisites &&
                     skill.sections.prerequisites.length > 0 && (
-                      <Card isCompact style={{ marginBottom: 16 }}>
+                      <Card
+                        isCompact
+                        style={{ marginBottom: 16, ...cardStyle }}
+                      >
                         <CardTitle>
                           <span
                             className="sm-section-title"
@@ -305,7 +321,10 @@ export default function SkillDetailPage() {
 
                   {skill.sections.criticalRules &&
                     skill.sections.criticalRules.length > 0 && (
-                      <Card isCompact style={{ marginBottom: 16 }}>
+                      <Card
+                        isCompact
+                        style={{ marginBottom: 16, ...cardStyle }}
+                      >
                         <CardTitle>
                           <span
                             className="sm-section-title"
@@ -336,7 +355,7 @@ export default function SkillDetailPage() {
                     )}
 
                   {skill.sections.workflow.length > 0 && (
-                    <Card isCompact style={{ marginBottom: 16 }}>
+                    <Card isCompact style={{ marginBottom: 16, ...cardStyle }}>
                       <CardTitle>
                         <span
                           className="sm-section-title"
@@ -379,7 +398,7 @@ export default function SkillDetailPage() {
                 </GridItem>
 
                 <GridItem md={4}>
-                  <Card isCompact style={{ marginBottom: 16 }}>
+                  <Card isCompact style={{ marginBottom: 16, ...cardStyle }}>
                     <CardTitle>Details</CardTitle>
                     <CardBody>
                       <div
@@ -518,7 +537,7 @@ export default function SkillDetailPage() {
                   </Card>
 
                   {skill.sections.relatedSkills.length > 0 && (
-                    <Card isCompact>
+                    <Card isCompact style={cardStyle}>
                       <CardTitle>
                         <span
                           className="sm-section-title"
@@ -563,7 +582,7 @@ export default function SkillDetailPage() {
               </>
             }
           >
-            <Card style={{ marginTop: 16 }}>
+            <Card style={{ marginTop: 16, ...cardStyle }}>
               <CardBody>
                 <CodeBlock>
                   <CodeBlockCode>{skill.rawContent}</CodeBlockCode>
@@ -592,7 +611,7 @@ export default function SkillDetailPage() {
             >
               <div style={{ marginTop: 16 }}>
                 {skill.assets.references.length > 0 && (
-                  <Card isCompact style={{ marginBottom: 16 }}>
+                  <Card isCompact style={{ marginBottom: 16, ...cardStyle }}>
                     <CardTitle>References</CardTitle>
                     <CardBody>
                       {skill.assets.references.map(a => (
@@ -610,7 +629,7 @@ export default function SkillDetailPage() {
                   </Card>
                 )}
                 {skill.assets.templates.length > 0 && (
-                  <Card isCompact style={{ marginBottom: 16 }}>
+                  <Card isCompact style={{ marginBottom: 16, ...cardStyle }}>
                     <CardTitle>Templates</CardTitle>
                     <CardBody>
                       {skill.assets.templates.map(a => (
@@ -628,7 +647,7 @@ export default function SkillDetailPage() {
                   </Card>
                 )}
                 {skill.assets.examples.length > 0 && (
-                  <Card isCompact>
+                  <Card isCompact style={cardStyle}>
                     <CardTitle>Examples</CardTitle>
                     <CardBody>
                       {skill.assets.examples.map(a => (
@@ -660,7 +679,7 @@ export default function SkillDetailPage() {
               </>
             }
           >
-            <Card style={{ marginTop: 16 }}>
+            <Card style={{ marginTop: 16, ...cardStyle }}>
               <CardBody>
                 <Title headingLevel="h3" size="lg" style={{ marginBottom: 12 }}>
                   Test this skill in the Skills Playground
