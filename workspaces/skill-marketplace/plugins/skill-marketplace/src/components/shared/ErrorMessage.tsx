@@ -14,13 +14,55 @@
  * limitations under the License.
  */
 import { Alert, PageSection } from '@patternfly/react-core';
+import { useTheme } from '@material-ui/core/styles';
 
-export default function ErrorMessage({ message }: { message: string }) {
+export default function ErrorMessage({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
+  const muiTheme = useTheme();
+  const isDark = muiTheme.palette.type === 'dark';
   return (
-    <PageSection>
-      <Alert variant="danger" title="Error" isInline>
-        {message}
+    <PageSection
+      style={{
+        backgroundColor: isDark ? '#1e1e1e' : undefined,
+        minHeight: '60vh',
+      }}
+    >
+      <Alert
+        variant="danger"
+        title="Error"
+        isInline
+        style={{
+          backgroundColor: isDark ? '#2a1515' : undefined,
+          color: isDark ? '#fca5a5' : undefined,
+          borderColor: isDark ? '#7f1d1d' : undefined,
+        }}
+      >
+        <span style={{ color: isDark ? '#e0e0e0' : undefined }}>{message}</span>
       </Alert>
+      {onRetry && (
+        <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={onRetry}
+            style={{
+              padding: '8px 24px',
+              borderRadius: 6,
+              border: 'none',
+              backgroundColor: isDark ? '#4d9de0' : '#0066cc',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
     </PageSection>
   );
 }

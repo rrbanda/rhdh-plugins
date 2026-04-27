@@ -244,7 +244,12 @@ export default function SkillDetailPage() {
     skill.assets.examples.length > 0;
 
   return (
-    <>
+    <div
+      style={{
+        backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+        minHeight: '100%',
+      }}
+    >
       <PageSection
         variant="default"
         className="sm-detail-header"
@@ -379,7 +384,12 @@ export default function SkillDetailPage() {
         </Split>
       </PageSection>
 
-      <PageSection style={{ backgroundColor: isDark ? '#1e1e1e' : undefined }}>
+      <PageSection
+        style={{
+          backgroundColor: isDark ? '#1e1e1e' : undefined,
+          minHeight: '60vh',
+        }}
+      >
         <Tabs
           activeKey={activeTab}
           onSelect={(_e, key) => setActiveTab(key as number)}
@@ -927,6 +937,6 @@ export default function SkillDetailPage() {
           </Tab>
         </Tabs>
       </PageSection>
-    </>
+    </div>
   );
 }

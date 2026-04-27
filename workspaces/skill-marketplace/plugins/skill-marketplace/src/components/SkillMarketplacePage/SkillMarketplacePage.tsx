@@ -306,7 +306,10 @@ const SkillMarketplacePageInner = () => {
           {lastAdded}
         </div>
       )}
-      <div className={smLayoutStyles.smContent}>
+      <div
+        className={smLayoutStyles.smContent}
+        style={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff' }}
+      >
         <PluginErrorBoundary>
           <Routes>
             <Route index element={<OverviewPage />} />
