@@ -364,8 +364,66 @@ export class SmpAgentClient {
   }
 
   /**
+   * Sends a message via the OpenAI-compatible /v1/chat/completions endpoint.
+   * Used as fallback for agents that don't implement A2A JSON-RPC message/send.
+   */
+  private async sendOpenAICompatible(
+    agent: SmpAgentName,
+    text: string,
+    contextId: string | undefined,
+    requestSignal: AbortSignal | undefined,
+  ): Promise<{ text: string; contextId?: string }> {
+    const baseUrl = this.getAgentUrl(agent).replace(/\/$/, '');
+    const { signal, cleanup } = SmpAgentClient.mergeTimeoutWithRequest(
+      requestSignal,
+      this.timeoutMs,
+    );
+    try {
+      this.logger.info(
+        `Sending OpenAI-compatible message to ${agent} at ${baseUrl}/v1/chat/completions`,
+      );
+      const messages: Array<{ role: string; content: string }> = [];
+      if (contextId) {
+        messages.push({
+          role: 'system',
+          content: `Session context ID: ${contextId}`,
+        });
+      }
+      messages.push({ role: 'user', content: text });
+
+      const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'default', messages }),
+        signal,
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(
+          `OpenAI-compatible API returned ${res.status}: ${errBody}`,
+        );
+      }
+
+      const data = (await res.json()) as {
+        id?: string;
+        choices?: Array<{
+          message?: { content?: string };
+        }>;
+      };
+
+      const content =
+        data.choices?.[0]?.message?.content ?? JSON.stringify(data);
+      return { text: content, contextId: data.id ?? contextId };
+    } finally {
+      cleanup();
+    }
+  }
+
+  /**
    * Generic chat method: routes to the specified agent.
-   * Used by kagentiRoutes chat endpoint as a unified entry point.
+   * Tries A2A JSON-RPC first; falls back to OpenAI-compatible /v1/chat/completions
+   * for agents that only expose that interface (e.g. docsclaw).
    */
   async chat(
     agent: SmpAgentName,
@@ -373,7 +431,23 @@ export class SmpAgentClient {
     contextId?: string,
     requestSignal?: AbortSignal,
   ): Promise<{ text: string; contextId?: string }> {
-    return this.sendMessage(agent, message, contextId, requestSignal);
+    try {
+      return await this.sendMessage(agent, message, contextId, requestSignal);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('method not found') || msg.includes('-32601')) {
+        this.logger.info(
+          `A2A message/send not supported by ${agent}, falling back to OpenAI-compatible API`,
+        );
+        return this.sendOpenAICompatible(
+          agent,
+          message,
+          contextId,
+          requestSignal,
+        );
+      }
+      throw err;
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -409,10 +483,16 @@ export class SmpAgentClient {
           5_000,
         );
         try {
-          const res = await fetch(`${url.replace(/\/$/, '')}/healthz`, {
-            signal,
-          });
-          return [agent, { configured: true, healthy: res.ok }] as const;
+          const normalized = url.replace(/\/$/, '');
+          const res = await fetch(`${normalized}/healthz`, { signal });
+          if (res.ok) {
+            return [agent, { configured: true, healthy: true }] as const;
+          }
+          const cardRes = await fetch(
+            `${normalized}/.well-known/agent-card.json`,
+            { signal },
+          );
+          return [agent, { configured: true, healthy: cardRes.ok }] as const;
         } catch (err) {
           return [
             agent,

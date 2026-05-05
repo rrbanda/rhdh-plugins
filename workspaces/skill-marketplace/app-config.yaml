@@ -68,7 +68,7 @@ skillMarketplace:
     skillAdvisorUrl: ${SMP_SKILL_ADVISOR_URL:-}
     bundleValidatorUrl: ${SMP_BUNDLE_VALIDATOR_URL:-}
     kgQaUrl: ${SMP_KG_QA_URL:-}
-    playgroundUrl: ${SMP_PLAYGROUND_URL:-}
+    playgroundUrl: ${SMP_PLAYGROUND_URL:-https://skill-discovery-test-panni-docsclaw.apps.ocp.v7hjl.sandbox2288.opentlc.com}
     skillBuilderUrl: ${SMP_SKILL_BUILDER_URL:-}
     requestTimeoutMs: 120000
 
