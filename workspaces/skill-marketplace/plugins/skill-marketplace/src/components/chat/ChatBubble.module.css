@@ -136,6 +136,8 @@
   color: var(--sm-text-primary);
   border: 1px solid var(--sm-border-subtle);
   border-bottom-left-radius: 6px;
+  max-height: 420px;
+  overflow-y: auto;
 }
 .cardError {
   background: var(--sm-danger-tint);
