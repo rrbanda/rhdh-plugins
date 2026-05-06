@@ -54,6 +54,19 @@ export function ChatPanel({
 
   return (
     <div className={styles.chat}>
+      {messages.length > 0 && (
+        <div className={styles.chatHeader}>
+          <span className={styles.chatHeaderTitle}>Skill Builder</span>
+          <button
+            type="button"
+            className={styles.clearBtn}
+            onClick={onClear}
+            aria-label="Clear conversation and start over"
+          >
+            New Conversation
+          </button>
+        </div>
+      )}
       <ChatMessageList
         messages={sharedMessages}
         isLoading={isGenerating}

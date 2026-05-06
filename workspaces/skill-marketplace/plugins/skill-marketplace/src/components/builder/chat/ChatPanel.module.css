@@ -6,6 +6,35 @@
   overflow: hidden;
   background: var(--sm-surface-card);
 }
+.chatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--sm-border-default, #e5e7eb);
+  flex-shrink: 0;
+}
+.chatHeaderTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sm-text-primary, #151515);
+}
+.clearBtn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default, #e5e7eb);
+  background: var(--sm-surface-card, #fff);
+  color: var(--sm-text-secondary, #6a6e73);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+.clearBtn:hover {
+  border-color: var(--sm-brand, #6366f1);
+  color: var(--sm-brand, #6366f1);
+}
 
 .feedContainer {
   flex-shrink: 0;
