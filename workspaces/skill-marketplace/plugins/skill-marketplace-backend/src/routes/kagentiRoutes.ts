@@ -104,11 +104,24 @@ async function resolveSkillContent(
   }
   if (ociRegistry) {
     try {
-      const skills = await ociRegistry.listSkillsLightweight();
-      const match = skills.find(s => s.card.metadata.name === activeSkill);
+      // Use the full skill listing which already has content loaded (body/rawContent)
+      const skills = await ociRegistry.listSkills();
+      const match = skills.find(
+        s =>
+          s.card.metadata.name === activeSkill ||
+          s.card.metadata.name.toLowerCase() === activeSkill.toLowerCase() ||
+          (s.card.metadata['display-name'] || '').toLowerCase() ===
+            activeSkill.toLowerCase(),
+      );
       if (match) {
-        const content = await ociRegistry.getSkillContent(match.ociReference);
-        if (content) return content;
+        // Try getting content from the already-loaded skill body first
+        const bodyContent = (match as any).body || (match as any).rawContent;
+        if (bodyContent) return bodyContent;
+        // Fall back to fetching from OCI reference
+        if (match.ociReference) {
+          const content = await ociRegistry.getSkillContent(match.ociReference);
+          if (content) return content;
+        }
       }
     } catch {
       logger.debug(`OCI content fetch for ${activeSkill} failed`);
@@ -387,12 +400,10 @@ export function registerKagentiRoutes(
     if (!allowed) return;
 
     if (!smpAgentClient) {
-      res
-        .status(503)
-        .json({
-          error:
-            'SMP agents not configured. Set skillMarketplace.smpAgents URLs.',
-        });
+      res.status(503).json({
+        error:
+          'SMP agents not configured. Set skillMarketplace.smpAgents URLs.',
+      });
       return;
     }
     const { message, sessionId, agentName, activeSkill } = req.body ?? {};
