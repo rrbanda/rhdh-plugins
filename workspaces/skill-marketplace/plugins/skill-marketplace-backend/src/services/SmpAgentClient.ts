@@ -270,34 +270,40 @@ export class SmpAgentClient {
   }
 
   static extractText(result: Task | Message): string {
-    // Task: look in artifacts
-    if ('artifacts' in result && Array.isArray(result.artifacts)) {
-      const texts = result.artifacts
-        .flatMap(a => a.parts ?? [])
-        .filter((p): p is TextPart => p.kind === 'text')
-        .map(p => p.text)
-        .filter(t => !SmpAgentClient.isMetadataJson(t));
-      if (texts.length > 0) {
-        return texts.join('\n');
-      }
+    const allParts = SmpAgentClient.collectParts(result);
+
+    // Priority 1: explicit text parts (filter out metadata noise)
+    const textParts = allParts
+      .filter((p: any) => p.kind === 'text' && typeof p.text === 'string')
+      .map((p: any) => p.text as string)
+      .filter(t => !SmpAgentClient.isMetadataJson(t));
+    if (textParts.length > 0) {
+      return textParts.join('\n');
     }
 
-    // Task: fallback to status message
+    // Priority 2: data parts with response.content (tool/function-call results)
+    const dataContents = allParts
+      .filter((p: any) => p.data || p.kind === 'data')
+      .map((p: any) => {
+        const d = p.data || p;
+        if (d.response && typeof d.response.content === 'string')
+          return d.response.content;
+        if (typeof d.content === 'string') return d.content;
+        if (typeof d.text === 'string') return d.text;
+        return null;
+      })
+      .filter(
+        (t): t is string => t !== null && !SmpAgentClient.isMetadataJson(t),
+      );
+    if (dataContents.length > 0) {
+      return dataContents.join('\n');
+    }
+
+    // Priority 3: status message
     if ('status' in result && result.status?.message?.parts) {
       const texts = result.status.message.parts
-        .filter((p): p is TextPart => p.kind === 'text')
-        .map(p => p.text)
-        .filter(t => !SmpAgentClient.isMetadataJson(t));
-      if (texts.length > 0) {
-        return texts.join('\n');
-      }
-    }
-
-    // Message: look in parts
-    if ('parts' in result && Array.isArray(result.parts)) {
-      const texts = result.parts
-        .filter((p): p is TextPart => p.kind === 'text')
-        .map(p => p.text)
+        .filter((p: any) => p.kind === 'text')
+        .map((p: any) => p.text as string)
         .filter(t => !SmpAgentClient.isMetadataJson(t));
       if (texts.length > 0) {
         return texts.join('\n');
@@ -305,6 +311,19 @@ export class SmpAgentClient {
     }
 
     return JSON.stringify(result);
+  }
+
+  private static collectParts(result: Task | Message): any[] {
+    const parts: any[] = [];
+    if ('artifacts' in result && Array.isArray(result.artifacts)) {
+      for (const a of result.artifacts) {
+        if (Array.isArray(a.parts)) parts.push(...a.parts);
+      }
+    }
+    if ('parts' in result && Array.isArray(result.parts)) {
+      parts.push(...result.parts);
+    }
+    return parts;
   }
 
   // -----------------------------------------------------------------------
