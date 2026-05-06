@@ -455,19 +455,52 @@
   font-weight: 600;
   color: var(--sm-text-secondary);
 }
+.ragLabelCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--sm-brand) 14%, transparent);
+  color: var(--sm-brand);
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 6px;
+}
 .agenticRagCard {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  padding: 6px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 10px;
   border: 1px solid var(--sm-border-default);
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--sm-surface-card);
   cursor: pointer;
   text-align: left;
   transition: background 0.15s, border-color 0.15s;
   font-family: inherit;
+}
+.ragCardTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ragCardReason {
+  font-size: 11px;
+  color: var(--sm-text-secondary);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ragCardTools {
+  font-size: 10px;
+  color: var(--sm-text-tertiary, #9ca3af);
+  font-style: italic;
 }
 .agenticRagCard:hover {
   background: var(--sm-surface-hover);
@@ -577,4 +610,69 @@
   opacity: 0.9;
 }
 
-/* Input has moved to GraphChatBar (wide input at bottom of graph body) */
+/* ─── Provenance badge ─── */
+.provenanceBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--sm-text-tertiary, #9ca3af);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--sm-brand) 6%, transparent);
+  margin-bottom: 4px;
+}
+
+/* ─── Panel-integrated chat input ─── */
+.panelInput {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--sm-border-subtle, #e5e7eb);
+  background: var(--sm-surface-card, #fff);
+  flex-shrink: 0;
+}
+.panelInputField {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--sm-border-default, #d1d5db);
+  background: var(--sm-surface-default, #f9fafb);
+  font-size: 13px;
+  outline: none;
+  color: var(--sm-text-primary, #111);
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.panelInputField:focus {
+  border-color: var(--sm-brand, #6366f1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sm-brand, #6366f1) 12%, transparent);
+}
+.panelInputField:disabled {
+  opacity: 0.5;
+}
+.panelInputSend {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--sm-brand, #6366f1);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.panelInputSend:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.panelInputSend:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

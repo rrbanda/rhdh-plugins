@@ -55,11 +55,11 @@ skillMarketplace:
   oci:
     cacheTimeout: 300
     publishRegistry:
-      url: ${OCI_PUBLISH_REGISTRY_URL:-https://quay.io/rbrhssa/skills}
+      url: ${OCI_PUBLISH_REGISTRY_URL:-https://quay.io/rbrhssa/mortgage-ai}
       token: ${OCI_REGISTRY_TOKEN:-}
     registries:
-      - url: ${OCI_REGISTRY_URL:-https://quay.io/rbrhssa/skills}
-        name: ${OCI_REGISTRY_NAME:-quay-skills}
+      - url: ${OCI_REGISTRY_URL:-https://quay.io/rbrhssa/mortgage-ai}
+        name: ${OCI_REGISTRY_NAME:-mortgage-ai-skills}
 
   # SMP Agents: external A2A agent microservices on OpenShift (managed by Kagenti).
   # When configured, these replace the embedded TypeScript agentic services.

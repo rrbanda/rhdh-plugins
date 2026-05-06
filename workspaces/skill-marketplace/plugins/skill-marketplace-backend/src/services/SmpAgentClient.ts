@@ -425,28 +425,47 @@ export class SmpAgentClient {
    * Tries A2A JSON-RPC first; falls back to OpenAI-compatible /v1/chat/completions
    * for agents that only expose that interface (e.g. docsclaw).
    */
+  /** Agents that only support OpenAI-compatible chat completions (no A2A). */
+  private static readonly OPENAI_ONLY_AGENTS: Set<SmpAgentName> = new Set([
+    'playground',
+  ]);
+
   async chat(
     agent: SmpAgentName,
     message: string,
     contextId?: string,
     requestSignal?: AbortSignal,
   ): Promise<{ text: string; contextId?: string }> {
+    // Skip A2A entirely for agents that only support OpenAI chat completions
+    if (SmpAgentClient.OPENAI_ONLY_AGENTS.has(agent)) {
+      return this.sendOpenAICompatible(
+        agent,
+        message,
+        contextId,
+        requestSignal,
+      );
+    }
+
     try {
       return await this.sendMessage(agent, message, contextId, requestSignal);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('method not found') || msg.includes('-32601')) {
-        this.logger.info(
-          `A2A message/send not supported by ${agent}, falling back to OpenAI-compatible API`,
-        );
-        return this.sendOpenAICompatible(
+      this.logger.info(
+        `A2A sendMessage failed for ${agent} (${msg.slice(0, 80)}), falling back to OpenAI-compatible API`,
+      );
+      try {
+        return await this.sendOpenAICompatible(
           agent,
           message,
           contextId,
           requestSignal,
         );
+      } catch (fallbackErr) {
+        this.logger.error(
+          `OpenAI fallback also failed for ${agent}: ${(fallbackErr as Error).message}`,
+        );
+        throw fallbackErr;
       }
-      throw err;
     }
   }
 

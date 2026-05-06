@@ -29,6 +29,7 @@ import { useBundle } from '../../hooks';
 import LoadingSpinner from '../shared/LoadingSpinner';
 import ErrorMessage from '../shared/ErrorMessage';
 import AddToBundleButton from '../shared/AddToBundleButton';
+import BundleLifecycleStepper from './BundleLifecycleStepper';
 import type {
   BundleSummary,
   BundleDetail,
@@ -676,109 +677,117 @@ export default function BundleBrowser() {
                   <span>{selectedBundle.skills.length} skills</span>
                 </div>
                 {!editMode && (
-                  <div
-                    className={styles.bbDetailLifecycle}
-                    role="group"
-                    aria-label="Skill bundle lifecycle actions"
-                  >
-                    {selectedBundle.status === 'draft' && (
-                      <button
-                        className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
-                        onClick={() => {
-                          void handleSetBundleStatus('testing');
-                        }}
-                        disabled={actionLoading === 'bundle-status'}
-                        type="button"
-                        aria-label="Start testing this skill bundle"
-                      >
-                        Start Testing
-                      </button>
-                    )}
-                    {selectedBundle.status === 'testing' && (
-                      <>
+                  <>
+                    <BundleLifecycleStepper
+                      currentStatus={selectedBundle.status as any}
+                    />
+                    <div
+                      className={styles.bbDetailLifecycle}
+                      role="group"
+                      aria-label="Skill bundle lifecycle actions"
+                    >
+                      {selectedBundle.status === 'draft' && (
                         <button
                           className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
-                          onClick={() => {
-                            void handlePublishToMarketplace();
-                          }}
-                          disabled={actionLoading === 'bundle-status'}
-                          type="button"
-                          aria-label="Publish skill bundle to the marketplace"
-                        >
-                          Publish to Marketplace
-                        </button>
-                        <button
-                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
-                          onClick={() => {
-                            void handleSetBundleStatus('draft');
-                          }}
-                          disabled={actionLoading === 'bundle-status'}
-                          type="button"
-                          aria-label="Move skill bundle back to draft"
-                        >
-                          Back to Draft
-                        </button>
-                      </>
-                    )}
-                    {selectedBundle.status === 'published' && (
-                      <>
-                        <button
-                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
-                          onClick={() => {
-                            void handleSetBundleStatus('deprecated');
-                          }}
-                          disabled={actionLoading === 'bundle-status'}
-                          type="button"
-                          aria-label="Deprecate this skill bundle"
-                        >
-                          Deprecate
-                        </button>
-                        <button
-                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
                           onClick={() => {
                             void handleSetBundleStatus('testing');
                           }}
                           disabled={actionLoading === 'bundle-status'}
                           type="button"
-                          aria-label="Move skill bundle back to testing"
+                          aria-label="Start testing this skill bundle"
                         >
-                          Back to Testing
+                          Start Testing
                         </button>
-                      </>
-                    )}
-                    {selectedBundle.status === 'deprecated' && (
-                      <>
-                        <button
-                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
-                          onClick={() => {
-                            void handleSetBundleStatus('published');
-                          }}
-                          disabled={actionLoading === 'bundle-status'}
-                          type="button"
-                          aria-label="Restore skill bundle to published"
+                      )}
+                      {selectedBundle.status === 'testing' && (
+                        <>
+                          <button
+                            className={`${styles.bbBtn} ${styles.bbBtnPrimary}`}
+                            onClick={() => {
+                              void handlePublishToMarketplace();
+                            }}
+                            disabled={actionLoading === 'bundle-status'}
+                            type="button"
+                            aria-label="Publish skill bundle to the marketplace"
+                          >
+                            Publish to Marketplace
+                          </button>
+                          <button
+                            className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                            onClick={() => {
+                              void handleSetBundleStatus('draft');
+                            }}
+                            disabled={actionLoading === 'bundle-status'}
+                            type="button"
+                            aria-label="Move skill bundle back to draft"
+                          >
+                            Back to Draft
+                          </button>
+                        </>
+                      )}
+                      {selectedBundle.status === 'published' && (
+                        <>
+                          <button
+                            className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                            onClick={() => {
+                              void handleSetBundleStatus('deprecated');
+                            }}
+                            disabled={actionLoading === 'bundle-status'}
+                            type="button"
+                            aria-label="Deprecate this skill bundle"
+                          >
+                            Deprecate
+                          </button>
+                          <button
+                            className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                            onClick={() => {
+                              void handleSetBundleStatus('testing');
+                            }}
+                            disabled={actionLoading === 'bundle-status'}
+                            type="button"
+                            aria-label="Move skill bundle back to testing"
+                          >
+                            Back to Testing
+                          </button>
+                        </>
+                      )}
+                      {selectedBundle.status === 'deprecated' && (
+                        <>
+                          <button
+                            className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                            onClick={() => {
+                              void handleSetBundleStatus('published');
+                            }}
+                            disabled={actionLoading === 'bundle-status'}
+                            type="button"
+                            aria-label="Restore skill bundle to published"
+                          >
+                            Restore to Published
+                          </button>
+                          <button
+                            className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
+                            onClick={() => {
+                              void handleSetBundleStatus('archived');
+                            }}
+                            disabled={actionLoading === 'bundle-status'}
+                            type="button"
+                            aria-label="Archive this skill bundle"
+                          >
+                            Archive
+                          </button>
+                        </>
+                      )}
+                      {selectedBundle.status === 'archived' && (
+                        <p
+                          className={styles.bbDetailLifecycleInfo}
+                          role="status"
                         >
-                          Restore to Published
-                        </button>
-                        <button
-                          className={`${styles.bbBtn} ${styles.bbBtnSecondary}`}
-                          onClick={() => {
-                            void handleSetBundleStatus('archived');
-                          }}
-                          disabled={actionLoading === 'bundle-status'}
-                          type="button"
-                          aria-label="Archive this skill bundle"
-                        >
-                          Archive
-                        </button>
-                      </>
-                    )}
-                    {selectedBundle.status === 'archived' && (
-                      <p className={styles.bbDetailLifecycleInfo} role="status">
-                        This skill bundle is archived. No further status changes
-                        are available.
-                      </p>
-                    )}
-                  </div>
+                          This skill bundle is archived. No further status
+                          changes are available.
+                        </p>
+                      )}
+                    </div>
+                  </>
                 )}
                 <div className={styles.bbDetailActions}>
                   <button

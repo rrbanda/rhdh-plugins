@@ -1,0 +1,149 @@
+.stepper {
+  padding: 20px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--sm-border-default, #e5e7eb);
+}
+
+.track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.connector {
+  flex: 1;
+  height: 2px;
+  background: var(--sm-border-default, #e5e7eb);
+  margin-top: 14px;
+  min-width: 16px;
+  transition: background 0.4s ease;
+}
+.connectorComplete {
+  background: var(--sm-brand, #6366f1);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 64px;
+}
+
+.dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.stepComplete .dot {
+  background: var(--sm-brand, #6366f1);
+  color: #fff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--sm-brand, #6366f1) 30%, transparent);
+}
+
+.stepCurrent .dot {
+  background: var(--sm-brand, #6366f1);
+  color: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sm-brand, #6366f1) 15%, transparent),
+              0 2px 8px color-mix(in srgb, var(--sm-brand, #6366f1) 30%, transparent);
+}
+
+.stepFuture .dot {
+  background: var(--sm-surface-secondary, #f5f5f5);
+  border: 2px solid var(--sm-border-default, #e5e7eb);
+}
+
+.dotPulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.dotEmpty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sm-border-default, #d1d5db);
+}
+
+.labels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.sdlcLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sm-text-secondary, #6a6e73);
+}
+
+.stepCurrent .sdlcLabel {
+  color: var(--sm-brand, #6366f1);
+}
+
+.stepLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--sm-text-secondary, #9ca3af);
+}
+
+.stepCurrent .stepLabel {
+  color: var(--sm-text-primary, #151515);
+  font-weight: 600;
+}
+
+.stepComplete .stepLabel {
+  color: var(--sm-text-primary, #151515);
+}
+
+.ociRef {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sm-brand, #6366f1) 4%, transparent);
+  color: var(--sm-text-secondary, #6a6e73);
+  font-size: 11px;
+}
+
+.ociRefText code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: var(--sm-text-primary, #151515);
+  background: color-mix(in srgb, var(--sm-brand, #6366f1) 8%, transparent);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.7; }
+}
+
+@media (max-width: 600px) {
+  .track {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  .step { min-width: 56px; }
+  .sdlcLabel { font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dotPulse { animation: none; }
+}

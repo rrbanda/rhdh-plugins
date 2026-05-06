@@ -106,13 +106,38 @@ export function registerBundleRoutes(
     }
     try {
       const author = (req as any).user?.identity?.userEntityRef ?? 'anonymous';
+
+      // OCI-first: push bundle artifact as draft immediately
+      let ociReference: string | undefined;
+      if (ociRegistry) {
+        try {
+          ociReference = await ociRegistry.pushBundle(
+            {
+              name,
+              description: description || '',
+              author,
+              skills: skillSlugs.map((slug: string) => ({ slug, name: slug })),
+            },
+            'draft',
+          );
+          logger.info(
+            `Bundle '${name}' pushed to OCI as draft: ${ociReference}`,
+          );
+        } catch (ociErr) {
+          logger.warn(
+            `OCI push for new bundle failed (saving to graph only): ${(ociErr as Error).message}`,
+          );
+        }
+      }
+
+      // Also persist in Neo4j for immediate availability
       const bundle = await neo4j.createBundle({
         name,
         description: description || '',
         skillSlugs,
         author,
       });
-      res.status(201).json(bundle);
+      res.status(201).json({ ...bundle, ociReference });
     } catch (err) {
       logger.error(
         `POST /graph/bundles failed: ${err instanceof Error ? err.message : err}`,
@@ -229,10 +254,11 @@ export function registerBundleRoutes(
       return;
     }
 
-    const VALID_TRANSITIONS: Record<string, string[]> = {
-      draft: ['testing'],
-      testing: ['published', 'draft'],
-      published: ['deprecated', 'testing'],
+    // Aligned with skill LIFECYCLE_TRANSITIONS from the SDLC spec
+    const BUNDLE_LIFECYCLE_TRANSITIONS: Record<string, string[]> = {
+      draft: ['testing', 'archived'],
+      testing: ['draft', 'published', 'archived'],
+      published: ['deprecated'],
       deprecated: ['archived', 'published'],
       archived: [],
     };
@@ -245,7 +271,8 @@ export function registerBundleRoutes(
       }
 
       const currentStatus = (bundle as { status?: string }).status || 'draft';
-      const allowedTransitions = VALID_TRANSITIONS[currentStatus] || [];
+      const allowedTransitions =
+        BUNDLE_LIFECYCLE_TRANSITIONS[currentStatus] || [];
       if (!allowedTransitions.includes(status)) {
         res.status(409).json({
           error: `Cannot transition from '${currentStatus}' to '${status}'. Valid transitions: ${allowedTransitions.join(', ') || 'none'}`,
@@ -253,19 +280,40 @@ export function registerBundleRoutes(
         return;
       }
 
-      if (status === 'published' && ociRegistry) {
-        try {
-          const fullBundle = await neo4j.getBundle(req.params.id);
-          if (fullBundle) {
-            await ociRegistry.pushBundle(fullBundle as Record<string, unknown>);
-            logger.info(
-              `Bundle '${(fullBundle as { name?: string }).name}' pushed to OCI registry`,
+      // Pre-publish validation: bundle must have skills
+      if (status === 'published' || status === 'testing') {
+        const fullBundle = await neo4j.getBundle(req.params.id);
+        const skills = (fullBundle as any)?.skills;
+        if (!skills || !Array.isArray(skills) || skills.length === 0) {
+          res.status(422).json({
+            error: `Cannot transition to '${status}' — bundle has no skills.`,
+          });
+          return;
+        }
+      }
+
+      // OCI-first: push/retag the bundle in OCI on every state transition
+      if (ociRegistry) {
+        const fullBundle = await neo4j.getBundle(req.params.id);
+        if (fullBundle) {
+          try {
+            await ociRegistry.pushBundle(
+              fullBundle as Record<string, unknown>,
+              status,
             );
+            logger.info(
+              `Bundle '${(fullBundle as { name?: string }).name}' pushed to OCI as ${status}`,
+            );
+          } catch (ociErr) {
+            const ociMsg = (ociErr as Error).message;
+            logger.error(
+              `OCI push failed during ${status} transition: ${ociMsg}`,
+            );
+            res.status(500).json({
+              error: `OCI registry push failed: ${ociMsg}. Status was not changed.`,
+            });
+            return;
           }
-        } catch (ociErr) {
-          logger.error(
-            `Failed to push bundle to OCI: ${(ociErr as Error).message}`,
-          );
         }
       }
 
@@ -349,6 +397,20 @@ export function registerBundleRoutes(
       return;
     }
     try {
+      // Only allow editing bundles in draft or testing state
+      const existing = await neo4j.getBundle(req.params.id);
+      if (!existing) {
+        res.status(404).json({ error: 'Bundle not found' });
+        return;
+      }
+      const currentStatus = (existing as any).status || 'draft';
+      if (currentStatus !== 'draft' && currentStatus !== 'testing') {
+        res.status(409).json({
+          error: `Cannot edit a bundle in '${currentStatus}' state. Only draft and testing bundles can be modified.`,
+        });
+        return;
+      }
+
       const bundle = await neo4j.updateBundle(req.params.id, {
         name,
         description,
@@ -358,6 +420,24 @@ export function registerBundleRoutes(
         res.status(404).json({ error: 'Bundle not found' });
         return;
       }
+
+      // OCI-first: re-push updated bundle to OCI with current lifecycle state
+      if (ociRegistry) {
+        try {
+          const fullBundle = await neo4j.getBundle(req.params.id);
+          if (fullBundle) {
+            await ociRegistry.pushBundle(
+              fullBundle as Record<string, unknown>,
+              currentStatus,
+            );
+          }
+        } catch (ociErr) {
+          logger.warn(
+            `OCI re-push after edit failed: ${(ociErr as Error).message}`,
+          );
+        }
+      }
+
       res.json(bundle);
     } catch (err) {
       logger.error(

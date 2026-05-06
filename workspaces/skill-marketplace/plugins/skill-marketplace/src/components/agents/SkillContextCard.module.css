@@ -1,0 +1,155 @@
+.empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--sm-border-default, #e5e7eb);
+  color: var(--sm-text-secondary, #6a6e73);
+  font-size: 13px;
+}
+.collapsed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--sm-border-default, #e5e7eb);
+  background: color-mix(in srgb, var(--sm-brand, #6366f1) 3%, transparent);
+}
+.activeBadge {
+  font-size: 13px;
+  color: var(--sm-text-primary, #151515);
+  flex: 1;
+}
+.activeBadge strong {
+  color: var(--sm-brand, #6366f1);
+}
+.expandBtn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--sm-border-default, #e5e7eb);
+  background: var(--sm-surface-card, #fff);
+  color: var(--sm-text-secondary, #6a6e73);
+  cursor: pointer;
+  font-family: inherit;
+}
+.expandBtn:hover {
+  border-color: var(--sm-brand, #6366f1);
+  color: var(--sm-brand, #6366f1);
+}
+.deselectBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sm-text-secondary, #9ca3af);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.deselectBtn:hover {
+  background: var(--sm-surface-hover, rgba(0,0,0,0.04));
+  color: var(--sm-danger, #ef4444);
+}
+.card {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--sm-border-default, #e5e7eb);
+  background: color-mix(in srgb, var(--sm-brand, #6366f1) 2%, transparent);
+}
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sm-text-primary, #151515);
+}
+.nsBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--sm-brand, #6366f1) 8%, transparent);
+  color: var(--sm-brand, #6366f1);
+}
+.statusBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.status_published { background: #d1fae5; color: #065f46; }
+.status_testing { background: #fef3c7; color: #92400e; }
+.status_draft { background: #f3f4f6; color: #6b7280; }
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.collapseBtn {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sm-text-secondary, #6a6e73);
+  cursor: pointer;
+  font-family: inherit;
+}
+.collapseBtn:hover {
+  background: var(--sm-surface-hover, rgba(0,0,0,0.04));
+}
+.desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sm-text-secondary, #6a6e73);
+  margin: 0 0 12px;
+  max-width: 600px;
+}
+.prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.promptsLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sm-text-secondary, #9ca3af);
+}
+.promptChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.promptChip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--sm-border-default, #e5e7eb);
+  background: var(--sm-surface-card, #fff);
+  color: var(--sm-text-primary, #151515);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.promptChip:hover {
+  border-color: var(--sm-brand, #6366f1);
+  background: color-mix(in srgb, var(--sm-brand, #6366f1) 4%, transparent);
+  color: var(--sm-brand, #6366f1);
+}

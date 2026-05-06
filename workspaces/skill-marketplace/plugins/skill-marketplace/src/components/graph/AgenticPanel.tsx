@@ -81,7 +81,9 @@ export default function AgenticPanel({
   onClose,
 }: AgenticPanelProps) {
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT);
+  const [inputValue, setInputValue] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const lastAssistantHighlightIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -231,7 +233,7 @@ export default function AgenticPanel({
               </div>
               <p className={styles.agenticWelcomeText}>
                 Ask questions about skills, tools, and relationships in the
-                knowledge graph using the input below.
+                knowledge graph.
               </p>
               <div className={styles.agenticSuggestionGroup}>
                 <p className={styles.agenticSuggestionLabel}>Try asking</p>
@@ -262,6 +264,45 @@ export default function AgenticPanel({
 
           {isLoading && <TypingIndicator state={streaming} />}
         </div>
+
+        <form
+          className={styles.panelInput}
+          onSubmit={e => {
+            e.preventDefault();
+            const q = inputValue.trim();
+            if (q && !isLoading) {
+              sendQuery(q);
+              setInputValue('');
+            }
+          }}
+        >
+          <input
+            ref={inputRef}
+            className={styles.panelInputField}
+            type="text"
+            placeholder="Ask about skills, dependencies, tools..."
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            disabled={isLoading}
+            aria-label="Ask the knowledge graph"
+          />
+          <button
+            type="submit"
+            className={styles.panelInputSend}
+            disabled={isLoading || !inputValue.trim()}
+            aria-label="Send question"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              width={14}
+              height={14}
+              fill="currentColor"
+              aria-hidden
+            >
+              <path d="M15.854 8.354a.5.5 0 000-.708l-3-3a.5.5 0 00-.708.708L14.293 7.5H1a.5.5 0 000 1h13.293l-2.147 2.146a.5.5 0 00.708.708l3-3z" />
+            </svg>
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -361,6 +402,27 @@ function MessageBubble({
         </div>
       )}
 
+      {(message.sources?.length || message.ragSkills?.length) && (
+        <div className={styles.provenanceBadge}>
+          <svg
+            viewBox="0 0 16 16"
+            width={11}
+            height={11}
+            fill="currentColor"
+            aria-hidden
+          >
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 12.5a5.5 5.5 0 110-11 5.5 5.5 0 010 11z" />
+            <path d="M8 4a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 7a.75.75 0 100-1.5.75.75 0 000 1.5z" />
+          </svg>
+          Grounded in{' '}
+          {(message.sources?.length ?? 0) + (message.ragSkills?.length ?? 0)}{' '}
+          graph nodes
+          {message.durationMs
+            ? ` · ${(message.durationMs / 1000).toFixed(1)}s`
+            : ''}
+        </div>
+      )}
+
       <div className={styles.assistantShell}>
         <div
           className={styles.assistantBubble}
@@ -407,7 +469,12 @@ function MessageBubble({
 
       {message.ragSkills && message.ragSkills.length > 0 && (
         <div className={styles.agenticRagResults}>
-          <span className={styles.agenticRagLabel}>Related skills:</span>
+          <span className={styles.agenticRagLabel}>
+            Related skills
+            <span className={styles.ragLabelCount}>
+              {message.ragSkills.length}
+            </span>
+          </span>
           {message.ragSkills.map((hit, i) => (
             <button
               key={i}
@@ -416,29 +483,39 @@ function MessageBubble({
               onClick={() => onSourceClick(hit.skill.name)}
               aria-label={`View ${hit.skill.name} in graph`}
             >
-              <span
-                className={styles.ragCardCategory}
-                style={{
-                  borderLeftColor: getCategoryColor(hit.skill.category),
-                }}
-              >
-                {hit.skill.category}
+              <span className={styles.ragCardTop}>
+                <span
+                  className={styles.ragCardCategory}
+                  style={{
+                    borderLeftColor: getCategoryColor(hit.skill.category),
+                  }}
+                >
+                  {hit.domain || hit.skill.category}
+                </span>
+                <span className={styles.ragCardScore}>
+                  {Math.round(hit.score * 100)}%
+                </span>
+                <span
+                  className={`${styles.ragCardMatch} ${
+                    hit.matchType === 'semantic'
+                      ? styles.ragMatchSemantic
+                      : hit.matchType === 'fulltext'
+                        ? styles.ragMatchText
+                        : styles.ragMatchGraph
+                  }`}
+                >
+                  {MATCH_DISPLAY[hit.matchType] ?? hit.matchType}
+                </span>
               </span>
               <span className={styles.ragCardName}>{hit.skill.name}</span>
-              <span className={styles.ragCardScore}>
-                {Math.round(hit.score * 100)}%
-              </span>
-              <span
-                className={`${styles.ragCardMatch} ${
-                  hit.matchType === 'semantic'
-                    ? styles.ragMatchSemantic
-                    : hit.matchType === 'fulltext'
-                      ? styles.ragMatchText
-                      : styles.ragMatchGraph
-                }`}
-              >
-                {MATCH_DISPLAY[hit.matchType] ?? hit.matchType}
-              </span>
+              {hit.reason && (
+                <span className={styles.ragCardReason}>{hit.reason}</span>
+              )}
+              {hit.tools && hit.tools.length > 0 && (
+                <span className={styles.ragCardTools}>
+                  {hit.tools.slice(0, 3).join(', ')}
+                </span>
+              )}
             </button>
           ))}
         </div>

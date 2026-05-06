@@ -30,7 +30,7 @@ import SkillsPage from '../skills/SkillsPage';
 import SkillDetailPage from '../skills/SkillDetailPage';
 import GraphPage from '../graph/GraphPage';
 import BuilderStudio from '../builder/BuilderStudio';
-import SkillsPlayground from '../agents/AgentsPage';
+import SkillsPlayground from '../agents/SkillsPlayground';
 import AgentDetailPage from '../agents/AgentDetailPage';
 import BundleBrowser from '../bundles/BundleBrowser';
 import BundleCart from '../bundles/BundleCart';

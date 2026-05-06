@@ -1058,12 +1058,16 @@ export class Neo4jService {
     status: string;
   }): Promise<void> {
     return this.withSession(async session => {
+      // MERGE on name ensures OCI-synced and API-created bundles with the
+      // same name converge to a single node (no duplicates).
+      // ON CREATE assigns a UUID id so both access paths work.
       await session.run(
         `MERGE (b:SkillBundle {name: $name})
          ON CREATE SET b.id = randomUUID(), b.description = $description, b.author = $author,
            b.status = $status, b.source = 'oci', b.skillCount = 0,
            b.createdAt = datetime(), b.updatedAt = datetime()
-         ON MATCH SET b.description = $description, b.status = $status,
+         ON MATCH SET b.description = CASE WHEN b.source = 'oci' OR b.description IS NULL THEN $description ELSE b.description END,
+           b.status = CASE WHEN b.source = 'oci' THEN $status ELSE b.status END,
            b.updatedAt = datetime()`,
         {
           name: opts.name,

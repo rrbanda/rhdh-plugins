@@ -142,7 +142,14 @@ export function PlaygroundSidebar({
   }, [useCatalog, filteredSkills]);
 
   const selectedCatalogSkill = useCatalog
-    ? catalog.skills.find(s => s.name === selectedSkill)
+    ? catalog.skills.find(s => {
+        const skillId = s.tag ? s.tag.replace(/-\d+\.\d+\.\d+.*$/, '') : s.name;
+        return (
+          skillId === selectedSkill ||
+          s.display_name === selectedSkill ||
+          s.name === selectedSkill
+        );
+      })
     : undefined;
   const selectedOciSkill = !useCatalog
     ? ociSkills.find(s => s.skillName === selectedSkill)
@@ -203,11 +210,19 @@ export function PlaygroundSidebar({
                   key={ns}
                   label={ns.charAt(0).toUpperCase() + ns.slice(1)}
                 >
-                  {nsSkills.map(s => (
-                    <option key={`${s.namespace}/${s.name}`} value={s.name}>
-                      {s.display_name || humanize(s.name)} ({s.status})
-                    </option>
-                  ))}
+                  {nsSkills.map(s => {
+                    // Use tag without version suffix as the skill identifier.
+                    // This matches card.metadata.name in OCI (e.g. "risk-assessment")
+                    // which resolveSkillContent uses for reliable content retrieval.
+                    const skillId = s.tag
+                      ? s.tag.replace(/-\d+\.\d+\.\d+.*$/, '')
+                      : s.display_name || s.name;
+                    return (
+                      <option key={`${s.namespace}/${s.tag}`} value={skillId}>
+                        {s.display_name || humanize(s.name)} ({s.status})
+                      </option>
+                    );
+                  })}
                 </optgroup>
               ))}
           </select>
@@ -229,8 +244,11 @@ export function PlaygroundSidebar({
 
         {selectedSkill && (
           <span className={styles.skillHint}>
-            Skill &ldquo;{selectedSkill}&rdquo; context will be provided to the
-            agent
+            Skill &ldquo;
+            {selectedCatalogSkill?.display_name ||
+              selectedOciSkill?.displayName ||
+              selectedSkill}
+            &rdquo; context will be provided to the agent
           </span>
         )}
 

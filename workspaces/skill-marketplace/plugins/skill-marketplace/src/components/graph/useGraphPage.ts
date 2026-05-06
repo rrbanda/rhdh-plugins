@@ -225,14 +225,16 @@ export function useGraphPage(options?: UseGraphPageOptions) {
     if (isFocusMode) {
       const allNodes = focusNodes;
       const allRelationships = focusRels;
-      const q = debouncedSearch.toLowerCase();
+      // In focus mode (AI highlight), show all focus nodes without substring filtering.
+      // Only apply label/plugin visibility filters.
       const filteredNodes = allNodes.filter(n => {
-        if (!q) return true;
-        return (
-          n.caption.toLowerCase().includes(q) ||
-          n.labels.some(l => l.toLowerCase().includes(q)) ||
-          ((n.properties.plugin as string) ?? '').toLowerCase().includes(q)
-        );
+        if (
+          enabledLabels.size > 0 &&
+          !n.labels.some(l => enabledLabels.has(l))
+        ) {
+          return false;
+        }
+        return true;
       });
       const nodeIds = new Set(filteredNodes.map(n => n.id));
       const filteredRels = allRelationships.filter(
@@ -445,6 +447,10 @@ export function useGraphPage(options?: UseGraphPageOptions) {
 
   const handleAiHighlight = useCallback(
     async (nodeNames: string[], meta?: { userQuery?: string | null }) => {
+      // Clear toolbar search so it doesn't filter out AI-loaded focus nodes
+      setSearchQuery('');
+      setDebouncedSearch('');
+
       setHighlightedNodes(new Set(nodeNames));
       setFocusQuery(meta?.userQuery ?? null);
 

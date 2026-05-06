@@ -26,6 +26,37 @@ function newSessionId(): string {
   return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+interface ParsedAgentResponse {
+  answer: string;
+  highlightedNodes: string[];
+  cypherUsed?: string;
+}
+
+function parseAgentResponse(raw: string): ParsedAgentResponse {
+  if (!raw) return { answer: '', highlightedNodes: [] };
+
+  // Try to extract JSON from the response (agent may wrap in ```json blocks)
+  const jsonMatch = raw.match(/```json\s*([\s\S]*?)```/);
+  const jsonStr = jsonMatch ? jsonMatch[1].trim() : raw.trim();
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (parsed && typeof parsed === 'object' && 'answer' in parsed) {
+      return {
+        answer: String(parsed.answer || ''),
+        highlightedNodes: Array.isArray(parsed.highlighted_nodes)
+          ? parsed.highlighted_nodes.map(String)
+          : [],
+        cypherUsed: parsed.cypher_used ? String(parsed.cypher_used) : undefined,
+      };
+    }
+  } catch {
+    // Not JSON -- return as-is
+  }
+
+  return { answer: raw, highlightedNodes: [] };
+}
+
 export interface AgenticMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -117,21 +148,26 @@ export function useAgenticSearch() {
           api.queryRAG({ query, maxResults: 10, includeRelated: true }),
         ]);
 
-        answer =
-          agentResult.status === 'fulfilled'
-            ? agentResult.value.answer
-            : `Error: ${
-                agentResult.reason instanceof Error
-                  ? agentResult.reason.message
-                  : 'Agent request failed'
-              }`;
+        if (agentResult.status === 'fulfilled') {
+          const raw = agentResult.value.answer;
+          const parsed = parseAgentResponse(raw);
+          answer = parsed.answer;
+          if (parsed.highlightedNodes.length > 0) {
+            sources = [...new Set([...sources, ...parsed.highlightedNodes])];
+          }
+        } else {
+          answer = `Error: ${
+            agentResult.reason instanceof Error
+              ? agentResult.reason.message
+              : 'Agent request failed'
+          }`;
+        }
 
-        sources =
-          ragResult.status === 'fulfilled'
-            ? ragResult.value.skills.map(s => s.skill.name)
-            : [];
-        ragSkills =
-          ragResult.status === 'fulfilled' ? ragResult.value.skills : [];
+        if (ragResult.status === 'fulfilled') {
+          const ragSources = ragResult.value.skills.map(s => s.skill.name);
+          sources = [...new Set([...sources, ...ragSources])];
+          ragSkills = ragResult.value.skills;
+        }
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
           answer = `Error: ${(err as Error).message}`;

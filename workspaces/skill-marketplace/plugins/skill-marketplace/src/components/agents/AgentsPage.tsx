@@ -273,17 +273,16 @@ export default function SkillsPlayground() {
             the live agent.
           </p>
           <div className={pgStyles.suggestions}>
-            {[
-              {
-                skill: 'url-summary',
-                text: 'Summarize https://go.dev/blog/go1.24',
-              },
-              {
-                skill: 'code-review',
-                text: 'Review this: func add(a,b int) { return a + b }',
-              },
-              { skill: '', text: 'What skills do you have available?' },
-            ].map((s, i) => (
+            {(() => {
+              const suggestions = [
+                { skill: '', text: 'What skills do you have available?' },
+                ...skills.slice(0, 2).map(s => ({
+                  skill: (s as any).skillName || (s as any).name || '',
+                  text: `Tell me about the ${(s as any).displayName || (s as any).name || 'this'} skill and when to use it`,
+                })),
+              ];
+              return suggestions;
+            })().map((s, i) => (
               <button
                 key={`sug-${i}`}
                 type="button"

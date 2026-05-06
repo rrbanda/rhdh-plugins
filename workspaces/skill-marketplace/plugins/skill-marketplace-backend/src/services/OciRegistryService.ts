@@ -1065,9 +1065,12 @@ export class OciRegistryService {
   /**
    * Push a bundle image to the configured publish registry (OCI Distribution).
    * Layer contains bundle.json; manifest uses bundle-specific annotations.
+   * Supports all lifecycle states -- tag follows skillimage convention:
+   *   draft: {version}-draft, testing: {version}-testing, published: {version}
    */
   async pushBundle(
     bundle: Record<string, unknown>,
+    lifecycleState: string = 'draft',
   ): Promise<string | undefined> {
     const publishConfig = this.config.publishRegistry;
     if (!publishConfig) {
@@ -1084,12 +1087,15 @@ export class OciRegistryService {
       .map(s => (s.name as string) || (s.slug as string))
       .filter(Boolean) as string[];
 
+    const version = (bundle.version as string) || '1.0.0';
+
     const bundleManifest = JSON.stringify(
       {
         apiVersion: 'skillimage.io/v1alpha1',
         kind: 'SkillBundle',
         metadata: {
           name: safeName,
+          version,
           description: (bundle.description as string) || '',
           author,
           createdAt: (bundle.createdAt as string) || new Date().toISOString(),
@@ -1109,12 +1115,16 @@ export class OciRegistryService {
     const annotations: Record<string, string> = {
       [ANNOTATION_BUNDLE]: 'true',
       [ANNOTATION_BUNDLE_SKILLS]: JSON.stringify(skillNames),
-      [ANNOTATION_LIFECYCLE_STATUS]: 'published',
+      [ANNOTATION_LIFECYCLE_STATUS]: lifecycleState,
       [ANNOTATION_TITLE]: safeName,
-      [ANNOTATION_VERSION]: '1.0.0',
+      [ANNOTATION_VERSION]: version,
       [ANNOTATION_CREATED]: new Date().toISOString(),
       [ANNOTATION_VENDOR]: author,
     };
+
+    // Tag follows skillimage lifecycle convention
+    const tag =
+      lifecycleState === 'published' ? version : `${version}-${lifecycleState}`;
 
     return this.pushTarLayer(
       publishConfig,
@@ -1122,7 +1132,7 @@ export class OciRegistryService {
       content,
       'bundle.json',
       annotations,
-      '1.0.0-published',
+      tag,
     );
   }
 

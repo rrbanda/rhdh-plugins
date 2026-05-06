@@ -44,6 +44,10 @@ export interface BundleState {
   resolveError: string | null;
   drawerOpen: boolean;
   lastAdded: string | null;
+  /** When editing an existing bundle, holds its ID. Null when creating new. */
+  editingBundleId: string | null;
+  /** Name of the bundle being edited (for display in cart header). */
+  editingBundleName: string | null;
   addSkill: (skill: {
     name: string;
     slug: string;
@@ -63,6 +67,14 @@ export interface BundleState {
   clearCart: () => void;
   toggleDrawer: () => void;
   setDrawerOpen: (open: boolean) => void;
+  /** Start editing an existing bundle: loads its skills into the cart. */
+  startEditing: (
+    bundleId: string,
+    bundleName: string,
+    bundleSkills: BundleSkill[],
+  ) => void;
+  /** Cancel editing mode without saving. */
+  cancelEditing: () => void;
   saveBundle: (
     name: string,
     description: string,
@@ -105,6 +117,8 @@ const BundleContext = createContext<BundleState>({
   resolveError: null,
   drawerOpen: false,
   lastAdded: null,
+  editingBundleId: null,
+  editingBundleName: null,
   addSkill: () => {},
   addSkills: () => 0,
   removeSkill: () => {},
@@ -112,6 +126,8 @@ const BundleContext = createContext<BundleState>({
   clearCart: () => {},
   toggleDrawer: () => {},
   setDrawerOpen: () => {},
+  startEditing: () => {},
+  cancelEditing: () => {},
   saveBundle: async () => ({}) as CreateBundleResponse,
   exportBundle: () => {
     /* no-op */
@@ -128,6 +144,10 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
+  const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
+  const [editingBundleName, setEditingBundleName] = useState<string | null>(
+    null,
+  );
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -159,8 +179,11 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
         console.warn('useBundle: dependency resolution failed', err);
         if (!cancelled) {
           setResolved(null);
-          // Graceful degradation: do not surface raw HTTP/backstage error text in the UI
-          setResolveError(null);
+          setResolveError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to resolve dependencies',
+          );
         }
       })
       .finally(() => {
@@ -240,6 +263,26 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
   const clearCart = useCallback(() => {
     setSkills([]);
     setResolved(null);
+    setEditingBundleId(null);
+    setEditingBundleName(null);
+  }, []);
+
+  const startEditing = useCallback(
+    (bundleId: string, bundleName: string, bundleSkills: BundleSkill[]) => {
+      setSkills(bundleSkills);
+      setEditingBundleId(bundleId);
+      setEditingBundleName(bundleName);
+      setDrawerOpen(true);
+    },
+    [],
+  );
+
+  const cancelEditing = useCallback(() => {
+    setEditingBundleId(null);
+    setEditingBundleName(null);
+    setSkills([]);
+    setResolved(null);
+    setDrawerOpen(false);
   }, []);
 
   const toggleDrawer = useCallback(() => {
@@ -256,16 +299,31 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
   const saveBundle = useCallback(
     async (name: string, description: string) => {
       const slugs = skills.map(s => s.slug);
-      const result = await api.createBundle({
-        name,
-        description,
-        skillSlugs: slugs,
-      });
+
+      let result: CreateBundleResponse;
+      if (editingBundleId) {
+        // Update existing bundle
+        result = await api.updateBundle(editingBundleId, {
+          name,
+          description,
+          skillSlugs: slugs,
+        });
+      } else {
+        // Create new bundle
+        result = await api.createBundle({
+          name,
+          description,
+          skillSlugs: slugs,
+        });
+      }
+
       setSkills([]);
       setResolved(null);
+      setEditingBundleId(null);
+      setEditingBundleName(null);
       return result;
     },
-    [api, skills],
+    [api, skills, editingBundleId],
   );
 
   const updateBundleStatus = useCallback(
@@ -320,6 +378,8 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
       resolveError,
       drawerOpen,
       lastAdded,
+      editingBundleId,
+      editingBundleName,
       addSkill,
       addSkills,
       removeSkill,
@@ -327,6 +387,8 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
       clearCart,
       toggleDrawer,
       setDrawerOpen,
+      startEditing,
+      cancelEditing,
       saveBundle,
       exportBundle,
       hasSkill,
@@ -339,12 +401,16 @@ export function BundleProvider({ children }: { children: React.ReactNode }) {
       resolveError,
       drawerOpen,
       lastAdded,
+      editingBundleId,
+      editingBundleName,
       addSkill,
       addSkills,
       removeSkill,
       reorderSkill,
       clearCart,
       toggleDrawer,
+      startEditing,
+      cancelEditing,
       saveBundle,
       exportBundle,
       hasSkill,

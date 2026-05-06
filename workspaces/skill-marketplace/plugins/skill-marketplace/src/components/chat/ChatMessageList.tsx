@@ -45,7 +45,9 @@ export function ChatMessageList({
   const [userScrolled, setUserScrolled] = useState(false);
 
   const scrollToBottom = useCallback(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, []);
 
   useEffect(() => {
