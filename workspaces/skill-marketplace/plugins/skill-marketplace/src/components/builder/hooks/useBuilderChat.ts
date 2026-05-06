@@ -24,6 +24,28 @@ function nextMsgId(): string {
   return `msg-${Date.now()}-${msgIdCounter}`;
 }
 
+function extractConversationalSummary(fullText: string): string {
+  const lines = fullText.split('\n');
+  const summaryLines: string[] = [];
+  for (const line of lines) {
+    if (
+      line.startsWith('---') ||
+      line.startsWith('```') ||
+      line.startsWith('#')
+    ) {
+      break;
+    }
+    if (line.trim()) {
+      summaryLines.push(line);
+    }
+    if (summaryLines.length >= 3) break;
+  }
+  if (summaryLines.length > 0) {
+    return `${summaryLines.join(' ').trim()}\n\n*Skill generated — see preview panel →*`;
+  }
+  return 'Skill generated — see preview panel →';
+}
+
 export interface UseBuilderChatReturn {
   messages: ChatMessage[];
   isGenerating: boolean;
@@ -107,12 +129,14 @@ export function useBuilderChat(): UseBuilderChatReturn {
         setGeneratedContent(agentText);
         setPublishContent(agentText);
 
+        // Show only conversational summary in chat; full content goes to right panel
+        const chatText = extractConversationalSummary(agentText);
         setMessages(prev => [
           ...prev,
           {
             id: nextMsgId(),
             role: 'agent',
-            text: agentText,
+            text: chatText,
             timestamp: Date.now(),
           },
         ]);
