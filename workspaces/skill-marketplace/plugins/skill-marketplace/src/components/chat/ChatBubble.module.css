@@ -136,7 +136,7 @@
   color: var(--sm-text-primary);
   border: 1px solid var(--sm-border-subtle);
   border-bottom-left-radius: 6px;
-  max-height: 420px;
+  max-height: 60vh;
   overflow-y: auto;
 }
 .cardError {
