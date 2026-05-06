@@ -254,13 +254,29 @@ export class SmpAgentClient {
    * Extract the text response from an A2A SendMessageResult (Message | Task).
    * smp-agents return Tasks with artifacts containing text parts.
    */
+  /**
+   * Filter out ADK/A2A metadata JSON that agents sometimes append to text parts.
+   */
+  private static isMetadataJson(text: string): boolean {
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return false;
+    return (
+      trimmed.includes('"adk_type"') ||
+      trimmed.includes('"kind":"task"') ||
+      trimmed.includes('"adk_app_name"') ||
+      trimmed.includes('"adk_invocation_id"') ||
+      trimmed.includes('"requestedAuthConfigs"')
+    );
+  }
+
   static extractText(result: Task | Message): string {
     // Task: look in artifacts
     if ('artifacts' in result && Array.isArray(result.artifacts)) {
       const texts = result.artifacts
         .flatMap(a => a.parts ?? [])
         .filter((p): p is TextPart => p.kind === 'text')
-        .map(p => p.text);
+        .map(p => p.text)
+        .filter(t => !SmpAgentClient.isMetadataJson(t));
       if (texts.length > 0) {
         return texts.join('\n');
       }
@@ -270,7 +286,8 @@ export class SmpAgentClient {
     if ('status' in result && result.status?.message?.parts) {
       const texts = result.status.message.parts
         .filter((p): p is TextPart => p.kind === 'text')
-        .map(p => p.text);
+        .map(p => p.text)
+        .filter(t => !SmpAgentClient.isMetadataJson(t));
       if (texts.length > 0) {
         return texts.join('\n');
       }
@@ -280,7 +297,8 @@ export class SmpAgentClient {
     if ('parts' in result && Array.isArray(result.parts)) {
       const texts = result.parts
         .filter((p): p is TextPart => p.kind === 'text')
-        .map(p => p.text);
+        .map(p => p.text)
+        .filter(t => !SmpAgentClient.isMetadataJson(t));
       if (texts.length > 0) {
         return texts.join('\n');
       }
