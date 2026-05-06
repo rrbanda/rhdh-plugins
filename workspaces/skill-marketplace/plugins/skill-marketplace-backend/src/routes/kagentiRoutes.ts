@@ -104,20 +104,19 @@ async function resolveSkillContent(
   }
   if (ociRegistry) {
     try {
-      // Use the full skill listing which already has content loaded (body/rawContent)
       const skills = await ociRegistry.listSkills();
-      const match = skills.find(
-        s =>
-          s.card.metadata.name === activeSkill ||
-          s.card.metadata.name.toLowerCase() === activeSkill.toLowerCase() ||
-          (s.card.metadata['display-name'] || '').toLowerCase() ===
-            activeSkill.toLowerCase(),
-      );
+      const q = activeSkill.toLowerCase();
+      const match = skills.find(s => {
+        const tagName = (s.tags?.[0] || '')
+          .replace(/-\d+\.\d+\.\d+.*$/, '')
+          .toLowerCase();
+        const cardName = (s.card?.metadata?.name || '').toLowerCase();
+        const displayName = (
+          s.card?.metadata?.['display-name'] || ''
+        ).toLowerCase();
+        return tagName === q || cardName === q || displayName === q;
+      });
       if (match) {
-        // Try getting content from the already-loaded skill body first
-        const bodyContent = (match as any).body || (match as any).rawContent;
-        if (bodyContent) return bodyContent;
-        // Fall back to fetching from OCI reference
         if (match.ociReference) {
           const content = await ociRegistry.getSkillContent(match.ociReference);
           if (content) return content;
