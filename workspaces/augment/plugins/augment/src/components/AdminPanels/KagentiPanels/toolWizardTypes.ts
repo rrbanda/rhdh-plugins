@@ -14,41 +14,27 @@
  * limitations under the License.
  */
 
+import type {
+  BuildArgRow,
+  DeploymentMethod,
+  EnvRow,
+  ServicePortRow,
+} from './wizardSharedTypes';
+
+export type {
+  BuildArgRow,
+  DeploymentMethod,
+  EnvRow,
+  EnvSource,
+  PortProtocol,
+  ServicePortRow,
+} from './wizardSharedTypes';
+export { isValidDns1123 } from './wizardSharedTypes';
+
 export const TOOL_STEPS = ['Basics', 'Deployment', 'Runtime'] as const;
 export const TOOL_BUILD_STEP = 'Build & Deploy' as const;
 
-export type DeploymentMethod = 'image' | 'source';
 export type WorkloadType = 'deployment' | 'statefulset';
-export type PortProtocol = 'TCP' | 'UDP';
-export type EnvSource = 'direct' | 'secret' | 'configMap';
-
-const DNS_1123_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
-
-export function isValidDns1123(value: string): boolean {
-  return DNS_1123_RE.test(value);
-}
-
-export interface EnvRow {
-  id: number;
-  name: string;
-  value: string;
-  source: EnvSource;
-  refName: string;
-  refKey: string;
-}
-
-export interface BuildArgRow {
-  id: number;
-  value: string;
-}
-
-export interface ServicePortRow {
-  id: number;
-  name: string;
-  port: string;
-  targetPort: string;
-  protocol: PortProtocol;
-}
 
 export interface ToolFormState {
   name: string;

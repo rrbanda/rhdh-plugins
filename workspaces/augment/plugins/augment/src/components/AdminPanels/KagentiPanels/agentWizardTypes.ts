@@ -14,65 +14,29 @@
  * limitations under the License.
  */
 
+import type {
+  BuildArgRow,
+  DeploymentMethod,
+  EnvRow,
+  ServicePortRow,
+} from './wizardSharedTypes';
+
+export type {
+  BuildArgRow,
+  BuildPhase,
+  BuildProgress,
+  DeploymentMethod,
+  EnvRow,
+  EnvSource,
+  PortProtocol,
+  ServicePortRow,
+} from './wizardSharedTypes';
+export { isValidDns1123 } from './wizardSharedTypes';
+
 export const FORM_STEPS = ['Basics', 'Deployment', 'Runtime'] as const;
 export const BUILD_STEP = 'Build & Deploy' as const;
 
-export type DeploymentMethod = 'image' | 'source';
 export type WorkloadType = 'deployment' | 'statefulset' | 'job';
-export type PortProtocol = 'TCP' | 'UDP';
-export type EnvSource = 'direct' | 'secret' | 'configMap';
-
-export type BuildPhase =
-  | 'idle'
-  | 'submitting'
-  | 'building'
-  | 'finalizing'
-  | 'complete'
-  | 'failed';
-
-export interface BuildProgress {
-  phase: BuildPhase;
-  buildRunName?: string;
-  buildRunPhase?: string;
-  startTime?: string;
-  elapsedMs: number;
-  message?: string;
-  failureMessage?: string;
-  outputImage?: string;
-  strategy?: string;
-  gitUrl?: string;
-  contextDir?: string;
-  pollErrorCount: number;
-  deployFailedAfterBuild?: boolean;
-}
-
-const DNS_1123_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
-
-export function isValidDns1123(value: string): boolean {
-  return DNS_1123_RE.test(value);
-}
-
-export interface EnvRow {
-  id: number;
-  name: string;
-  value: string;
-  source: EnvSource;
-  refName: string;
-  refKey: string;
-}
-
-export interface BuildArgRow {
-  id: number;
-  value: string;
-}
-
-export interface ServicePortRow {
-  id: number;
-  name: string;
-  port: string;
-  targetPort: string;
-  protocol: PortProtocol;
-}
 
 export interface FormState {
   name: string;
