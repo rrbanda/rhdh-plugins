@@ -19,26 +19,15 @@ import {
   type ChatAgentConfig,
   type AgentLifecycleStage,
   deriveRoleFromTopology,
-  LIFECYCLE_STAGE_ORDER,
-  isValidTransition,
   normalizeLifecycleStage,
 } from '@red-hat-developer-hub/backstage-plugin-augment-common';
-import { InputError } from '@backstage/errors';
 import { createWithRoute } from './routeWrapper';
 import type { RouteContext } from './types';
 import type { AdminConfigService } from '../services/AdminConfigService';
-import { AuditLogger } from '../services/AuditLogger';
-
-function isValidLifecycleStage(stage: unknown): stage is AgentLifecycleStage {
-  return (
-    typeof stage === 'string' &&
-    (LIFECYCLE_STAGE_ORDER as readonly string[]).includes(stage)
-  );
-}
-
-function isProductionStage(stage: AgentLifecycleStage): boolean {
-  return stage === 'production';
-}
+import {
+  isProductionStage,
+  registerLifecycleRoutes,
+} from './lifecycleRouteHelpers';
 
 /**
  * Registers provider-agnostic agent listing and publish/unpublish endpoints.
@@ -51,7 +40,6 @@ export function registerAgentRoutes(
 ): void {
   const { router, logger, sendRouteError } = ctx;
   const withRoute = createWithRoute(logger, sendRouteError);
-  const audit = new AuditLogger(logger);
 
   /**
    * Load the ChatAgentConfig[] array from the chatAgents DB key.
@@ -246,289 +234,25 @@ export function registerAgentRoutes(
   );
 
   // ---------------------------------------------------------------------------
-  // PUT /agents/:agentId/promote -- transition agent to the specified target stage
-  // Enforces valid transitions defined in LIFECYCLE_TRANSITIONS.
-  // draft → review is open to any authenticated user (submit for approval).
-  // All other transitions require admin access.
+  // Shared lifecycle routes: promote, demote, publish, unpublish
   // ---------------------------------------------------------------------------
-  router.put(
-    '/agents/:agentId/promote',
-    withRoute(
-      'PUT /agents/:agentId/promote',
-      'Failed to promote agent',
-      async (req, res) => {
-        const agentId = decodeURIComponent(req.params.agentId);
-        const { targetStage } = req.body as { targetStage?: string };
-        const resolved = targetStage
-          ? normalizeLifecycleStage(targetStage)
-          : undefined;
-        if (resolved !== undefined && !isValidLifecycleStage(resolved)) {
-          throw new InputError(
-            `Invalid targetStage "${targetStage}". Must be one of: ${LIFECYCLE_STAGE_ORDER.join(', ')}`,
-          );
-        }
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatAgentConfigs();
-        const existing = configs.find(c => c.agentId === agentId);
-
-        const currentStage = normalizeLifecycleStage(existing?.lifecycleStage);
-        const nextStage =
-          resolved ??
-          (() => {
-            const idx = LIFECYCLE_STAGE_ORDER.indexOf(currentStage);
-            const nextIdx = Math.min(idx + 1, LIFECYCLE_STAGE_ORDER.length - 2);
-            return LIFECYCLE_STAGE_ORDER[nextIdx];
-          })();
-
-        if (!isValidTransition(currentStage, nextStage)) {
-          throw new InputError(
-            `Cannot transition from "${currentStage}" to "${nextStage}". ` +
-              `Check available transitions for the current stage.`,
-          );
-        }
-
-        const isSubmitForReview =
-          currentStage === 'draft' && nextStage === 'review';
-        if (!isSubmitForReview) {
-          const isAdmin = await ctx.checkIsAdmin(req);
-          if (!isAdmin) {
-            res.status(403).json({
-              error:
-                'Only admins can perform this lifecycle transition. ' +
-                'Non-admin users may only submit draft agents for review.',
-            });
-            return;
-          }
-        }
-
-        const now = new Date().toISOString();
-        const isProd = isProductionStage(nextStage);
-
-        if (existing) {
-          existing.lifecycleStage = nextStage;
-          existing.published = isProd;
-          existing.visible = isProd;
-          existing.version = (existing.version ?? 0) + 1;
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            agentId,
-            lifecycleStage: nextStage,
-            published: isProd,
-            visible: isProd,
-            featured: false,
-            version: 1,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatAgentConfigs(configs, userRef);
-        audit.log({
-          action: 'agent.lifecycle',
-          actor: userRef,
-          target: agentId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: {
-            from: currentStage,
-            to: nextStage,
-            direction: 'promote',
-            version: existing?.version ?? 1,
-          },
-        });
-        logger.info(
-          `Agent "${agentId}" promoted to ${nextStage} (v${existing?.version ?? 1}) by ${userRef}`,
-        );
-        res.json({
-          success: true,
-          agentId,
-          lifecycleStage: nextStage,
-          version: existing?.version ?? 1,
-        });
-      },
-    ),
-  );
-
-  // ---------------------------------------------------------------------------
-  // PUT /agents/:agentId/demote -- transition agent backward
-  // Enforces valid transitions defined in LIFECYCLE_TRANSITIONS.
-  // ---------------------------------------------------------------------------
-  router.put(
-    '/agents/:agentId/demote',
-    ctx.requireAdminAccess,
-    withRoute(
-      'PUT /agents/:agentId/demote',
-      'Failed to demote agent',
-      async (req, res) => {
-        const agentId = decodeURIComponent(req.params.agentId);
-        const { targetStage } = req.body as { targetStage?: string };
-        const resolved = targetStage
-          ? normalizeLifecycleStage(targetStage)
-          : undefined;
-        if (resolved !== undefined && !isValidLifecycleStage(resolved)) {
-          throw new InputError(
-            `Invalid targetStage "${targetStage}". Must be one of: ${LIFECYCLE_STAGE_ORDER.join(', ')}`,
-          );
-        }
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatAgentConfigs();
-        const existing = configs.find(c => c.agentId === agentId);
-
-        const currentStage = normalizeLifecycleStage(existing?.lifecycleStage);
-        const nextStage =
-          resolved ??
-          (() => {
-            const idx = LIFECYCLE_STAGE_ORDER.indexOf(currentStage);
-            return LIFECYCLE_STAGE_ORDER[Math.max(idx - 1, 0)];
-          })();
-
-        if (!isValidTransition(currentStage, nextStage)) {
-          throw new InputError(
-            `Cannot transition from "${currentStage}" to "${nextStage}". ` +
-              `Check available transitions for the current stage.`,
-          );
-        }
-
-        const now = new Date().toISOString();
-        const isProd = isProductionStage(nextStage);
-
-        if (existing) {
-          existing.lifecycleStage = nextStage;
-          existing.published = isProd;
-          if (!isProd) {
-            existing.visible = false;
-            existing.featured = false;
-          }
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            agentId,
-            lifecycleStage: nextStage,
-            published: false,
-            visible: false,
-            featured: false,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatAgentConfigs(configs, userRef);
-        audit.log({
-          action: 'agent.lifecycle',
-          actor: userRef,
-          target: agentId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: { from: currentStage, to: nextStage, direction: 'demote' },
-        });
-        logger.info(`Agent "${agentId}" demoted to ${nextStage} by ${userRef}`);
-        res.json({ success: true, agentId, lifecycleStage: nextStage });
-      },
-    ),
-  );
-
-  // ---------------------------------------------------------------------------
-  // PUT /agents/:agentId/publish -- shortcut: promote to production
-  // ---------------------------------------------------------------------------
-  router.put(
-    '/agents/:agentId/publish',
-    ctx.requireAdminAccess,
-    withRoute(
-      'PUT /agents/:agentId/publish',
-      'Failed to publish agent',
-      async (req, res) => {
-        const agentId = decodeURIComponent(req.params.agentId);
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatAgentConfigs();
-        const existing = configs.find(c => c.agentId === agentId);
-        const now = new Date().toISOString();
-
-        if (existing) {
-          existing.lifecycleStage = 'production';
-          existing.published = true;
-          existing.visible = true;
-          existing.version = (existing.version ?? 0) + 1;
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            agentId,
-            lifecycleStage: 'production',
-            published: true,
-            visible: true,
-            featured: false,
-            version: 1,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatAgentConfigs(configs, userRef);
-        audit.log({
-          action: 'agent.lifecycle',
-          actor: userRef,
-          target: agentId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: { to: 'production', direction: 'publish' },
-        });
-        logger.info(`Agent "${agentId}" published by ${userRef}`);
-        res.json({ success: true, agentId, published: true });
-      },
-    ),
-  );
-
-  // ---------------------------------------------------------------------------
-  // PUT /agents/:agentId/unpublish -- unpublish: move from production to staging
-  // ---------------------------------------------------------------------------
-  router.put(
-    '/agents/:agentId/unpublish',
-    ctx.requireAdminAccess,
-    withRoute(
-      'PUT /agents/:agentId/unpublish',
-      'Failed to unpublish agent',
-      async (req, res) => {
-        const agentId = decodeURIComponent(req.params.agentId);
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatAgentConfigs();
-        const existing = configs.find(c => c.agentId === agentId);
-        const now = new Date().toISOString();
-
-        if (existing) {
-          existing.lifecycleStage = 'staging';
-          existing.published = false;
-          existing.visible = false;
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            agentId,
-            lifecycleStage: 'staging',
-            published: false,
-            visible: false,
-            featured: false,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatAgentConfigs(configs, userRef);
-        audit.log({
-          action: 'agent.lifecycle',
-          actor: userRef,
-          target: agentId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: { to: 'staging', direction: 'unpublish' },
-        });
-        logger.info(`Agent "${agentId}" unpublished by ${userRef}`);
-        res.json({ success: true, agentId, published: false });
-      },
-    ),
-  );
+  registerLifecycleRoutes(ctx, {
+    auditAction: 'agent.lifecycle',
+    entityLabel: 'Agent',
+    routePrefix: '/agents',
+    paramName: 'agentId',
+    loadConfigs: loadChatAgentConfigs,
+    saveConfigs: saveChatAgentConfigs,
+    findConfig: (configs, id) => configs.find(c => c.agentId === id),
+    newConfig: (entityId, base) => ({
+      agentId: entityId,
+      featured: false,
+      ...base,
+    }),
+    onDemoteExisting: existing => {
+      existing.featured = false;
+    },
+  });
 
   // ---------------------------------------------------------------------------
   // PUT /agents/bulk-publish -- bulk publish/unpublish

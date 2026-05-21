@@ -18,26 +18,15 @@ import {
   type ChatToolConfig,
   type AgentLifecycleStage,
   type KagentiToolSummary,
-  LIFECYCLE_STAGE_ORDER,
-  isValidTransition,
   normalizeLifecycleStage,
 } from '@red-hat-developer-hub/backstage-plugin-augment-common';
-import { InputError } from '@backstage/errors';
 import { createWithRoute } from './routeWrapper';
 import type { RouteContext } from './types';
 import type { AdminConfigService } from '../services/AdminConfigService';
-import { AuditLogger } from '../services/AuditLogger';
-
-function isValidLifecycleStage(stage: unknown): stage is AgentLifecycleStage {
-  return (
-    typeof stage === 'string' &&
-    (LIFECYCLE_STAGE_ORDER as readonly string[]).includes(stage)
-  );
-}
-
-function isProductionStage(stage: AgentLifecycleStage): boolean {
-  return stage === 'production';
-}
+import {
+  isProductionStage,
+  registerLifecycleRoutes,
+} from './lifecycleRouteHelpers';
 
 export interface ToolLifecycleOptions {
   listProviderTools(): Promise<KagentiToolSummary[]>;
@@ -55,7 +44,6 @@ export function registerToolLifecycleRoutes(
 ): void {
   const { router, logger, sendRouteError } = ctx;
   const withRoute = createWithRoute(logger, sendRouteError);
-  const audit = new AuditLogger(logger);
 
   async function loadChatToolConfigs(): Promise<ChatToolConfig[]> {
     const raw = await adminConfig.get('chatTools');
@@ -125,280 +113,19 @@ export function registerToolLifecycleRoutes(
   );
 
   // ---------------------------------------------------------------------------
-  // PUT /tools/:toolId/promote -- promote tool to the next lifecycle stage
-  // draft → review is open to any authenticated user.
-  // All other transitions require admin access.
+  // Shared lifecycle routes: promote, demote, publish, unpublish
   // ---------------------------------------------------------------------------
-  router.put(
-    '/tools/:toolId/promote',
-    withRoute(
-      'PUT /tools/:toolId/promote',
-      'Failed to promote tool',
-      async (req, res) => {
-        const toolId = decodeURIComponent(req.params.toolId);
-        const { targetStage } = req.body as { targetStage?: string };
-        const resolved = targetStage
-          ? normalizeLifecycleStage(targetStage)
-          : undefined;
-        if (resolved !== undefined && !isValidLifecycleStage(resolved)) {
-          throw new InputError(
-            `Invalid targetStage "${targetStage}". Must be one of: ${LIFECYCLE_STAGE_ORDER.join(', ')}`,
-          );
-        }
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatToolConfigs();
-        const existing = configs.find(c => c.toolId === toolId);
-
-        const currentStage = normalizeLifecycleStage(existing?.lifecycleStage);
-        const nextStage =
-          resolved ??
-          (() => {
-            const idx = LIFECYCLE_STAGE_ORDER.indexOf(currentStage);
-            const nextIdx = Math.min(idx + 1, LIFECYCLE_STAGE_ORDER.length - 2);
-            return LIFECYCLE_STAGE_ORDER[nextIdx];
-          })();
-
-        if (!isValidTransition(currentStage, nextStage)) {
-          throw new InputError(
-            `Cannot transition tool from "${currentStage}" to "${nextStage}". ` +
-              `Check available transitions for the current stage.`,
-          );
-        }
-
-        const isSubmitForReview =
-          currentStage === 'draft' && nextStage === 'review';
-        if (!isSubmitForReview) {
-          const isAdmin = await ctx.checkIsAdmin(req);
-          if (!isAdmin) {
-            res.status(403).json({
-              error:
-                'Only admins can perform this lifecycle transition. ' +
-                'Non-admin users may only submit draft tools for review.',
-            });
-            return;
-          }
-        }
-
-        const now = new Date().toISOString();
-        const isProd = isProductionStage(nextStage);
-
-        if (existing) {
-          existing.lifecycleStage = nextStage;
-          existing.published = isProd;
-          existing.visible = isProd;
-          existing.version = (existing.version ?? 0) + 1;
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            toolId,
-            lifecycleStage: nextStage,
-            published: isProd,
-            visible: isProd,
-            version: 1,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatToolConfigs(configs, userRef);
-        audit.log({
-          action: 'tool.lifecycle',
-          actor: userRef,
-          target: toolId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: {
-            from: currentStage,
-            to: nextStage,
-            direction: 'promote',
-            version: existing?.version ?? 1,
-          },
-        });
-        logger.info(
-          `Tool "${toolId}" promoted to ${nextStage} (v${existing?.version ?? 1}) by ${userRef}`,
-        );
-        res.json({
-          success: true,
-          toolId,
-          lifecycleStage: nextStage,
-          version: existing?.version ?? 1,
-        });
-      },
-    ),
-  );
-
-  // ---------------------------------------------------------------------------
-  // PUT /tools/:toolId/demote -- demote tool to a previous lifecycle stage
-  // ---------------------------------------------------------------------------
-  router.put(
-    '/tools/:toolId/demote',
-    ctx.requireAdminAccess,
-    withRoute(
-      'PUT /tools/:toolId/demote',
-      'Failed to demote tool',
-      async (req, res) => {
-        const toolId = decodeURIComponent(req.params.toolId);
-        const { targetStage } = req.body as { targetStage?: string };
-        const resolved = targetStage
-          ? normalizeLifecycleStage(targetStage)
-          : undefined;
-        if (resolved !== undefined && !isValidLifecycleStage(resolved)) {
-          throw new InputError(
-            `Invalid targetStage "${targetStage}". Must be one of: ${LIFECYCLE_STAGE_ORDER.join(', ')}`,
-          );
-        }
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatToolConfigs();
-        const existing = configs.find(c => c.toolId === toolId);
-
-        const currentStage = normalizeLifecycleStage(existing?.lifecycleStage);
-        const nextStage =
-          resolved ??
-          (() => {
-            const idx = LIFECYCLE_STAGE_ORDER.indexOf(currentStage);
-            return LIFECYCLE_STAGE_ORDER[Math.max(idx - 1, 0)];
-          })();
-
-        if (!isValidTransition(currentStage, nextStage)) {
-          throw new InputError(
-            `Cannot transition tool from "${currentStage}" to "${nextStage}". ` +
-              `Check available transitions for the current stage.`,
-          );
-        }
-
-        const now = new Date().toISOString();
-        const isProd = isProductionStage(nextStage);
-
-        if (existing) {
-          existing.lifecycleStage = nextStage;
-          existing.published = isProd;
-          if (!isProd) {
-            existing.visible = false;
-          }
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            toolId,
-            lifecycleStage: nextStage,
-            published: false,
-            visible: false,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatToolConfigs(configs, userRef);
-        audit.log({
-          action: 'tool.lifecycle',
-          actor: userRef,
-          target: toolId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: { from: currentStage, to: nextStage, direction: 'demote' },
-        });
-        logger.info(`Tool "${toolId}" demoted to ${nextStage} by ${userRef}`);
-        res.json({ success: true, toolId, lifecycleStage: nextStage });
-      },
-    ),
-  );
-
-  // ---------------------------------------------------------------------------
-  // PUT /tools/:toolId/publish -- shortcut: promote to production
-  // ---------------------------------------------------------------------------
-  router.put(
-    '/tools/:toolId/publish',
-    ctx.requireAdminAccess,
-    withRoute(
-      'PUT /tools/:toolId/publish',
-      'Failed to publish tool',
-      async (req, res) => {
-        const toolId = decodeURIComponent(req.params.toolId);
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatToolConfigs();
-        const existing = configs.find(c => c.toolId === toolId);
-        const now = new Date().toISOString();
-
-        if (existing) {
-          existing.lifecycleStage = 'production';
-          existing.published = true;
-          existing.visible = true;
-          existing.version = (existing.version ?? 0) + 1;
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            toolId,
-            lifecycleStage: 'production',
-            published: true,
-            visible: true,
-            version: 1,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatToolConfigs(configs, userRef);
-        audit.log({
-          action: 'tool.lifecycle',
-          actor: userRef,
-          target: toolId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: { to: 'production', direction: 'publish' },
-        });
-        logger.info(`Tool "${toolId}" published by ${userRef}`);
-        res.json({ success: true, toolId, published: true });
-      },
-    ),
-  );
-
-  // ---------------------------------------------------------------------------
-  // PUT /tools/:toolId/unpublish -- move from production to staging
-  // ---------------------------------------------------------------------------
-  router.put(
-    '/tools/:toolId/unpublish',
-    ctx.requireAdminAccess,
-    withRoute(
-      'PUT /tools/:toolId/unpublish',
-      'Failed to unpublish tool',
-      async (req, res) => {
-        const toolId = decodeURIComponent(req.params.toolId);
-        const userRef = await ctx.getUserRef(req);
-        const configs = await loadChatToolConfigs();
-        const existing = configs.find(c => c.toolId === toolId);
-        const now = new Date().toISOString();
-
-        if (existing) {
-          existing.lifecycleStage = 'staging';
-          existing.published = false;
-          existing.visible = false;
-          existing.promotedAt = now;
-          existing.promotedBy = userRef;
-        } else {
-          configs.push({
-            toolId,
-            lifecycleStage: 'staging',
-            published: false,
-            visible: false,
-            promotedAt: now,
-            promotedBy: userRef,
-          });
-        }
-
-        await saveChatToolConfigs(configs, userRef);
-        audit.log({
-          action: 'tool.lifecycle',
-          actor: userRef,
-          target: toolId,
-          outcome: 'success',
-          sourceIp: AuditLogger.extractIp(req),
-          meta: { to: 'staging', direction: 'unpublish' },
-        });
-        logger.info(`Tool "${toolId}" unpublished by ${userRef}`);
-        res.json({ success: true, toolId, published: false });
-      },
-    ),
-  );
+  registerLifecycleRoutes(ctx, {
+    auditAction: 'tool.lifecycle',
+    entityLabel: 'Tool',
+    routePrefix: '/tools',
+    paramName: 'toolId',
+    loadConfigs: loadChatToolConfigs,
+    saveConfigs: saveChatToolConfigs,
+    findConfig: (configs, id) => configs.find(c => c.toolId === id),
+    newConfig: (entityId, base) => ({
+      toolId: entityId,
+      ...base,
+    }),
+  });
 }

@@ -1227,129 +1227,83 @@ export const AgentsPanel = ({
                             </Box>
                           ) : (
                             <>
-                              <FormControl
-                                fullWidth
-                                size="small"
-                                sx={{ mb: 0.5 }}
-                              >
-                                <InputLabel>Can Transfer To</InputLabel>
-                                <Select
-                                  multiple
-                                  value={selectedAgent.handoffs}
-                                  label="Can Transfer To"
-                                  onChange={e =>
-                                    updateAgent(
-                                      selectedAgentKey,
-                                      'handoffs',
-                                      e.target.value as string[],
-                                    )
-                                  }
-                                  MenuProps={SELECT_MENU_PROPS}
-                                  renderValue={vals => (
-                                    <Box
-                                      sx={{
-                                        display: 'flex',
-                                        flexWrap: 'wrap',
-                                        gap: 0.5,
-                                      }}
-                                    >
-                                      {(vals as string[]).map(v => (
-                                        <Chip
-                                          key={v}
-                                          label={agents[v]?.name || v}
-                                          size="small"
+                              {(
+                                [
+                                  {
+                                    field: 'handoffs' as const,
+                                    label: 'Can Transfer To',
+                                    hint: 'Target agent takes over the conversation. This agent stops responding.',
+                                  },
+                                  {
+                                    field: 'asTools' as const,
+                                    label: 'Can Delegate To',
+                                    hint: 'Sub-agent runs in the background and returns results. This agent stays in control.',
+                                  },
+                                ] as const
+                              ).map(({ field, label, hint }) => (
+                                <Box key={field}>
+                                  <FormControl
+                                    fullWidth
+                                    size="small"
+                                    sx={{ mb: 0.5 }}
+                                  >
+                                    <InputLabel>{label}</InputLabel>
+                                    <Select
+                                      multiple
+                                      value={selectedAgent[field]}
+                                      label={label}
+                                      onChange={e =>
+                                        updateAgent(
+                                          selectedAgentKey,
+                                          field,
+                                          e.target.value as string[],
+                                        )
+                                      }
+                                      MenuProps={SELECT_MENU_PROPS}
+                                      renderValue={vals => (
+                                        <Box
                                           sx={{
-                                            height: 22,
-                                            fontSize: '0.75rem',
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            gap: 0.5,
                                           }}
-                                        />
-                                      ))}
-                                    </Box>
-                                  )}
-                                >
-                                  {agentKeys
-                                    .filter(k => k !== selectedAgentKey)
-                                    .map(k => (
-                                      <MenuItem key={k} value={k}>
-                                        {agents[k].name || k}
-                                      </MenuItem>
-                                    ))}
-                                </Select>
-                              </FormControl>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  display: 'block',
-                                  mb: 2.5,
-                                  color: theme.palette.text.secondary,
-                                  fontSize: '0.7rem',
-                                }}
-                              >
-                                Target agent takes over the conversation. This
-                                agent stops responding.
-                              </Typography>
-
-                              <FormControl
-                                fullWidth
-                                size="small"
-                                sx={{ mb: 0.5 }}
-                              >
-                                <InputLabel>Can Delegate To</InputLabel>
-                                <Select
-                                  multiple
-                                  value={selectedAgent.asTools}
-                                  label="Can Delegate To"
-                                  onChange={e =>
-                                    updateAgent(
-                                      selectedAgentKey,
-                                      'asTools',
-                                      e.target.value as string[],
-                                    )
-                                  }
-                                  MenuProps={SELECT_MENU_PROPS}
-                                  renderValue={vals => (
-                                    <Box
-                                      sx={{
-                                        display: 'flex',
-                                        flexWrap: 'wrap',
-                                        gap: 0.5,
-                                      }}
+                                        >
+                                          {(vals as string[]).map(v => (
+                                            <Chip
+                                              key={v}
+                                              label={agents[v]?.name || v}
+                                              size="small"
+                                              sx={{
+                                                height: 22,
+                                                fontSize: '0.75rem',
+                                              }}
+                                            />
+                                          ))}
+                                        </Box>
+                                      )}
                                     >
-                                      {(vals as string[]).map(v => (
-                                        <Chip
-                                          key={v}
-                                          label={agents[v]?.name || v}
-                                          size="small"
-                                          sx={{
-                                            height: 22,
-                                            fontSize: '0.75rem',
-                                          }}
-                                        />
-                                      ))}
-                                    </Box>
-                                  )}
-                                >
-                                  {agentKeys
-                                    .filter(k => k !== selectedAgentKey)
-                                    .map(k => (
-                                      <MenuItem key={k} value={k}>
-                                        {agents[k].name || k}
-                                      </MenuItem>
-                                    ))}
-                                </Select>
-                              </FormControl>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  display: 'block',
-                                  mb: 2.5,
-                                  color: theme.palette.text.secondary,
-                                  fontSize: '0.7rem',
-                                }}
-                              >
-                                Sub-agent runs in the background and returns
-                                results. This agent stays in control.
-                              </Typography>
+                                      {agentKeys
+                                        .filter(k => k !== selectedAgentKey)
+                                        .map(k => (
+                                          <MenuItem key={k} value={k}>
+                                            {agents[k].name || k}
+                                          </MenuItem>
+                                        ))}
+                                    </Select>
+                                  </FormControl>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      display: 'block',
+                                      mb: 2.5,
+                                      color: theme.palette.text.secondary,
+                                      fontSize: '0.7rem',
+                                    }}
+                                  >
+                                    {hint}
+                                  </Typography>
+                                </Box>
+                              ))}
 
                               {/* Topology for this agent */}
                               {topologyEdges.length > 0 && (

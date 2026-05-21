@@ -245,176 +245,125 @@ export function AdminLayout({
             }}
           >
             {/* Sub-tabs -- same container as content, same left edge */}
-            {AGENTS_PANELS.includes(adminPanel) && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 0.5,
-                  mb: 2.5,
-                  pb: 1.5,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  {
-                    id: 'ops-review-queue' as AdminPanel,
-                    label: 'Review Queue',
-                    tour: 'subtab-review-queue',
-                  },
-                  {
-                    id: 'ops-registry' as AdminPanel,
-                    label: 'Registry',
-                    tour: 'subtab-registry',
-                  },
-                  {
-                    id: 'kagenti-builds' as AdminPanel,
-                    label: 'Builds',
-                    tour: 'subtab-builds',
-                  },
-                ].map(t => (
-                  <Box
-                    key={t.id}
-                    data-tour={t.tour}
-                    onClick={() => setAdminPanel(t.id)}
-                    sx={{
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 1,
-                      cursor: 'pointer',
-                      fontSize: '0.82rem',
-                      fontWeight: adminPanel === t.id ? 700 : 500,
-                      color:
-                        adminPanel === t.id ? 'primary.main' : 'text.secondary',
-                      bgcolor:
-                        adminPanel === t.id ? 'action.selected' : 'transparent',
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
-                    {t.label}
-                  </Box>
-                ))}
-                {namespacePicker && (
-                  <Box sx={{ ml: 'auto', maxWidth: 180 }}>
-                    {namespacePicker}
-                  </Box>
-                )}
-              </Box>
-            )}
-            {PLATFORM_PANELS.includes(adminPanel) && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 0.5,
-                  mb: 2.5,
-                  pb: 1.5,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  {
-                    id: 'kagenti-tools' as AdminPanel,
-                    label: 'Tools',
-                    tour: 'subtab-tools',
-                  },
-                  {
-                    id: 'ops-tool-review' as AdminPanel,
-                    label: 'Tool Review',
-                    tour: 'subtab-tool-review',
-                  },
-                  {
-                    id: 'ops-platform' as AdminPanel,
-                    label: 'Config',
-                    tour: 'subtab-config',
-                  },
-                  {
-                    id: 'ops-observability' as AdminPanel,
-                    label: 'Observability',
-                    tour: 'subtab-observability',
-                  },
-                ].map(t => (
-                  <Box
-                    key={t.id}
-                    data-tour={t.tour}
-                    onClick={() => setAdminPanel(t.id)}
-                    sx={{
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 1,
-                      cursor: 'pointer',
-                      fontSize: '0.82rem',
-                      fontWeight: adminPanel === t.id ? 700 : 500,
-                      color:
-                        adminPanel === t.id ? 'primary.main' : 'text.secondary',
-                      bgcolor:
-                        adminPanel === t.id ? 'action.selected' : 'transparent',
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
-                    {t.label}
-                  </Box>
-                ))}
-                {namespacePicker && (
-                  <Box sx={{ ml: 'auto', maxWidth: 180 }}>
-                    {namespacePicker}
-                  </Box>
-                )}
-              </Box>
-            )}
-            {SETTINGS_PANELS.includes(adminPanel) && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 0.5,
-                  mb: 2.5,
-                  pb: 1.5,
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                }}
-              >
-                {[
-                  {
-                    id: 'ops-branding' as AdminPanel,
-                    label: 'Branding',
-                    tour: 'subtab-branding',
-                  },
-                  {
-                    id: 'ops-admin' as AdminPanel,
-                    label: 'Administration',
-                    tour: 'subtab-admin',
-                  },
-                  {
-                    id: 'ops-docs' as AdminPanel,
-                    label: 'Documentation',
-                    tour: 'subtab-docs',
-                  },
-                ].map(t => (
-                  <Box
-                    key={t.id}
-                    data-tour={t.tour}
-                    onClick={() => setAdminPanel(t.id)}
-                    sx={{
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 1,
-                      cursor: 'pointer',
-                      fontSize: '0.82rem',
-                      fontWeight: adminPanel === t.id ? 700 : 500,
-                      color:
-                        adminPanel === t.id ? 'primary.main' : 'text.secondary',
-                      bgcolor:
-                        adminPanel === t.id ? 'action.selected' : 'transparent',
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
-                    {t.label}
-                  </Box>
-                ))}
-              </Box>
-            )}
+            {(
+              [
+                {
+                  panels: AGENTS_PANELS,
+                  tabs: [
+                    {
+                      id: 'ops-review-queue' as AdminPanel,
+                      label: 'Review Queue',
+                      tour: 'subtab-review-queue',
+                    },
+                    {
+                      id: 'ops-registry' as AdminPanel,
+                      label: 'Registry',
+                      tour: 'subtab-registry',
+                    },
+                    {
+                      id: 'kagenti-builds' as AdminPanel,
+                      label: 'Builds',
+                      tour: 'subtab-builds',
+                    },
+                  ],
+                  showPicker: true,
+                },
+                {
+                  panels: PLATFORM_PANELS,
+                  tabs: [
+                    {
+                      id: 'kagenti-tools' as AdminPanel,
+                      label: 'Tools',
+                      tour: 'subtab-tools',
+                    },
+                    {
+                      id: 'ops-tool-review' as AdminPanel,
+                      label: 'Tool Review',
+                      tour: 'subtab-tool-review',
+                    },
+                    {
+                      id: 'ops-platform' as AdminPanel,
+                      label: 'Config',
+                      tour: 'subtab-config',
+                    },
+                    {
+                      id: 'ops-observability' as AdminPanel,
+                      label: 'Observability',
+                      tour: 'subtab-observability',
+                    },
+                  ],
+                  showPicker: true,
+                },
+                {
+                  panels: SETTINGS_PANELS,
+                  tabs: [
+                    {
+                      id: 'ops-branding' as AdminPanel,
+                      label: 'Branding',
+                      tour: 'subtab-branding',
+                    },
+                    {
+                      id: 'ops-admin' as AdminPanel,
+                      label: 'Administration',
+                      tour: 'subtab-admin',
+                    },
+                    {
+                      id: 'ops-docs' as AdminPanel,
+                      label: 'Documentation',
+                      tour: 'subtab-docs',
+                    },
+                  ],
+                  showPicker: false,
+                },
+              ] as const
+            )
+              .filter(group => group.panels.includes(adminPanel))
+              .map(group => (
+                <Box
+                  key={group.tabs[0].id}
+                  sx={{
+                    display: 'flex',
+                    gap: 0.5,
+                    mb: 2.5,
+                    pb: 1.5,
+                    borderBottom: 1,
+                    borderColor: 'divider',
+                    alignItems: 'center',
+                  }}
+                >
+                  {group.tabs.map(t => (
+                    <Box
+                      key={t.id}
+                      data-tour={t.tour}
+                      onClick={() => setAdminPanel(t.id)}
+                      sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        cursor: 'pointer',
+                        fontSize: '0.82rem',
+                        fontWeight: adminPanel === t.id ? 700 : 500,
+                        color:
+                          adminPanel === t.id
+                            ? 'primary.main'
+                            : 'text.secondary',
+                        bgcolor:
+                          adminPanel === t.id
+                            ? 'action.selected'
+                            : 'transparent',
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      {t.label}
+                    </Box>
+                  ))}
+                  {group.showPicker && namespacePicker && (
+                    <Box sx={{ ml: 'auto', maxWidth: 180 }}>
+                      {namespacePicker}
+                    </Box>
+                  )}
+                </Box>
+              ))}
 
             {/* Panel content -- same centering container */}
             <AdminPanelContent

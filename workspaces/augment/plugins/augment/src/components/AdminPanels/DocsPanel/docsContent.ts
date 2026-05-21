@@ -30,17 +30,234 @@ export const DOC_CATEGORIES = [
   'Reference',
 ];
 
+function doc(
+  id: string,
+  title: string,
+  category: string,
+  body: string,
+): DocSection {
+  return { id, title, category, content: `# ${title}\n\n${body}` };
+}
+
+function mdTable(headers: string[], rows: string[][]): string {
+  const head = `| ${headers.join(' | ')} |`;
+  const sep = `|${headers.map(h => '-'.repeat(h.length + 2)).join('|')}|`;
+  const body = rows.map(r => `| ${r.join(' | ')} |`).join('\n');
+  return `${head}\n${sep}\n${body}`;
+}
+
+interface ApiGroup {
+  heading: string;
+  note?: string;
+  endpoints: [string, string, string][];
+}
+
+function buildApiRefBody(groups: ApiGroup[]): string {
+  const sections = groups.map(g => {
+    const parts = [`## ${g.heading}`];
+    if (g.note) parts.push(g.note);
+    parts.push(
+      mdTable(
+        ['Method', 'Path', 'Description'],
+        g.endpoints.map(([m, p, d]) => [m, `\`${p}\``, d]),
+      ),
+    );
+    return parts.join('\n\n');
+  });
+  return sections.join('\n\n');
+}
+
+const API_ENDPOINT_GROUPS: ApiGroup[] = [
+  {
+    heading: 'Health & Status',
+    endpoints: [
+      [
+        'GET',
+        '/health',
+        'Liveness check (503 if provider init failed) — no auth required',
+      ],
+      ['GET', '/status', 'Provider status, MCP status, admin flag'],
+      ['GET', '/branding', 'Merged branding configuration'],
+    ],
+  },
+  {
+    heading: 'Chat',
+    endpoints: [
+      ['POST', '/chat', 'Non-streaming chat response'],
+      ['POST', '/chat/stream', 'Server-Sent Events streaming chat'],
+      ['POST', '/chat/approve', 'Approve pending tool calls (rate-limited)'],
+    ],
+  },
+  {
+    heading: 'Sessions',
+    endpoints: [
+      ['GET', '/sessions', 'List chat sessions'],
+      ['POST', '/sessions', 'Create a new session'],
+      ['GET', '/sessions/:id', 'Get session details'],
+      ['DELETE', '/sessions/:id', 'Delete a session'],
+      ['PATCH', '/sessions/:id', 'Update session (rename)'],
+      ['GET', '/sessions/:id/messages', 'Get session messages'],
+      ['GET', '/sessions/:id/state', 'Get session state'],
+      ['POST', '/feedback', 'Submit feedback for a message'],
+    ],
+  },
+  {
+    heading: 'Documents & RAG',
+    endpoints: [
+      ['GET', '/documents', 'List ingested documents'],
+      ['POST', '/sync', 'Trigger document re-indexing'],
+      ['GET', '/vector-stores', 'List vector stores'],
+      ['GET', '/safety/status', 'Safety guardrail status'],
+      ['GET', '/evaluation/status', 'Evaluation pipeline status'],
+    ],
+  },
+  {
+    heading: 'Admin Configuration',
+    note: 'All admin endpoints require admin access.',
+    endpoints: [
+      ['GET', '/admin/effective-config', 'Merged YAML + DB configuration'],
+      ['GET', '/admin/config', 'All config keys'],
+      ['GET', '/admin/config/:key', 'Get a specific config key'],
+      [
+        'PUT',
+        '/admin/config/:key',
+        'Set a config key (body: `{ value: ... }`)',
+      ],
+      ['DELETE', '/admin/config/:key', 'Reset a key to YAML defaults'],
+      ['GET', '/admin/providers', 'List available providers'],
+      ['GET', '/admin/active-provider', 'Get active provider'],
+      ['PUT', '/admin/active-provider', 'Switch active provider'],
+      ['GET', '/admin/models', 'List available models'],
+      ['POST', '/admin/test-model', 'Test model connectivity'],
+      [
+        'POST',
+        '/admin/generate-system-prompt',
+        'AI-generate agent instructions',
+      ],
+      ['POST', '/admin/mcp/test-connection', 'Test MCP server connectivity'],
+    ],
+  },
+  {
+    heading: 'Admin Documents & Vector Stores',
+    endpoints: [
+      ['POST', '/admin/documents', 'Upload a document'],
+      ['DELETE', '/admin/documents/:id', 'Delete a document'],
+      ['GET', '/admin/vector-stores', 'List vector stores'],
+      ['POST', '/admin/vector-store/create', 'Create a vector store'],
+      ['GET', '/admin/vector-store/status', 'Vector store status'],
+      ['POST', '/admin/vector-stores/connect', 'Connect to a vector store'],
+      ['DELETE', '/admin/vector-stores/:id', 'Delete a vector store'],
+    ],
+  },
+  {
+    heading: 'Admin Sessions',
+    endpoints: [
+      ['GET', '/admin/sessions', 'List all sessions (admin view)'],
+      ['GET', '/admin/sessions/:id/messages', 'Get messages for any session'],
+    ],
+  },
+  {
+    heading: 'Dev Spaces',
+    endpoints: [
+      ['POST', '/devspaces/workspaces', 'Create a DevSpaces workspace (admin)'],
+    ],
+  },
+  {
+    heading: 'Kagenti Agents',
+    note: 'Available when using the Kagenti provider.',
+    endpoints: [
+      [
+        'GET',
+        '/kagenti/agents',
+        'List agents (query: namespace, include=cards)',
+      ],
+      ['POST', '/kagenti/agents', 'Create an agent (admin)'],
+      ['GET', '/kagenti/agents/:ns/:name', 'Get agent details'],
+      ['DELETE', '/kagenti/agents/:ns/:name', 'Delete an agent (admin)'],
+      [
+        'GET',
+        '/kagenti/agents/:ns/:name/route-status',
+        'Agent route/endpoint status',
+      ],
+      ['GET', '/kagenti/agents/:ns/:name/build-info', 'Build information'],
+      ['POST', '/kagenti/agents/:ns/:name/buildrun', 'Trigger a build (admin)'],
+      [
+        'POST',
+        '/kagenti/agents/:ns/:name/finalize-build',
+        'Finalize a build (admin)',
+      ],
+      [
+        'POST',
+        '/kagenti/agents/:ns/:name/migrate',
+        'Migrate agent CRD (admin)',
+      ],
+      [
+        'POST',
+        '/kagenti/agents/migration/migrate-all',
+        'Migrate all agents (admin)',
+      ],
+      ['GET', '/kagenti/agents/migration/migratable', 'List migratable agents'],
+      ['GET', '/kagenti/agents/build-strategies', 'List build strategies'],
+      ['GET', '/kagenti/agents/shipwright-builds', 'List Shipwright builds'],
+    ],
+  },
+  {
+    heading: 'Kagenti Tools',
+    endpoints: [
+      ['GET', '/kagenti/tools', 'List tools (query: namespace)'],
+      ['POST', '/kagenti/tools', 'Create a tool (admin)'],
+      ['GET', '/kagenti/tools/:ns/:name', 'Get tool details'],
+      ['DELETE', '/kagenti/tools/:ns/:name', 'Delete a tool (admin)'],
+      [
+        'GET',
+        '/kagenti/tools/:ns/:name/route-status',
+        'Tool route/endpoint status',
+      ],
+      ['POST', '/kagenti/tools/:ns/:name/connect', 'Connect to MCP server'],
+      ['POST', '/kagenti/tools/:ns/:name/invoke', 'Invoke a tool'],
+      ['GET', '/kagenti/tools/:ns/:name/build-info', 'Tool build information'],
+      [
+        'POST',
+        '/kagenti/tools/:ns/:name/buildrun',
+        'Trigger tool build (admin)',
+      ],
+    ],
+  },
+  {
+    heading: 'Kagenti Sandbox',
+    endpoints: [
+      ['GET', '/kagenti/sandbox/defaults', 'Default sandbox configuration'],
+      ['POST', '/kagenti/sandbox/:ns/sessions', 'Create sandbox session'],
+      ['GET', '/kagenti/sandbox/:ns/sessions', 'List sandbox sessions'],
+      ['POST', '/kagenti/sandbox/:ns/chat', 'Chat in sandbox'],
+      [
+        'POST',
+        '/kagenti/sandbox/:ns/chat/stream',
+        'Streaming sandbox chat (SSE)',
+      ],
+    ],
+  },
+  {
+    heading: 'Kagenti Config & Admin',
+    endpoints: [
+      ['GET', '/kagenti/health', 'Kagenti runtime health'],
+      ['GET', '/kagenti/config/features', 'Feature flags'],
+      ['GET', '/kagenti/config/dashboards', 'Dashboard URLs'],
+      ['GET', '/kagenti/namespaces', 'List enabled namespaces'],
+      ['GET', '/kagenti/models', 'List LLM models'],
+    ],
+  },
+];
+
 export const DOCS: DocSection[] = [
   // =========================================================================
   // GETTING STARTED
   // =========================================================================
-  {
-    id: 'overview',
-    title: 'Overview',
-    category: 'Getting Started',
-    content: `# {{appName}} Overview
-
-{{appName}} is an enterprise AI agent management platform integrated into Red Hat Developer Hub. It provides a unified interface for deploying, orchestrating, and monitoring AI agents and MCP tools across your infrastructure.
+  doc(
+    'overview',
+    'Overview',
+    'Getting Started',
+    `{{appName}} is an enterprise AI agent management platform integrated into Red Hat Developer Hub. It provides a unified interface for deploying, orchestrating, and monitoring AI agents and MCP tools across your infrastructure.
 
 ## Key Concepts
 
@@ -72,25 +289,46 @@ The platform consists of three layers:
 
 ## What You Can Do
 
-| Area | Capabilities |
-|------|-------------|
-| **Agents** | Deploy from container images, build from source, develop with templates, configure orchestration |
-| **Tools** | Deploy MCP tool servers, connect tools to agents, invoke and test tools |
-| **Builds** | Trigger Shipwright container image builds, monitor build status |
-| **Sandbox** | Create isolated testing sessions, manage agent lifecycle, browse files, monitor pods |
-| **Platform Config** | Manage models, tools, MCP servers, RAG knowledge bases, safety guardrails, evaluation |
-| **Observability** | Access distributed tracing, network monitoring, MCP inspector, and MCP proxy dashboards |
-| **Administration** | Manage identity (Keycloak), namespaces, agent migration, API keys, LLM teams, integrations, DevSpaces, and sandbox triggers |
-`,
-  },
+${mdTable(
+  ['Area', 'Capabilities'],
+  [
+    [
+      '**Agents**',
+      'Deploy from container images, build from source, develop with templates, configure orchestration',
+    ],
+    [
+      '**Tools**',
+      'Deploy MCP tool servers, connect tools to agents, invoke and test tools',
+    ],
+    [
+      '**Builds**',
+      'Trigger Shipwright container image builds, monitor build status',
+    ],
+    [
+      '**Sandbox**',
+      'Create isolated testing sessions, manage agent lifecycle, browse files, monitor pods',
+    ],
+    [
+      '**Platform Config**',
+      'Manage models, tools, MCP servers, RAG knowledge bases, safety guardrails, evaluation',
+    ],
+    [
+      '**Observability**',
+      'Access distributed tracing, network monitoring, MCP inspector, and MCP proxy dashboards',
+    ],
+    [
+      '**Administration**',
+      'Manage identity (Keycloak), namespaces, agent migration, API keys, LLM teams, integrations, DevSpaces, and sandbox triggers',
+    ],
+  ],
+)}`,
+  ),
 
-  {
-    id: 'quick-start',
-    title: 'Quick Start',
-    category: 'Getting Started',
-    content: `# Quick Start Guide
-
-Get up and running with {{appName}} in three steps.
+  doc(
+    'quick-start',
+    'Quick Start',
+    'Getting Started',
+    `Get up and running with {{appName}} in three steps.
 
 ## Step 1: Navigate to Command Center
 
@@ -122,20 +360,17 @@ Once your agent shows "Ready" in the Health Monitor:
 - **Add MCP Tools** — Go to the Tools panel to deploy tool servers that give your agents new capabilities
 - **Set Up Orchestration** — Use Configure to create multi-agent routing with handoffs and delegation
 - **Explore Platform Config** — Configure models, RAG knowledge bases, and safety guardrails
-- **Run the Guided Tours** — Click the Guided Experience button on the Home dashboard for interactive walkthroughs
-`,
-  },
+- **Run the Guided Tours** — Click the Guided Experience button on the Home dashboard for interactive walkthroughs`,
+  ),
 
   // =========================================================================
   // AGENTS
   // =========================================================================
-  {
-    id: 'creating-agents',
-    title: 'Creating Agents',
-    category: 'Agents',
-    content: `# Creating Agents
-
-{{appName}} provides four paths to get an agent running on your platform.
+  doc(
+    'creating-agents',
+    'Creating Agents',
+    'Agents',
+    `{{appName}} provides four paths to get an agent running on your platform.
 
 ## Import: Container Image
 
@@ -190,17 +425,14 @@ Launch a cloud IDE with your agent repo pre-configured.
 3. Configure resource limits (memory, CPU)
 4. Click **Create** to launch the DevSpace
 5. Use the cloud IDE terminal to build and push your container image
-6. Return to Import to deploy from the built image
-`,
-  },
+6. Return to Import to deploy from the built image`,
+  ),
 
-  {
-    id: 'agent-registry',
-    title: 'Agent Registry & Lifecycle',
-    category: 'Agents',
-    content: `# Agent Registry & Lifecycle
-
-The Agent Registry is the central staging area where administrators manage the full agent lifecycle — from initial discovery through enterprise registration to production deployment. Every agent, regardless of source (Kagenti, orchestration, or external), appears in the registry.
+  doc(
+    'agent-registry',
+    'Agent Registry & Lifecycle',
+    'Agents',
+    `The Agent Registry is the central staging area where administrators manage the full agent lifecycle — from initial discovery through enterprise registration to production deployment. Every agent, regardless of source (Kagenti, orchestration, or external), appears in the registry.
 
 ## Agent Lifecycle
 
@@ -233,10 +465,21 @@ Expanding an agent row shows two information sections:
 
 ## Agent Sources
 
-| Source | Description | Status |
-|--------|-------------|--------|
-| **Kagenti** | Container workloads deployed on OpenShift | Runtime status (Ready, Pending, Error) |
-| **Orchestration** | Multi-agent configurations from the Configure panel | Config-based (always "config") |
+${mdTable(
+  ['Source', 'Description', 'Status'],
+  [
+    [
+      '**Kagenti**',
+      'Container workloads deployed on OpenShift',
+      'Runtime status (Ready, Pending, Error)',
+    ],
+    [
+      '**Orchestration**',
+      'Multi-agent configurations from the Configure panel',
+      'Config-based (always "config")',
+    ],
+  ],
+)}
 
 ## Using the Registry
 
@@ -265,17 +508,14 @@ Expand any agent row to customize how it appears to end users:
 3. All selected agents are updated simultaneously
 
 ### Quick Promote from Agent Detail
-When viewing an agent's detail page in the Agents panel, use the **Deploy to Catalog** / **Withdraw** button in the header.
-`,
-  },
+When viewing an agent's detail page in the Agents panel, use the **Deploy to Catalog** / **Withdraw** button in the header.`,
+  ),
 
-  {
-    id: 'agent-orchestration',
-    title: 'Agent Orchestration',
-    category: 'Agents',
-    content: `# Agent Orchestration
-
-Multi-agent orchestration lets you create teams of specialized agents that collaborate to handle complex workflows.
+  doc(
+    'agent-orchestration',
+    'Agent Orchestration',
+    'Agents',
+    `Multi-agent orchestration lets you create teams of specialized agents that collaborate to handle complex workflows.
 
 ## Accessing Orchestration
 
@@ -328,26 +568,29 @@ Each agent has:
 
 ### Instructions
 - **Write** — Manually author the agent's system prompt
-- **Generate** — Provide a description and let AI auto-generate instructions based on the agent's capabilities, connections, and tools
-`,
-  },
+- **Generate** — Provide a description and let AI auto-generate instructions based on the agent's capabilities, connections, and tools`,
+  ),
 
-  {
-    id: 'agent-lifecycle',
-    title: 'Agent Lifecycle',
-    category: 'Agents',
-    content: `# Agent Lifecycle
-
-## Monitoring Agent Status
+  doc(
+    'agent-lifecycle',
+    'Agent Lifecycle',
+    'Agents',
+    `## Monitoring Agent Status
 
 The **Home Dashboard** Health Monitor and the **Agents** panel show the status of all deployed agents:
 
-| Status | Meaning |
-|--------|---------|
-| **Ready** | Agent is deployed and accepting requests |
-| **Pending** | Agent is being deployed or waiting for resources |
-| **Building** | A Shipwright build is in progress |
-| **Error** | Deployment failed — check agent details for more information |
+${mdTable(
+  ['Status', 'Meaning'],
+  [
+    ['**Ready**', 'Agent is deployed and accepting requests'],
+    ['**Pending**', 'Agent is being deployed or waiting for resources'],
+    ['**Building**', 'A Shipwright build is in progress'],
+    [
+      '**Error**',
+      'Deployment failed — check agent details for more information',
+    ],
+  ],
+)}
 
 ## Agent Detail View
 
@@ -389,20 +632,17 @@ If your agent was deployed from source, you can trigger a rebuild:
 
 1. Open the agent detail view
 2. Click the **Chat** button
-3. The interface switches to chat mode with the selected agent
-`,
-  },
+3. The interface switches to chat mode with the selected agent`,
+  ),
 
   // =========================================================================
   // TOOLS
   // =========================================================================
-  {
-    id: 'managing-tools',
-    title: 'Managing MCP Tools',
-    category: 'Tools',
-    content: `# Managing MCP Tools
-
-MCP (Model Context Protocol) tools extend your agents' capabilities. Tools run as separate services and are connected to agents through the platform configuration.
+  doc(
+    'managing-tools',
+    'Managing MCP Tools',
+    'Tools',
+    `MCP (Model Context Protocol) tools extend your agents' capabilities. Tools run as separate services and are connected to agents through the platform configuration.
 
 ## Creating a Tool
 
@@ -450,20 +690,17 @@ Use the **MCP Tool Discovery** feature to automatically detect available tools f
 
 ## Tool Health
 
-The Home Dashboard's Health Monitor shows tool status alongside agents. Tools follow the same status model (Ready, Pending, Building, Error).
-`,
-  },
+The Home Dashboard's Health Monitor shows tool status alongside agents. Tools follow the same status model (Ready, Pending, Building, Error).`,
+  ),
 
   // =========================================================================
   // PLATFORM
   // =========================================================================
-  {
-    id: 'platform-config',
-    title: 'Platform Configuration',
-    category: 'Platform',
-    content: `# Platform Configuration
-
-Platform Config manages the shared AI infrastructure used by all agents. Access it from the **Platform Config** sidebar item.
+  doc(
+    'platform-config',
+    'Platform Configuration',
+    'Platform',
+    `Platform Config manages the shared AI infrastructure used by all agents. Access it from the **Platform Config** sidebar item.
 
 ## Model
 
@@ -503,17 +740,14 @@ Configure safety shields that filter agent inputs and outputs:
 
 Monitor model evaluation metrics and configure evaluation pipelines for quality assurance.
 
-> **Note**: Tab visibility depends on provider capabilities. Some tabs may be hidden if the active provider does not support a feature.
-`,
-  },
+> **Note**: Tab visibility depends on provider capabilities. Some tabs may be hidden if the active provider does not support a feature.`,
+  ),
 
-  {
-    id: 'build-pipelines',
-    title: 'Build Pipelines',
-    category: 'Platform',
-    content: `# Build Pipelines
-
-Build Pipelines provides visibility into Shipwright container image builds for agents and tools.
+  doc(
+    'build-pipelines',
+    'Build Pipelines',
+    'Platform',
+    `Build Pipelines provides visibility into Shipwright container image builds for agents and tools.
 
 ## Viewing Builds
 
@@ -550,17 +784,14 @@ Builds are triggered automatically when you:
 3. Check the status column for current progress
 4. Click a build row for detailed information
 
-Build status also appears in the **Home Dashboard** under the "Recent Builds" tab.
-`,
-  },
+Build status also appears in the **Home Dashboard** under the "Recent Builds" tab.`,
+  ),
 
-  {
-    id: 'sandbox-testing',
-    title: 'Sandbox Testing',
-    category: 'Platform',
-    content: `# Sandbox Testing
-
-The Sandbox provides isolated testing environments for agents before production deployment.
+  doc(
+    'sandbox-testing',
+    'Sandbox Testing',
+    'Platform',
+    `The Sandbox provides isolated testing environments for agents before production deployment.
 
 ## Prerequisites
 
@@ -605,33 +836,42 @@ Manage sidecar containers attached to sandbox agents:
 ### Events & Tasks
 Monitor events and background tasks in the sandbox:
 - Track sandbox lifecycle events
-- View scheduled and completed tasks
-`,
-  },
+- View scheduled and completed tasks`,
+  ),
 
-  {
-    id: 'observability',
-    title: 'Observability',
-    category: 'Platform',
-    content: `# Observability
-
-The Observability panel provides links to external monitoring dashboards configured for your platform.
+  doc(
+    'observability',
+    'Observability',
+    'Platform',
+    `The Observability panel provides links to external monitoring dashboards configured for your platform.
 
 ## Available Dashboards
 
 Dashboards are organized into two categories:
 
 ### Observability
-| Dashboard | Purpose |
-|-----------|---------|
-| **Traces** | Distributed tracing for agent requests and A2A calls (e.g., Jaeger) |
-| **Network** | Network topology and service mesh visualization (e.g., Kiali) |
+${mdTable(
+  ['Dashboard', 'Purpose'],
+  [
+    [
+      '**Traces**',
+      'Distributed tracing for agent requests and A2A calls (e.g., Jaeger)',
+    ],
+    [
+      '**Network**',
+      'Network topology and service mesh visualization (e.g., Kiali)',
+    ],
+  ],
+)}
 
 ### Development
-| Dashboard | Purpose |
-|-----------|---------|
-| **MCP Inspector** | Inspect and debug MCP tool connections |
-| **MCP Proxy** | Manage MCP proxy routing and endpoints |
+${mdTable(
+  ['Dashboard', 'Purpose'],
+  [
+    ['**MCP Inspector**', 'Inspect and debug MCP tool connections'],
+    ['**MCP Proxy**', 'Manage MCP proxy routing and endpoints'],
+  ],
+)}
 
 ## Configuring Dashboard URLs
 
@@ -643,20 +883,17 @@ Dashboard entries include:
 
 ## Namespace Scoping
 
-When a namespace is selected in the sidebar, dashboard links automatically append a \`?namespace=\` query parameter to pre-filter their views.
-`,
-  },
+When a namespace is selected in the sidebar, dashboard links automatically append a \`?namespace=\` query parameter to pre-filter their views.`,
+  ),
 
   // =========================================================================
   // ADMINISTRATION
   // =========================================================================
-  {
-    id: 'administration',
-    title: 'Administration',
-    category: 'Administration',
-    content: `# Administration
-
-The Administration panel provides access to platform management features. Availability depends on your feature flags and role.
+  doc(
+    'administration',
+    'Administration',
+    'Administration',
+    `The Administration panel provides access to platform management features. Availability depends on your feature flags and role.
 
 ## Identity Management
 
@@ -714,17 +951,14 @@ Manually trigger a sandbox session for an agent:
 - **Namespace** — Target namespace (required)
 - **Agent Name** — Specific agent to target (optional)
 - **Type** — Trigger type: webhook, cron, or alert
-- **Message** — Trigger payload message
-`,
-  },
+- **Message** — Trigger payload message`,
+  ),
 
-  {
-    id: 'branding',
-    title: 'Branding & Appearance',
-    category: 'Administration',
-    content: `# Branding & Appearance
-
-Customize the look and feel of {{appName}} through the Branding panel.
+  doc(
+    'branding',
+    'Branding & Appearance',
+    'Administration',
+    `Customize the look and feel of {{appName}} through the Branding panel.
 
 ## Appearance
 
@@ -765,25 +999,37 @@ Branding follows the standard configuration precedence:
 2. YAML configuration (\`augment.branding\` in \`app-config.yaml\`)
 3. Admin UI overrides (saved to the database via this panel)
 
-Admin UI values override YAML, which overrides defaults.
-`,
-  },
+Admin UI values override YAML, which overrides defaults.`,
+  ),
 
-  {
-    id: 'security',
-    title: 'Security & Access',
-    category: 'Administration',
-    content: `# Security & Access
-
-{{appName}} supports three security modes to control who can access the plugin and its features.
+  doc(
+    'security',
+    'Security & Access',
+    'Administration',
+    `{{appName}} supports three security modes to control who can access the plugin and its features.
 
 ## Security Modes
 
-| Mode | Description | Setup Required |
-|------|-------------|----------------|
-| **none** | No authentication required | Just set \`security.mode: 'none'\` |
-| **plugin-only** | Keycloak + Backstage RBAC | Keycloak configuration + RBAC policies |
-| **full** | Keycloak + RBAC + MCP OAuth | Full security stack (experimental) |
+${mdTable(
+  ['Mode', 'Description', 'Setup Required'],
+  [
+    [
+      '**none**',
+      'No authentication required',
+      "Just set `security.mode: 'none'`",
+    ],
+    [
+      '**plugin-only**',
+      'Keycloak + Backstage RBAC',
+      'Keycloak configuration + RBAC policies',
+    ],
+    [
+      '**full**',
+      'Keycloak + RBAC + MCP OAuth',
+      'Full security stack (experimental)',
+    ],
+  ],
+)}
 
 ## Plugin Access Control
 
@@ -814,20 +1060,17 @@ augment:
     adminUsers:
       - admin@example.com
       - platform-admin@example.com
-\`\`\`
-`,
-  },
+\`\`\``,
+  ),
 
   // =========================================================================
   // REFERENCE
   // =========================================================================
-  {
-    id: 'config-reference',
-    title: 'Configuration Reference',
-    category: 'Reference',
-    content: `# Configuration Reference
-
-All configuration for {{appName}} lives under the \`augment\` key in \`app-config.yaml\`.
+  doc(
+    'config-reference',
+    'Configuration Reference',
+    'Reference',
+    `All configuration for {{appName}} lives under the \`augment\` key in \`app-config.yaml\`.
 
 ## Minimum Required Configuration
 
@@ -851,11 +1094,17 @@ EffectiveConfig = YAML baseline + DB admin overrides
 
 ### Special Merge Rules
 
-| Key | Behavior |
-|-----|----------|
-| \`branding\` | Shallow merge — DB fields win, YAML-only fields survive |
-| \`mcpServers\` | Smart merge — matching IDs override, new servers appended |
-| \`agents\` | Full replacement — DB agents completely replace YAML agents |
+${mdTable(
+  ['Key', 'Behavior'],
+  [
+    ['`branding`', 'Shallow merge — DB fields win, YAML-only fields survive'],
+    [
+      '`mcpServers`',
+      'Smart merge — matching IDs override, new servers appended',
+    ],
+    ['`agents`', 'Full replacement — DB agents completely replace YAML agents'],
+  ],
+)}
 
 ## Key Configuration Sections
 
@@ -919,17 +1168,14 @@ augment:
 
 ## YAML Changes Require Restart
 
-The plugin does not watch for file changes. Any modification to \`app-config.yaml\` requires a backend restart to take effect.
-`,
-  },
+The plugin does not watch for file changes. Any modification to \`app-config.yaml\` requires a backend restart to take effect.`,
+  ),
 
-  {
-    id: 'troubleshooting',
-    title: 'Troubleshooting',
-    category: 'Reference',
-    content: `# Troubleshooting
-
-Common issues and solutions for {{appName}}.
+  doc(
+    'troubleshooting',
+    'Troubleshooting',
+    'Reference',
+    `Common issues and solutions for {{appName}}.
 
 ## "Setup Needed" or "Failed to connect to backend"
 
@@ -946,12 +1192,18 @@ Common issues and solutions for {{appName}}.
 **Cause**: Validation failure in the agent payload.
 
 **Common errors**:
-| Error | Cause |
-|-------|-------|
-| "Agent must have a non-empty name" | Missing name field |
-| "Agent must have non-empty instructions" | Missing instructions |
-| "Handoff to X which does not exist" | Referenced agent not in the save payload |
-| "agents must be a non-null object" | Wrong payload structure |
+${mdTable(
+  ['Error', 'Cause'],
+  [
+    ['"Agent must have a non-empty name"', 'Missing name field'],
+    ['"Agent must have non-empty instructions"', 'Missing instructions'],
+    [
+      '"Handoff to X which does not exist"',
+      'Referenced agent not in the save payload',
+    ],
+    ['"agents must be a non-null object"', 'Wrong payload structure'],
+  ],
+)}
 
 **Resolution**: Ensure every agent has at minimum a \`name\` and \`instructions\` field. All handoff and delegation targets must exist in the same save.
 
@@ -994,154 +1246,13 @@ Common issues and solutions for {{appName}}.
 If text appears invisible in dark mode, this is a known theming issue. Try:
 1. Toggle between light and dark mode
 2. Refresh the page
-3. Report the specific panel/component where the issue occurs
-`,
-  },
+3. Report the specific panel/component where the issue occurs`,
+  ),
 
-  {
-    id: 'api-reference',
-    title: 'API Reference',
-    category: 'Reference',
-    content: `# API Reference
-
-{{appName}} exposes a REST API under \`/api/augment\`. All endpoints require authentication unless noted.
-
-## Health & Status
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/health\` | Liveness check (503 if provider init failed) — no auth required |
-| GET | \`/status\` | Provider status, MCP status, admin flag |
-| GET | \`/branding\` | Merged branding configuration |
-
-## Chat
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | \`/chat\` | Non-streaming chat response |
-| POST | \`/chat/stream\` | Server-Sent Events streaming chat |
-| POST | \`/chat/approve\` | Approve pending tool calls (rate-limited) |
-
-## Sessions
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/sessions\` | List chat sessions |
-| POST | \`/sessions\` | Create a new session |
-| GET | \`/sessions/:id\` | Get session details |
-| DELETE | \`/sessions/:id\` | Delete a session |
-| PATCH | \`/sessions/:id\` | Update session (rename) |
-| GET | \`/sessions/:id/messages\` | Get session messages |
-| GET | \`/sessions/:id/state\` | Get session state |
-| POST | \`/feedback\` | Submit feedback for a message |
-
-## Documents & RAG
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/documents\` | List ingested documents |
-| POST | \`/sync\` | Trigger document re-indexing |
-| GET | \`/vector-stores\` | List vector stores |
-| GET | \`/safety/status\` | Safety guardrail status |
-| GET | \`/evaluation/status\` | Evaluation pipeline status |
-
-## Admin Configuration
-
-All admin endpoints require admin access.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/admin/effective-config\` | Merged YAML + DB configuration |
-| GET | \`/admin/config\` | All config keys |
-| GET | \`/admin/config/:key\` | Get a specific config key |
-| PUT | \`/admin/config/:key\` | Set a config key (body: \`{ value: ... }\`) |
-| DELETE | \`/admin/config/:key\` | Reset a key to YAML defaults |
-| GET | \`/admin/providers\` | List available providers |
-| GET | \`/admin/active-provider\` | Get active provider |
-| PUT | \`/admin/active-provider\` | Switch active provider |
-| GET | \`/admin/models\` | List available models |
-| POST | \`/admin/test-model\` | Test model connectivity |
-| POST | \`/admin/generate-system-prompt\` | AI-generate agent instructions |
-| POST | \`/admin/mcp/test-connection\` | Test MCP server connectivity |
-
-### Admin Documents & Vector Stores
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | \`/admin/documents\` | Upload a document |
-| DELETE | \`/admin/documents/:id\` | Delete a document |
-| GET | \`/admin/vector-stores\` | List vector stores |
-| POST | \`/admin/vector-store/create\` | Create a vector store |
-| GET | \`/admin/vector-store/status\` | Vector store status |
-| POST | \`/admin/vector-stores/connect\` | Connect to a vector store |
-| DELETE | \`/admin/vector-stores/:id\` | Delete a vector store |
-
-### Admin Sessions
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/admin/sessions\` | List all sessions (admin view) |
-| GET | \`/admin/sessions/:id/messages\` | Get messages for any session |
-
-## Dev Spaces
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | \`/devspaces/workspaces\` | Create a DevSpaces workspace (admin) |
-
-## Kagenti Agents
-
-Available when using the Kagenti provider.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/kagenti/agents\` | List agents (query: namespace, include=cards) |
-| POST | \`/kagenti/agents\` | Create an agent (admin) |
-| GET | \`/kagenti/agents/:ns/:name\` | Get agent details |
-| DELETE | \`/kagenti/agents/:ns/:name\` | Delete an agent (admin) |
-| GET | \`/kagenti/agents/:ns/:name/route-status\` | Agent route/endpoint status |
-| GET | \`/kagenti/agents/:ns/:name/build-info\` | Build information |
-| POST | \`/kagenti/agents/:ns/:name/buildrun\` | Trigger a build (admin) |
-| POST | \`/kagenti/agents/:ns/:name/finalize-build\` | Finalize a build (admin) |
-| POST | \`/kagenti/agents/:ns/:name/migrate\` | Migrate agent CRD (admin) |
-| POST | \`/kagenti/agents/migration/migrate-all\` | Migrate all agents (admin) |
-| GET | \`/kagenti/agents/migration/migratable\` | List migratable agents |
-| GET | \`/kagenti/agents/build-strategies\` | List build strategies |
-| GET | \`/kagenti/agents/shipwright-builds\` | List Shipwright builds |
-
-## Kagenti Tools
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/kagenti/tools\` | List tools (query: namespace) |
-| POST | \`/kagenti/tools\` | Create a tool (admin) |
-| GET | \`/kagenti/tools/:ns/:name\` | Get tool details |
-| DELETE | \`/kagenti/tools/:ns/:name\` | Delete a tool (admin) |
-| GET | \`/kagenti/tools/:ns/:name/route-status\` | Tool route/endpoint status |
-| POST | \`/kagenti/tools/:ns/:name/connect\` | Connect to MCP server |
-| POST | \`/kagenti/tools/:ns/:name/invoke\` | Invoke a tool |
-| GET | \`/kagenti/tools/:ns/:name/build-info\` | Tool build information |
-| POST | \`/kagenti/tools/:ns/:name/buildrun\` | Trigger tool build (admin) |
-
-## Kagenti Sandbox
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/kagenti/sandbox/defaults\` | Default sandbox configuration |
-| POST | \`/kagenti/sandbox/:ns/sessions\` | Create sandbox session |
-| GET | \`/kagenti/sandbox/:ns/sessions\` | List sandbox sessions |
-| POST | \`/kagenti/sandbox/:ns/chat\` | Chat in sandbox |
-| POST | \`/kagenti/sandbox/:ns/chat/stream\` | Streaming sandbox chat (SSE) |
-
-## Kagenti Config & Admin
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | \`/kagenti/health\` | Kagenti runtime health |
-| GET | \`/kagenti/config/features\` | Feature flags |
-| GET | \`/kagenti/config/dashboards\` | Dashboard URLs |
-| GET | \`/kagenti/namespaces\` | List enabled namespaces |
-| GET | \`/kagenti/models\` | List LLM models |
-`,
-  },
+  doc(
+    'api-reference',
+    'API Reference',
+    'Reference',
+    `{{appName}} exposes a REST API under \`/api/augment\`. All endpoints require authentication unless noted.\n\n${buildApiRefBody(API_ENDPOINT_GROUPS)}`,
+  ),
 ];

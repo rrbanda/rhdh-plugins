@@ -67,6 +67,7 @@ import {
   sanitizeDescription,
   sortAgents,
 } from './agentUtils';
+import { AgentCardContent } from './AgentCardContent';
 import { useAgentGalleryData } from './useAgentGalleryData';
 import { usePinnedRecent } from './usePinnedRecent';
 
@@ -128,103 +129,16 @@ const FeaturedCard: FC<FeaturedCardProps> = ({ agent, config, onSelect }) => {
         },
       }}
     >
-      <CardActionArea
+      <AgentCardContent
+        displayName={displayName}
+        description={description}
+        avatarColor={avatarColor}
+        avatarUrl={avatarUrl}
+        ready={ready}
+        status={agent.status}
+        isDark={isDark}
         onClick={() => onSelect(agent)}
-        sx={{
-          borderRadius: 3,
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'stretch',
-        }}
-      >
-        <CardContent
-          sx={{
-            p: 2,
-            '&:last-child': { pb: 2 },
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.25,
-              mb: 1,
-            }}
-          >
-            {avatarUrl ? (
-              <Box
-                component="img"
-                src={avatarUrl}
-                alt={displayName}
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 2,
-                  objectFit: 'cover',
-                }}
-              />
-            ) : (
-              <Box
-                sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  bgcolor: alpha(avatarColor, isDark ? 0.2 : 0.12),
-                  color: avatarColor,
-                }}
-              >
-                {displayName.charAt(0).toUpperCase()}
-              </Box>
-            )}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography
-                variant="subtitle2"
-                noWrap
-                sx={{
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  lineHeight: 1.3,
-                }}
-              >
-                {displayName}
-              </Typography>
-              {!ready && (
-                <Chip
-                  label={agent.status}
-                  size="small"
-                  color="warning"
-                  variant="outlined"
-                  sx={{ height: 16, fontSize: '0.65rem', mt: 0.25 }}
-                />
-              )}
-            </Box>
-          </Box>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{
-              fontSize: '0.72rem',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              lineHeight: 1.4,
-              flex: 1,
-            }}
-          >
-            {description ? sanitizeDescription(description, 80) : '\u00A0'}
-          </Typography>
-        </CardContent>
-      </CardActionArea>
+      />
     </Card>
   );
 };

@@ -30,6 +30,17 @@ interface UseInteractivePhasesOptions {
   setLastCompletedState?: (state: StreamingState | null) => void;
 }
 
+interface ApprovalCallParams {
+  contextId: string;
+  taskId: string;
+  approved: boolean;
+  responseType?: string;
+  payload?: string;
+  successFallback: string;
+  errorLabel: string;
+  errorCode: string;
+}
+
 export function useInteractivePhases({
   api,
   streamingState,
@@ -41,19 +52,17 @@ export function useInteractivePhases({
 }: UseInteractivePhasesOptions) {
   const msgCounter = useRef(0);
 
-  const handleFormSubmit = useCallback(
-    async (values: Record<string, unknown>) => {
-      const pending = streamingState?.pendingForm;
-      if (!pending) return;
+  const submitApproval = useCallback(
+    async (params: ApprovalCallParams) => {
       try {
         const result = await api.submitToolApproval(
-          pending.contextId || streamingState?.responseId || '',
-          pending.taskId || '',
-          true,
-          'form_response',
-          JSON.stringify(values),
+          params.contextId,
+          params.taskId,
+          params.approved,
+          params.responseType,
+          params.payload,
         );
-        const text = result?.content || 'Request processed successfully.';
+        const text = result?.content || params.successFallback;
         const botMsg: Message = {
           id: `msg-approval-${msgCounter.current++}`,
           text,
@@ -63,13 +72,13 @@ export function useInteractivePhases({
         };
         onMessagesChange([...messages, botMsg]);
       } catch (err) {
-        debugError('Form submission failed:', err);
+        debugError(`${params.errorLabel} failed:`, err);
         const errorMsg: Message = {
           id: `msg-error-${msgCounter.current++}`,
-          text: `Form submission failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
+          text: `${params.errorLabel} failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
           isUser: false,
           timestamp: new Date(),
-          errorCode: 'form_submission_error',
+          errorCode: params.errorCode,
         };
         onMessagesChange([...messages, errorMsg]);
       } finally {
@@ -87,6 +96,24 @@ export function useInteractivePhases({
       messages,
       onMessagesChange,
     ],
+  );
+
+  const handleFormSubmit = useCallback(
+    async (values: Record<string, unknown>) => {
+      const pending = streamingState?.pendingForm;
+      if (!pending) return;
+      await submitApproval({
+        contextId: pending.contextId || streamingState?.responseId || '',
+        taskId: pending.taskId || '',
+        approved: true,
+        responseType: 'form_response',
+        payload: JSON.stringify(values),
+        successFallback: 'Request processed successfully.',
+        errorLabel: 'Form submission',
+        errorCode: 'form_submission_error',
+      });
+    },
+    [streamingState, submitApproval],
   );
 
   const handleFormCancel = useCallback(async () => {
@@ -129,93 +156,33 @@ export function useInteractivePhases({
   const handleAuthConfirm = useCallback(async () => {
     const pending = streamingState?.pendingAuth;
     if (!pending) return;
-    try {
-      const result = await api.submitToolApproval(
-        streamingState?.responseId || pending.taskId || '',
-        pending.taskId || '',
-        true,
-        'oauth_confirm',
-      );
-      const text = result?.content || 'Authentication confirmed.';
-      const botMsg: Message = {
-        id: `msg-approval-${msgCounter.current++}`,
-        text,
-        isUser: false,
-        timestamp: new Date(),
-        responseId: result?.responseId,
-      };
-      onMessagesChange([...messages, botMsg]);
-    } catch (err) {
-      debugError('OAuth confirmation failed:', err);
-      const errorMsg: Message = {
-        id: `msg-error-${msgCounter.current++}`,
-        text: `Authentication failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
-        isUser: false,
-        timestamp: new Date(),
-        errorCode: 'auth_confirmation_error',
-      };
-      onMessagesChange([...messages, errorMsg]);
-    } finally {
-      setLastCompletedState?.(streamingState);
-      setStreamingState(null);
-      setIsTyping(false);
-    }
-  }, [
-    api,
-    streamingState,
-    setStreamingState,
-    setIsTyping,
-    setLastCompletedState,
-    messages,
-    onMessagesChange,
-  ]);
+    await submitApproval({
+      contextId: streamingState?.responseId || pending.taskId || '',
+      taskId: pending.taskId || '',
+      approved: true,
+      responseType: 'oauth_confirm',
+      successFallback: 'Authentication confirmed.',
+      errorLabel: 'Authentication',
+      errorCode: 'auth_confirmation_error',
+    });
+  }, [streamingState, submitApproval]);
 
   const handleSecretsSubmit = useCallback(
     async (secrets: Record<string, string>) => {
       const pending = streamingState?.pendingAuth;
       if (!pending) return;
-      try {
-        const result = await api.submitToolApproval(
-          streamingState?.responseId || pending.taskId || '',
-          pending.taskId || '',
-          true,
-          'secrets_response',
-          JSON.stringify(secrets),
-        );
-        const text = result?.content || 'Secrets submitted successfully.';
-        const botMsg: Message = {
-          id: `msg-approval-${msgCounter.current++}`,
-          text,
-          isUser: false,
-          timestamp: new Date(),
-          responseId: result?.responseId,
-        };
-        onMessagesChange([...messages, botMsg]);
-      } catch (err) {
-        debugError('Secrets submission failed:', err);
-        const errorMsg: Message = {
-          id: `msg-error-${msgCounter.current++}`,
-          text: `Secrets submission failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
-          isUser: false,
-          timestamp: new Date(),
-          errorCode: 'secrets_submission_error',
-        };
-        onMessagesChange([...messages, errorMsg]);
-      } finally {
-        setLastCompletedState?.(streamingState);
-        setStreamingState(null);
-        setIsTyping(false);
-      }
+      await submitApproval({
+        contextId: streamingState?.responseId || pending.taskId || '',
+        taskId: pending.taskId || '',
+        approved: true,
+        responseType: 'secrets_response',
+        payload: JSON.stringify(secrets),
+        successFallback: 'Secrets submitted successfully.',
+        errorLabel: 'Secrets submission',
+        errorCode: 'secrets_submission_error',
+      });
     },
-    [
-      api,
-      streamingState,
-      setStreamingState,
-      setIsTyping,
-      setLastCompletedState,
-      messages,
-      onMessagesChange,
-    ],
+    [streamingState, submitApproval],
   );
 
   return {
