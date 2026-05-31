@@ -27,11 +27,28 @@ export interface CategoryAssignment {
   primary: boolean;
 }
 
+const IGNORED_NAMESPACES = new Set(['system', 'general', 'default']);
+
 export function categoriesOf(
   skill: Skill,
   keywords: [string, string[]][],
   taxonomy?: Record<string, DomainTaxonomyEntry>,
 ): CategoryAssignment[] {
+  const ns = skill.card.metadata.namespace?.toLowerCase();
+  if (ns && !IGNORED_NAMESPACES.has(ns)) {
+    const results: CategoryAssignment[] = [{ domain: ns, primary: true }];
+
+    const haystack =
+      `${skill.card.metadata.name} ${skill.card.metadata.description ?? ''} ${(skill.card.metadata.tags ?? []).join(' ')}`.toLowerCase();
+    for (const [cat, kws] of keywords) {
+      if (cat === ns) continue;
+      if (kws.some(kw => haystack.includes(kw))) {
+        results.push({ domain: cat, primary: false });
+      }
+    }
+    return results;
+  }
+
   const tags = (skill.card.metadata.tags ?? []).map(t => t.toLowerCase());
   const domainNames = new Set(keywords.map(([cat]) => cat));
   if (taxonomy) {
@@ -68,20 +85,26 @@ export function normalizeName(name: string): string {
     .replace(/skill$|tool$/g, '');
 }
 
-export function computeSkillCompleteness(skill: Skill, hasContent: boolean): number {
+export function computeSkillCompleteness(
+  skill: Skill,
+  hasContent: boolean,
+): number {
   let score = 0;
   const m = skill.card.metadata;
-  if (m.description && m.description.length > 30) score += 0.20;
+  if (m.description && m.description.length > 30) score += 0.2;
   if (m.tags && m.tags.length >= 2) score += 0.15;
-  if (skill.card.spec?.prompt && skill.card.spec.prompt.length > 20) score += 0.15;
-  if (skill.card.spec?.examples && skill.card.spec.examples.length >= 1) score += 0.10;
+  if (skill.card.spec?.prompt && skill.card.spec.prompt.length > 20)
+    score += 0.15;
+  if (skill.card.spec?.examples && skill.card.spec.examples.length >= 1)
+    score += 0.1;
   if (m.authors && m.authors.length >= 1) score += 0.05;
   if (m.license) score += 0.05;
   if (m.version && m.version !== '0.0.0') score += 0.05;
   if (m['display-name']) score += 0.05;
   if (skill.card.spec?.dependencies !== undefined) score += 0.05;
   if (m['allowed-tools']) score += 0.05;
-  if (skill.card.provenance?.source && skill.card.provenance?.commit) score += 0.05;
+  if (skill.card.provenance?.source && skill.card.provenance?.commit)
+    score += 0.05;
   if (hasContent) score += 0.05;
   return Math.round(score * 100) / 100;
 }
@@ -96,31 +119,45 @@ export function computeAgentCompleteness(agent: {
     documentationUrl?: string;
     skills?: unknown[];
     authentication?: { schemes?: string[] };
-    capabilities?: { streaming?: boolean; pushNotifications?: boolean; stateTransitionHistory?: boolean };
+    capabilities?: {
+      streaming?: boolean;
+      pushNotifications?: boolean;
+      stateTransitionHistory?: boolean;
+    };
   };
 }): number {
   let score = 0;
   const card = agent.agentCard;
-  if ((card?.description || agent.description || '').length > 20) score += 0.20;
+  if ((card?.description || agent.description || '').length > 20) score += 0.2;
   if (card?.url) score += 0.15;
-  if (card?.version) score += 0.10;
-  if (card?.provider?.organization) score += 0.10;
-  if (card?.documentationUrl) score += 0.10;
-  if (card?.skills && card.skills.length >= 1) score += 0.20;
-  if (card?.authentication?.schemes && card.authentication.schemes.length >= 1) score += 0.10;
-  if (card?.capabilities?.streaming || card?.capabilities?.pushNotifications || card?.capabilities?.stateTransitionHistory) score += 0.05;
+  if (card?.version) score += 0.1;
+  if (card?.provider?.organization) score += 0.1;
+  if (card?.documentationUrl) score += 0.1;
+  if (card?.skills && card.skills.length >= 1) score += 0.2;
+  if (card?.authentication?.schemes && card.authentication.schemes.length >= 1)
+    score += 0.1;
+  if (
+    card?.capabilities?.streaming ||
+    card?.capabilities?.pushNotifications ||
+    card?.capabilities?.stateTransitionHistory
+  )
+    score += 0.05;
   return Math.round(score * 100) / 100;
 }
 
-export function computeCapabilityCompleteness(
-  cap: { description?: string; tags?: string[]; examples?: string[]; inputModes?: string[]; outputModes?: string[] },
-): number {
+export function computeCapabilityCompleteness(cap: {
+  description?: string;
+  tags?: string[];
+  examples?: string[];
+  inputModes?: string[];
+  outputModes?: string[];
+}): number {
   let score = 0;
-  if (cap.description && cap.description.length > 20) score += 0.30;
+  if (cap.description && cap.description.length > 20) score += 0.3;
   if (cap.tags && cap.tags.length >= 2) score += 0.25;
   if (cap.examples && cap.examples.length >= 1) score += 0.25;
-  if (cap.inputModes && cap.inputModes.length >= 1) score += 0.10;
-  if (cap.outputModes && cap.outputModes.length >= 1) score += 0.10;
+  if (cap.inputModes && cap.inputModes.length >= 1) score += 0.1;
+  if (cap.outputModes && cap.outputModes.length >= 1) score += 0.1;
   return Math.round(score * 100) / 100;
 }
 
