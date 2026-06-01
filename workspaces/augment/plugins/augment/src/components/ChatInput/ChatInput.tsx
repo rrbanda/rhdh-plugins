@@ -75,8 +75,6 @@ export interface ChatInputProps {
   isKagenti?: boolean;
   /** Called when user clears the agent selection */
   onClearAgent?: () => void;
-  /** When true, sending is blocked until the user selects an agent */
-  requireAgent?: boolean;
 }
 
 /**
@@ -101,19 +99,18 @@ export const ChatInput: FC<ChatInputProps> = ({
   selectedModel,
   isKagenti = false,
   onClearAgent,
-  requireAgent = false,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const styles = useMemo(
-    () => createChatInputStyles(theme, isTyping, requireAgent),
-    [theme, isTyping, requireAgent],
+    () => createChatInputStyles(theme, isTyping),
+    [theme, isTyping],
   );
 
   const hasValue = value.trim().length > 0;
-  const canSend = hasValue && !requireAgent;
+  const canSend = hasValue;
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -124,9 +121,17 @@ export const ChatInput: FC<ChatInputProps> = ({
 
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
+      const maxSize = 100 * 1024;
       const file = event.target.files?.[0];
       if (file && onFileSelect) {
-        onFileSelect(file);
+        if (file.size > maxSize) {
+          // eslint-disable-next-line no-alert
+          window.alert(
+            `File is too large (${(file.size / 1024).toFixed(0)} KB). Maximum size is ${maxSize / 1024} KB.`,
+          );
+        } else {
+          onFileSelect(file);
+        }
       }
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -165,7 +170,7 @@ export const ChatInput: FC<ChatInputProps> = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".md,.txt,.pdf,.json,.yaml,.yml"
+                accept=".md,.txt,.json,.yaml,.yml,.ts,.tsx,.js,.jsx,.py,.java,.go,.rs,.sh,.css,.html,.xml,.csv,.log,.env,.toml,.ini,.cfg"
                 onChange={handleFileChange}
                 style={{ display: 'none' }}
                 aria-hidden="true"
@@ -301,21 +306,14 @@ export const ChatInput: FC<ChatInputProps> = ({
                 <StopIcon sx={{ fontSize: 18 }} />
               </IconButton>
             ) : (
-              <Tooltip
-                title={requireAgent ? t('chatInput.selectAgentPrompt') : ''}
-                placement="top"
+              <IconButton
+                sx={styles.createSendButton(canSend)}
+                onClick={onSend}
+                disabled={!canSend}
+                aria-label={t('chatInput.sendMessage')}
               >
-                <Box component="span">
-                  <IconButton
-                    sx={styles.createSendButton(canSend)}
-                    onClick={onSend}
-                    disabled={!canSend}
-                    aria-label={t('chatInput.sendMessage')}
-                  >
-                    <SendIcon sx={{ fontSize: 18 }} />
-                  </IconButton>
-                </Box>
-              </Tooltip>
+                <SendIcon sx={{ fontSize: 18 }} />
+              </IconButton>
             )}
           </Box>
         </Box>

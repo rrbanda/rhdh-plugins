@@ -58,6 +58,12 @@ export async function trySkillChatProxy(opts: {
   const skillAgent = findSkillAgent(configs, model);
   if (!skillAgent?.chatEndpoint) return false;
 
+  const proxyAbort = new AbortController();
+  res.on('close', () => proxyAbort.abort());
+  if (signal) {
+    signal.addEventListener('abort', () => proxyAbort.abort(), { once: true });
+  }
+
   // Resolve fetch URL: use K8s API service proxy when OpenShift credentials
   // are available (works from local dev), fall back to direct in-cluster URL.
   let fetchUrl = `${skillAgent.chatEndpoint}/v1/chat/completions`;
@@ -90,6 +96,7 @@ export async function trySkillChatProxy(opts: {
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
+    'Content-Encoding': 'identity',
   });
   heartbeat.start();
 
@@ -103,7 +110,7 @@ export async function trySkillChatProxy(opts: {
       method: 'POST',
       headers: fetchHeaders,
       body: JSON.stringify({ messages, stream: true }),
-      signal,
+      signal: proxyAbort.signal,
     };
     fetchOpts.dispatcher = dispatcher;
     const upstream = await fetch(fetchUrl, fetchOpts as RequestInit);
@@ -172,7 +179,7 @@ export async function trySkillChatProxy(opts: {
 
     res.write(`data: ${JSON.stringify({ type: 'stream.completed' })}\n\n`);
   } catch (err) {
-    if (signal?.aborted) {
+    if (proxyAbort.signal.aborted) {
       logger.debug('Skill chat proxy aborted by client');
     } else {
       const msg = err instanceof Error ? err.message : String(err);

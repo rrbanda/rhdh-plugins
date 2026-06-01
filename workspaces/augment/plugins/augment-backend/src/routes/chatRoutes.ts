@@ -124,6 +124,7 @@ function createStreamEventForwarder(
   res: Response,
   clientDisconnectedRef: { current: boolean },
   logger: LoggerService,
+  upstreamAbort?: AbortController,
 ): {
   forward: (event: NormalizedStreamEvent) => void;
   streamedTextRef: { current: string };
@@ -252,6 +253,7 @@ function createStreamEventForwarder(
             `SSE backpressure queue exceeded ${MAX_PENDING_EVENTS} events — terminating slow client`,
           );
           state.terminated = true;
+          upstreamAbort?.abort();
           res.end();
           return;
         }
@@ -260,6 +262,7 @@ function createStreamEventForwarder(
       }
       if (!writeAndFlush(payload)) {
         state.draining = true;
+        pendingQueue.push(payload);
         res.once('drain', onDrain);
       }
     }
@@ -391,15 +394,19 @@ async function resolveConversationId(
  */
 const KAGENTI_AGENTS_CACHE_KEY = 'kagenti:agent-ids';
 const KAGENTI_CACHE_TTL_MS = 30_000;
+let lastKnownAgents: Set<string> | null = null;
 
 async function refreshKagentiCache(
   primary: AgenticProvider,
   cache?: CacheService,
+  logger?: LoggerService,
 ): Promise<Set<string>> {
   if (cache) {
     const cached = await cache.get<string[]>(KAGENTI_AGENTS_CACHE_KEY);
     if (cached) {
-      return new Set(cached);
+      const result = new Set(cached);
+      lastKnownAgents = result;
+      return result;
     }
   }
   let agentIds: string[] = [];
@@ -407,14 +414,22 @@ async function refreshKagentiCache(
     const agents = (await primary.listAgents?.()) ?? [];
     agentIds = agents.map(a => a.id);
   } catch {
-    // On failure, return empty set; short TTL will force retry
+    if (lastKnownAgents) {
+      logger?.warn(
+        'Failed to refresh Kagenti agents cache; using stale agent list',
+      );
+      return lastKnownAgents;
+    }
+    return new Set();
   }
+  const result = new Set(agentIds);
+  lastKnownAgents = result;
   if (cache) {
     await cache.set(KAGENTI_AGENTS_CACHE_KEY, agentIds, {
       ttl: agentIds.length > 0 ? KAGENTI_CACHE_TTL_MS : 5_000,
     });
   }
-  return new Set(agentIds);
+  return result;
 }
 
 async function resolveProvider(
@@ -422,12 +437,13 @@ async function resolveProvider(
   orchestration: AgenticProvider | undefined,
   model: string | undefined,
   cache?: CacheService,
+  logger?: LoggerService,
 ): Promise<AgenticProvider> {
   const desc = getProviderDescriptor(primary.id);
   if (!desc?.capabilities.agentLifecycle || !orchestration || !model) {
     return primary;
   }
-  const knownAgents = await refreshKagentiCache(primary, cache);
+  const knownAgents = await refreshKagentiCache(primary, cache, logger);
   if (knownAgents.has(model)) {
     return primary;
   }
@@ -463,6 +479,7 @@ export function registerChatRoutes(
           ctx.orchestrationProvider,
           parsed.model,
           ctx.cache,
+          logger,
         );
         const {
           messages,
@@ -650,6 +667,7 @@ export function registerChatRoutes(
       ctx.orchestrationProvider,
       parsedRequest.model,
       ctx.cache,
+      logger,
     );
     const {
       messages,
@@ -666,7 +684,12 @@ export function registerChatRoutes(
       () => heartbeat.stop(),
     );
     const { forward, streamedTextRef, streamMetadataRef } =
-      createStreamEventForwarder(res, clientDisconnectedRef, logger);
+      createStreamEventForwarder(
+        res,
+        clientDisconnectedRef,
+        logger,
+        abortController,
+      );
     heartbeat.start();
 
     try {
@@ -924,28 +947,106 @@ export function registerChatRoutes(
         );
 
         if (provider.submitApproval) {
-          const result = await provider.submitApproval({
-            responseId,
-            callId,
-            approved: approved === true,
-            toolName,
-            toolArguments,
-            reason,
-          });
-          res.json({
-            success: true,
-            rejected: !approved,
-            content: result.content,
-            responseId: result.responseId,
-            toolExecuted: result.toolExecuted,
-            toolOutput: result.toolOutput,
-            pendingApproval: result.pendingApproval,
-            handoff: result.handoff,
-          });
-          return;
+          try {
+            const result = await provider.submitApproval({
+              responseId,
+              callId,
+              approved: approved === true,
+              toolName,
+              toolArguments,
+              reason,
+            });
+            res.json({
+              success: true,
+              rejected: !approved,
+              content: result.content,
+              responseId: result.responseId,
+              toolExecuted: result.toolExecuted,
+              toolOutput: result.toolOutput,
+              pendingApproval: result.pendingApproval,
+              handoff: result.handoff,
+            });
+            return;
+          } catch (primaryErr) {
+            if (ctx.orchestrationProvider?.submitApproval) {
+              logger.warn(
+                `Primary provider "${provider.id}" failed approval for responseId=${responseId}; retrying with orchestration provider: ${primaryErr}`,
+              );
+              const result = await ctx.orchestrationProvider.submitApproval({
+                responseId,
+                callId,
+                approved: approved === true,
+                toolName,
+                toolArguments,
+                reason,
+              });
+              res.json({
+                success: true,
+                rejected: !approved,
+                content: result.content,
+                responseId: result.responseId,
+                toolExecuted: result.toolExecuted,
+                toolOutput: result.toolOutput,
+                pendingApproval: result.pendingApproval,
+                handoff: result.handoff,
+              });
+              return;
+            }
+            throw primaryErr;
+          }
         }
 
         if (!provider.conversations) {
+          if (ctx.orchestrationProvider) {
+            logger.warn(
+              `Primary provider "${provider.id}" has no approval capability; routing to orchestration provider`,
+            );
+            if (ctx.orchestrationProvider.submitApproval) {
+              const orchResult = await ctx.orchestrationProvider.submitApproval(
+                {
+                  responseId,
+                  callId,
+                  approved: approved === true,
+                  toolName,
+                  toolArguments,
+                  reason,
+                },
+              );
+              res.json({
+                success: true,
+                rejected: !approved,
+                content: orchResult.content,
+                responseId: orchResult.responseId,
+                toolExecuted: orchResult.toolExecuted,
+                toolOutput: orchResult.toolOutput,
+                pendingApproval: orchResult.pendingApproval,
+                handoff: orchResult.handoff,
+              });
+              return;
+            }
+            if (ctx.orchestrationProvider.conversations) {
+              const orchResult =
+                await ctx.orchestrationProvider.conversations.submitApproval({
+                  responseId,
+                  callId,
+                  approved: approved === true,
+                  toolName,
+                  toolArguments,
+                });
+              res.json({
+                success: true,
+                rejected: !approved,
+                content: orchResult.content,
+                responseId: orchResult.responseId,
+                toolExecuted: orchResult.toolExecuted,
+                toolOutput: orchResult.toolOutput,
+                outputTruncated: orchResult.outputTruncated,
+                pendingApproval: orchResult.pendingApproval,
+                handoff: orchResult.handoff,
+              });
+              return;
+            }
+          }
           res.status(501).json({
             success: false,
             error: 'Tool approval is not supported by the current provider',

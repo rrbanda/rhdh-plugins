@@ -267,6 +267,11 @@ export const getActionButtonsContainerSx = (
     transform: 'translateY(0)',
     pointerEvents: 'auto',
   },
+  '@media (hover: none)': {
+    opacity: 1,
+    transform: 'translateY(0)',
+    pointerEvents: 'auto',
+  },
 });
 
 /**

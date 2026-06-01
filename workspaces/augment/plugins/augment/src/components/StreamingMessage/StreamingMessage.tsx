@@ -271,13 +271,11 @@ export const StreamingMessage: React.FC<StreamingMessageProps> = memo(
               >
                 {state.currentAgent || branding.appName}
               </Typography>
-              {isDev && (
-                <PhaseChip
-                  phaseLabel={phaseLabel}
-                  phaseColor={phaseColor}
-                  completed={state.completed}
-                />
-              )}
+              <PhaseChip
+                phaseLabel={phaseLabel}
+                phaseColor={phaseColor}
+                completed={state.completed}
+              />
             </Box>
 
             {/* Content Container - aria-live for screen reader announcements */}

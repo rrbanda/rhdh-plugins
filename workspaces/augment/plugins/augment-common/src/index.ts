@@ -16,6 +16,21 @@
 
 export * from './permissions';
 export {
+  CHAT_ROUTES,
+  SESSION_ROUTES,
+  CONVERSATION_ROUTES,
+  ADMIN_ROUTES,
+  PROTECTED_PATHS,
+} from './routes';
+export {
+  VALIDATION_LIMITS,
+  VALID_MESSAGE_ROLES,
+  SESSION_ID_PATTERN,
+  validateSessionId,
+  validateMessageContent,
+} from './validation';
+export type { MessageRole } from './validation';
+export {
   FileFormat,
   DEFAULT_BRANDING,
   GLOBAL_CONFIG_KEYS,

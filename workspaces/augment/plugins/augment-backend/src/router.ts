@@ -360,6 +360,13 @@ export async function createRouter({
   });
   router.post('/chat/approve', mutationLimiter);
 
+  const chatLimiter = createRateLimiter({
+    windowMs: 60_000,
+    maxRequests: 15,
+  });
+  router.post('/chat/stream', chatLimiter);
+  router.post('/chat', chatLimiter);
+
   // Authenticated routes
   registerChatRoutes(ctx, adminConfig);
   const agentApprovalService = new AgentApprovalWorkflowService(config, logger);

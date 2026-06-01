@@ -59,7 +59,6 @@ import type {
   MCPToolsResponse,
   MCPInvokeRequest,
   MCPInvokeResponse,
-  ContextHistoryListResponse,
 } from './types';
 import { API_PREFIX, encodePathSegment as e } from './utils';
 import {
@@ -245,20 +244,6 @@ export class KagentiApiClient {
       signal,
     );
   }
-  async listContextHistory(
-    contextId: string,
-    opts?: { limit?: number; pageToken?: string },
-  ): Promise<ContextHistoryListResponse> {
-    const p = new URLSearchParams();
-    if (opts?.limit !== undefined) p.set('limit', String(opts.limit));
-    if (opts?.pageToken) p.set('page_token', opts.pageToken);
-    const qs = p.toString() ? `?${p.toString()}` : '';
-    return this.request(
-      'GET',
-      `${API_PREFIX}/contexts/${e(contextId)}/history${qs}`,
-    );
-  }
-
   // -- Agents --
   async listAgents(ns?: string): Promise<AgentListResponse> {
     return this.request(

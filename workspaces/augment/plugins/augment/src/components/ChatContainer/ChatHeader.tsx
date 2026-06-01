@@ -220,22 +220,44 @@ export const ChatHeader: FC<ChatHeaderProps> = memo(function ChatHeader({
                 label="A2A"
                 size="small"
                 variant="outlined"
-                sx={{ height: 20, fontSize: typeScale.micro.fontSize }}
+                sx={{
+                  height: 20,
+                  fontSize: typeScale.micro.fontSize,
+                  display: { xs: 'none', sm: 'flex' },
+                }}
               />
             )}
           {/* Health warning */}
           {hasWarning && (
             <Tooltip title={healthWarning}>
-              <WarningAmberIcon
-                tabIndex={0}
-                role="img"
-                aria-label={`Warning: ${healthWarning}`}
+              <Box
                 sx={{
-                  fontSize: 16,
-                  color: theme.palette.warning.main,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
                   cursor: 'help',
                 }}
-              />
+              >
+                <WarningAmberIcon
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`Warning: ${healthWarning}`}
+                  sx={{
+                    fontSize: 16,
+                    color: theme.palette.warning.main,
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: theme.palette.warning.main,
+                    fontSize: typeScale.micro.fontSize,
+                    fontWeight: 600,
+                  }}
+                >
+                  Degraded
+                </Typography>
+              </Box>
             </Tooltip>
           )}
         </Box>

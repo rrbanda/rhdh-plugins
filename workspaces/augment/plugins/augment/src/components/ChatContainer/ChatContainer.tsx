@@ -653,24 +653,45 @@ export const ChatContainer = forwardRef<ChatContainerRef, ChatContainerProps>(
             selectedModel={selectedModel}
             isKagenti={hasAgentCatalog}
             onClearAgent={handleChangeAgent}
-            requireAgent={false}
           />
         )}
 
         {/* Disclosure Footer */}
-        <Typography
-          variant="caption"
+        <Box
           sx={{
             textAlign: 'center',
-            color: theme.palette.text.disabled,
-            fontSize: typeScale.micro.fontSize,
             py: 0.5,
             px: 2,
             flexShrink: 0,
           }}
         >
-          {t('chat.disclaimer')}
-        </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              color: theme.palette.text.disabled,
+              fontSize: typeScale.micro.fontSize,
+            }}
+          >
+            {t('chat.disclaimer')}
+          </Typography>
+          <Typography
+            component="span"
+            variant="caption"
+            onClick={handleShowShortcuts}
+            sx={{
+              ml: 1,
+              color: theme.palette.text.disabled,
+              fontSize: typeScale.micro.fontSize,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textDecorationStyle: 'dotted',
+              textUnderlineOffset: '2px',
+              '&:hover': { color: theme.palette.text.secondary },
+            }}
+          >
+            Keyboard shortcuts (?)
+          </Typography>
+        </Box>
 
         <KeyboardShortcutsDialog
           open={shortcutsOpen}

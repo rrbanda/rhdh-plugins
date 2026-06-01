@@ -28,18 +28,6 @@ export const rootRouteRef = createRouteRef({
  * Each major section of the UI is addressable via a dedicated sub-route.
  * @public
  */
-export const chatRouteRef = createSubRouteRef({
-  id: 'augment/chat',
-  parent: rootRouteRef,
-  path: '/chat',
-});
-
-export const chatSessionRouteRef = createSubRouteRef({
-  id: 'augment/chat/session',
-  parent: rootRouteRef,
-  path: '/chat/:sessionId',
-});
-
 export const agentsRouteRef = createSubRouteRef({
   id: 'augment/agents',
   parent: rootRouteRef,

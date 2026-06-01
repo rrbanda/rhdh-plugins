@@ -672,6 +672,7 @@ export class ChatSessionService {
 
     const ids = rows.map(r => r.id);
     await this.db.transaction(async trx => {
+      await trx(FEEDBACK_TABLE).whereIn('session_id', ids).delete();
       await trx(MESSAGES_TABLE).whereIn('session_id', ids).delete();
       await trx(TABLE_NAME).whereIn('id', ids).delete();
     });

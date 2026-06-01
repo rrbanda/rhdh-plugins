@@ -37,7 +37,6 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
   >([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [sessionId, setSessionId] = useState<string | undefined>();
   const streamingTextRef = useRef('');
 
   const handleSend = useCallback(async () => {
@@ -61,7 +60,6 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
         body: JSON.stringify({
           messages: [{ role: 'user', content: userMsg }],
           model: agentId,
-          sessionId,
         }),
       });
       if (!resp.ok) {
@@ -112,8 +110,6 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
               }
               return updated;
             });
-          } else if (evt.type === 'stream.started' && evt.responseId) {
-            setSessionId(evt.responseId);
           } else if (evt.type === 'stream.error') {
             throw new Error(evt.error ?? 'Stream error');
           }
@@ -150,15 +146,7 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
     } finally {
       setSending(false);
     }
-  }, [
-    agentId,
-    input,
-    sending,
-    sessionId,
-    chatMessages.length,
-    configApi,
-    authFetch,
-  ]);
+  }, [agentId, input, sending, chatMessages.length, configApi, authFetch]);
 
   return (
     <Box

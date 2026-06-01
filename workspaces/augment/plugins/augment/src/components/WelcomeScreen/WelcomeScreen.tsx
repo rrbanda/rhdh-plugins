@@ -346,7 +346,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 key={idx}
                 variant="outlined"
                 sx={{
-                  width: 200,
+                  width: { xs: '100%', sm: 200 },
                   flexShrink: 0,
                   borderRadius: 3,
                   borderColor: alpha(avatarColor, isDark ? 0.2 : 0.15),
@@ -459,6 +459,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               setAgentSearch(e.target.value)
             }
             fullWidth
+            inputProps={{ 'aria-label': 'Search agents' }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -472,7 +473,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               ),
               endAdornment: agentSearch ? (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setAgentSearch('')}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setAgentSearch('')}
+                    aria-label="Clear search"
+                  >
                     <ClearIcon sx={{ fontSize: iconSize.sm }} />
                   </IconButton>
                 </InputAdornment>

@@ -182,6 +182,8 @@ export const augmentMessages = {
     contentFiltered: 'Content Filtered',
     connectionError: 'Connection Error',
     error: 'Error',
+    somethingWentWrong: 'Something went wrong',
+    streamErrorHint: 'An unexpected error occurred. Please try again.',
     tryAgain: 'Try again',
     safetyHint:
       'This response was blocked by a safety policy. Try rephrasing your request.',

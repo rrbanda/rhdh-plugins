@@ -1476,6 +1476,20 @@ export interface Config {
     };
 
     /**
+     * Session management configuration
+     * @visibility backend
+     */
+    sessions?: {
+      /**
+       * Number of days before sessions are purged by the retention scheduler.
+       * Set to 0 to disable automatic purging.
+       * @default 90
+       * @visibility backend
+       */
+      retentionDays?: number;
+    };
+
+    /**
      * Dev Spaces configuration
      * @visibility backend
      */

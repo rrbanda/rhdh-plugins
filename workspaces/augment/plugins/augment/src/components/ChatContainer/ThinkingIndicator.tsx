@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+import { useState, useEffect } from 'react';
 import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useBranding } from '../../hooks';
 import { BotAvatarIcon } from '../icons';
+
+const SLOW_THRESHOLD_MS = 30_000;
 
 /** Animated dot for loading indicator */
 const AnimatedDot = ({ delay }: { delay: number }) => (
@@ -41,12 +45,22 @@ const AnimatedDot = ({ delay }: { delay: number }) => (
 export const ThinkingIndicator = () => {
   const theme = useTheme();
   const { branding } = useBranding();
+  const [isSlow, setIsSlow] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsSlow(true), SLOW_THRESHOLD_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <Box
       role="status"
       aria-busy="true"
-      aria-label="AI is thinking"
+      aria-label={
+        isSlow
+          ? 'Still connecting, this is taking longer than expected'
+          : 'Connecting to AI'
+      }
       sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2 }}
     >
       <Box
@@ -66,24 +80,53 @@ export const ThinkingIndicator = () => {
       </Box>
 
       <Box
-        aria-hidden="true"
         sx={{
           display: 'flex',
-          alignItems: 'center',
-          gap: 0.75,
-          px: 2,
-          py: 1.5,
-          borderRadius: 2,
-          backgroundColor: alpha(
-            theme.palette.text.primary,
-            theme.palette.mode === 'dark' ? 0.06 : 0.04,
-          ),
-          color: theme.palette.text.secondary,
+          flexDirection: 'column',
+          gap: 0.5,
         }}
       >
-        <AnimatedDot delay={0} />
-        <AnimatedDot delay={0.2} />
-        <AnimatedDot delay={0.4} />
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 2,
+            py: 1.5,
+            borderRadius: 2,
+            backgroundColor: alpha(
+              theme.palette.text.primary,
+              theme.palette.mode === 'dark' ? 0.06 : 0.04,
+            ),
+            color: theme.palette.text.secondary,
+          }}
+        >
+          <AnimatedDot delay={0} />
+          <AnimatedDot delay={0.2} />
+          <AnimatedDot delay={0.4} />
+          <Typography
+            variant="caption"
+            sx={{
+              ml: 0.5,
+              color: theme.palette.text.secondary,
+              fontSize: '0.75rem',
+            }}
+          >
+            Connecting...
+          </Typography>
+        </Box>
+        {isSlow && (
+          <Typography
+            variant="caption"
+            sx={{
+              px: 2,
+              color: theme.palette.warning.main,
+              fontSize: '0.7rem',
+            }}
+          >
+            This is taking longer than expected...
+          </Typography>
+        )}
       </Box>
     </Box>
   );

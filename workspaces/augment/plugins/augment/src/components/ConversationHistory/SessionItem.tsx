@@ -325,6 +325,9 @@ export function SessionItem({
                   '&:hover': {
                     background: alpha(theme.palette.error.main, 0.1),
                   },
+                  '@media (hover: none)': {
+                    opacity: 1,
+                  },
                 }}
               >
                 {deletingId === session.id ? (

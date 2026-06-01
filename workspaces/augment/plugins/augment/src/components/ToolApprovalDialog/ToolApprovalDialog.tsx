@@ -22,7 +22,6 @@ import {
   getDialogContainerSx,
   getHeaderSx,
   getSeverityLabelSx,
-  getServerLabelSx,
 } from './styles';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import BuildIcon from '@mui/icons-material/Build';
@@ -177,15 +176,6 @@ export function ToolApprovalDialog({
           sx={getSeverityLabelSx(severityConfig.color)}
         >
           {severityConfig.label}
-        </Typography>
-        <Typography
-          variant="caption"
-          sx={{
-            ...(getServerLabelSx(theme) as Record<string, unknown>),
-            fontFamily: '"JetBrains Mono", monospace',
-          }}
-        >
-          {pendingApproval.toolCall.serverLabel}
         </Typography>
       </Box>
 

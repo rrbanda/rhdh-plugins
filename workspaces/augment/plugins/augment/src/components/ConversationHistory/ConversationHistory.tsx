@@ -164,15 +164,15 @@ export const ConversationHistory = ({
   }, [refreshTrigger, loadSessions]);
 
   useEffect(() => {
+    const ref = confirmTimerRef.current;
     return () => {
-      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      if (ref) clearTimeout(ref);
     };
   }, []);
 
   const handleDeleteClick = (sessionId: string) => {
     if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
     setConfirmDeleteId(sessionId);
-    confirmTimerRef.current = setTimeout(() => setConfirmDeleteId(null), 5000);
   };
 
   const handleConfirmDelete = async (sessionId: string) => {
