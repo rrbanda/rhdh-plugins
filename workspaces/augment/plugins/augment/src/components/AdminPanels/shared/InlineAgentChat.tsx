@@ -21,6 +21,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import { parseSSEStream } from '../../../api/sseStreaming';
 
 export interface InlineAgentChatProps {
   readonly agentId: string;
@@ -70,50 +71,30 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
       const reader = resp.body?.getReader();
       if (!reader) throw new Error('No readable stream in response');
 
-      const decoder = new TextDecoder();
-      let buffer = '';
+      let streamError: string | undefined;
 
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const payload = line.slice(6).trim();
-          if (!payload || payload === '[DONE]') continue;
-
-          let evt: {
-            type?: string;
-            delta?: string;
-            responseId?: string;
-            error?: string;
-          };
-          try {
-            evt = JSON.parse(payload);
-          } catch {
-            continue;
-          }
-
-          if (evt.type === 'stream.text.delta' && evt.delta) {
-            streamingTextRef.current += evt.delta;
-            const snapshot = streamingTextRef.current;
-            setChatMessages(prev => {
-              const updated = [...prev];
-              if (updated.length > agentMsgIndex) {
-                updated[agentMsgIndex] = { role: 'agent', text: snapshot };
-              } else {
-                updated.push({ role: 'agent', text: snapshot });
-              }
-              return updated;
-            });
-          } else if (evt.type === 'stream.error') {
-            throw new Error(evt.error ?? 'Stream error');
-          }
+      await parseSSEStream(reader, evt => {
+        if (evt.type === 'stream.text.delta' && 'delta' in evt) {
+          streamingTextRef.current += (evt as { delta: string }).delta;
+          const snapshot = streamingTextRef.current;
+          setChatMessages(prev => {
+            const updated = [...prev];
+            if (updated.length > agentMsgIndex) {
+              updated[agentMsgIndex] = { role: 'agent', text: snapshot };
+            } else {
+              updated.push({ role: 'agent', text: snapshot });
+            }
+            return updated;
+          });
+        } else if (evt.type === 'stream.error') {
+          streamError =
+            ('error' in evt ? (evt as { error: string }).error : undefined) ??
+            'Stream error';
         }
+      });
+
+      if (streamError) {
+        throw new Error(streamError);
       }
 
       if (streamingTextRef.current) {

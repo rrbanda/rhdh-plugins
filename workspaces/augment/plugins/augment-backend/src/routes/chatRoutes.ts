@@ -27,6 +27,7 @@ import { createWithRoute } from './routeWrapper';
 import { SseHeartbeat } from './sseRouteHelpers';
 import { sanitizeErrorMessage } from '../services/utils/errorSanitizer';
 import type { FlushableResponse, RouteContext } from './types';
+import type { ChatSessionService } from '../services/ChatSessionService';
 import type { AdminConfigService } from '../services/AdminConfigService';
 import { trySkillChatProxy } from './skillChatProxy';
 
@@ -125,6 +126,7 @@ function createStreamEventForwarder(
   clientDisconnectedRef: { current: boolean },
   logger: LoggerService,
   upstreamAbort?: AbortController,
+  safetyCheckAccumulatedText?: (text: string) => void,
 ): {
   forward: (event: NormalizedStreamEvent) => void;
   streamedTextRef: { current: string };
@@ -136,8 +138,10 @@ function createStreamEventForwarder(
   const streamMetadataRef: { current: StreamMetadata } = {
     current: { toolCalls: [], ragSources: [], citations: [], reasoning: '' },
   };
+  const INCREMENTAL_SAFETY_THRESHOLD = 2000;
   const MAX_PENDING_EVENTS = 500;
   const state = { draining: false, terminated: false };
+  let lastSafetyCheckLength = 0;
   const pendingQueue: string[] = [];
 
   function onDrain() {
@@ -172,6 +176,14 @@ function createStreamEventForwarder(
       streamModelRef.current = (event as { model?: string }).model;
     } else if (event.type === 'stream.text.delta' && event.delta) {
       streamedTextRef.current += event.delta;
+      if (
+        safetyCheckAccumulatedText &&
+        streamedTextRef.current.length - lastSafetyCheckLength >=
+          INCREMENTAL_SAFETY_THRESHOLD
+      ) {
+        lastSafetyCheckLength = streamedTextRef.current.length;
+        safetyCheckAccumulatedText(streamedTextRef.current);
+      }
     } else if (
       event.type === 'stream.artifact' &&
       (event as { content?: string }).content
@@ -450,6 +462,72 @@ async function resolveProvider(
   return orchestration;
 }
 
+async function finalizeSessionAfterChat(params: {
+  sessions: ChatSessionService;
+  sessionId: string;
+  userRef: string;
+  userContent: string | undefined;
+  assistantContent: string | undefined;
+  metadata?: {
+    agentName?: string;
+    toolCalls?: string;
+    ragSources?: string;
+    usage?: string;
+    reasoning?: string;
+    citations?: string;
+  };
+  outputSafetyBlocked?: boolean;
+  logger: LoggerService;
+}): Promise<void> {
+  const {
+    sessions,
+    sessionId,
+    userRef,
+    userContent,
+    assistantContent,
+    metadata,
+    outputSafetyBlocked,
+    logger: log,
+  } = params;
+
+  if (userContent) {
+    try {
+      const session = await sessions.getSession(sessionId, userRef);
+      if (session && session.title.startsWith('Chat ')) {
+        const autoTitle = userContent.slice(0, 80) || session.title;
+        await sessions.updateTitle(sessionId, userRef, autoTitle);
+      }
+    } catch (err) {
+      log.warn(`Failed to auto-update title for session ${sessionId}: ${err}`);
+    }
+  }
+
+  await sessions.touch(sessionId, userRef);
+
+  const messagePersists: Promise<unknown>[] = [];
+  if (userContent) {
+    messagePersists.push(
+      sessions.addMessage({ sessionId, role: 'user', content: userContent }),
+    );
+  }
+  if (assistantContent && !outputSafetyBlocked) {
+    messagePersists.push(
+      sessions.addMessage({
+        sessionId,
+        role: 'assistant',
+        content: assistantContent,
+        agentName: metadata?.agentName,
+        toolCalls: metadata?.toolCalls,
+        ragSources: metadata?.ragSources,
+        usage: metadata?.usage,
+        reasoning: metadata?.reasoning,
+        citations: metadata?.citations,
+      }),
+    );
+  }
+  await Promise.all(messagePersists);
+}
+
 export function registerChatRoutes(
   ctx: RouteContext,
   adminConfig?: AdminConfigService,
@@ -605,23 +683,26 @@ export function registerChatRoutes(
           }
         }
 
-        // Persist messages to local store (non-streaming path)
         if (sessionId && sessions) {
           try {
-            if (userContent) {
-              await sessions.addMessage({
-                sessionId,
-                role: 'user',
-                content: userContent,
-              });
-            }
-            if (response.content) {
-              await sessions.addMessage({
-                sessionId,
-                role: 'assistant',
-                content: response.content,
-              });
-            }
+            await finalizeSessionAfterChat({
+              sessions,
+              sessionId,
+              userRef,
+              userContent: userContent || undefined,
+              assistantContent: response.content || undefined,
+              metadata: {
+                agentName: (response as { agentName?: string }).agentName,
+                toolCalls: (response as { toolCalls?: string }).toolCalls,
+                ragSources: (response as { ragSources?: string }).ragSources,
+                usage: (response as { usage?: unknown }).usage
+                  ? JSON.stringify((response as { usage?: unknown }).usage)
+                  : undefined,
+                reasoning: (response as { reasoning?: string }).reasoning,
+                citations: (response as { citations?: string }).citations,
+              },
+              logger,
+            });
           } catch (persistErr) {
             logger.warn(
               `Failed to persist messages for session ${sessionId}: ${persistErr}`,
@@ -683,12 +764,45 @@ export function registerChatRoutes(
       logger,
       () => heartbeat.stop(),
     );
+    const incrementalSafetyBlockedRef = { current: false };
+    const safetyCallback = provider.safety?.isEnabled()
+      ? (text: string) => {
+          provider
+            .safety!.checkOutput(text)
+            .then(result => {
+              if (!result.safe && !incrementalSafetyBlockedRef.current) {
+                incrementalSafetyBlockedRef.current = true;
+                logger.warn(
+                  `Incremental safety check failed at ${text.length} chars: ${result.violation}`,
+                );
+                const errorEvent: NormalizedStreamEvent = {
+                  type: 'stream.error',
+                  error:
+                    result.violation ||
+                    'The AI response was filtered because it may violate safety guidelines.',
+                  code: 'output_safety_violation',
+                };
+                if (!clientDisconnectedRef.current) {
+                  res.write(`data: ${JSON.stringify(errorEvent)}\n\n`);
+                }
+                abortController.abort();
+              }
+            })
+            .catch(err => {
+              logger.debug(
+                `Incremental safety check error (non-fatal): ${err}`,
+              );
+            });
+        }
+      : undefined;
+
     const { forward, streamedTextRef, streamMetadataRef } =
       createStreamEventForwarder(
         res,
         clientDisconnectedRef,
         logger,
         abortController,
+        safetyCallback,
       );
     heartbeat.start();
 
@@ -794,8 +908,9 @@ export function registerChatRoutes(
         res.write(`data: ${JSON.stringify(zeroEventError)}\n\n`);
       }
 
-      let outputSafetyBlocked = false;
+      let outputSafetyBlocked = incrementalSafetyBlockedRef.current;
       if (
+        !outputSafetyBlocked &&
         streamedTextRef.current &&
         provider.safety?.isEnabled() &&
         !clientDisconnectedRef.current
@@ -827,7 +942,6 @@ export function registerChatRoutes(
         res.end();
       }
 
-      // Fire-and-forget: persist session metadata without blocking the client.
       if (sessionId && sessions) {
         const lastUserContent = getLastUserContent(messages);
         const meta = streamMetadataRef.current;
@@ -835,76 +949,48 @@ export function registerChatRoutes(
 
         Promise.resolve()
           .then(async () => {
-            const titleAndTouch: Promise<void>[] = [];
-
-            if (lastUserContent) {
-              titleAndTouch.push(
-                sessions.getSession(sessionId, userRef).then(async session => {
-                  if (session && session.title.startsWith('Chat ')) {
-                    const autoTitle =
-                      lastUserContent.slice(0, 80) || session.title;
-                    await sessions.updateTitle(sessionId, userRef, autoTitle);
-                  }
-                }),
-              );
-            }
-
-            titleAndTouch.push(sessions.touch(sessionId, userRef));
-
             if (streamDescriptor?.capabilities.contextHydration) {
               const ctxId = await provider.getSessionContextId!(sessionId);
               if (ctxId) {
-                titleAndTouch.push(
-                  sessions
-                    .setConversationIdIfNull(sessionId, userRef, ctxId)
-                    .then(linked => {
-                      if (linked) {
-                        logger.info(
-                          `Linked session ${sessionId} to provider context ${ctxId}`,
-                        );
-                      }
-                    }),
+                const linked = await sessions.setConversationIdIfNull(
+                  sessionId,
+                  userRef,
+                  ctxId,
                 );
+                if (linked) {
+                  logger.info(
+                    `Linked session ${sessionId} to provider context ${ctxId}`,
+                  );
+                }
               }
             }
 
-            await Promise.all(titleAndTouch);
-
-            const messagePersists: Promise<unknown>[] = [];
-            if (lastUserContent) {
-              messagePersists.push(
-                sessions.addMessage({
-                  sessionId,
-                  role: 'user',
-                  content: lastUserContent,
-                }),
-              );
-            }
-            if (streamedText && !outputSafetyBlocked) {
-              messagePersists.push(
-                sessions.addMessage({
-                  sessionId,
-                  role: 'assistant',
-                  content: streamedText,
-                  agentName: meta.agentName,
-                  toolCalls:
-                    meta.toolCalls.length > 0
-                      ? JSON.stringify(meta.toolCalls)
-                      : undefined,
-                  ragSources:
-                    meta.ragSources.length > 0
-                      ? JSON.stringify(meta.ragSources)
-                      : undefined,
-                  usage: meta.usage ? JSON.stringify(meta.usage) : undefined,
-                  reasoning: meta.reasoning || undefined,
-                  citations:
-                    meta.citations.length > 0
-                      ? JSON.stringify(meta.citations)
-                      : undefined,
-                }),
-              );
-            }
-            await Promise.all(messagePersists);
+            await finalizeSessionAfterChat({
+              sessions,
+              sessionId,
+              userRef,
+              userContent: lastUserContent || undefined,
+              assistantContent: streamedText || undefined,
+              metadata: {
+                agentName: meta.agentName,
+                toolCalls:
+                  meta.toolCalls.length > 0
+                    ? JSON.stringify(meta.toolCalls)
+                    : undefined,
+                ragSources:
+                  meta.ragSources.length > 0
+                    ? JSON.stringify(meta.ragSources)
+                    : undefined,
+                usage: meta.usage ? JSON.stringify(meta.usage) : undefined,
+                reasoning: meta.reasoning || undefined,
+                citations:
+                  meta.citations.length > 0
+                    ? JSON.stringify(meta.citations)
+                    : undefined,
+              },
+              outputSafetyBlocked,
+              logger,
+            });
           })
           .catch(bgErr => {
             logger.warn(
