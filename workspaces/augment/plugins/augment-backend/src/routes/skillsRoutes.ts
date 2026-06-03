@@ -35,8 +35,7 @@ function loadSkillsConfig(config: Config) {
     baseUrl: section.getString('baseUrl'),
     agentImage: section.getOptionalString('agentImage'),
     defaultInitImage: section.getOptionalString('defaultInitImage'),
-    skipTlsVerify:
-      section.getOptionalBoolean('skipTlsVerify') ?? false,
+    skipTlsVerify: section.getOptionalBoolean('skipTlsVerify') ?? false,
     advisorUrl: section.getOptionalString('advisorUrl'),
     llmBaseUrl: section.getOptionalString('llmBaseUrl'),
     llmModel: section.getOptionalString('llmModel'),
@@ -71,9 +70,18 @@ export function registerSkillsRoutes(
 
   router.get(
     '/skills',
-    withRoute('GET /skills', 'Failed to fetch skills', async (_req, res) => {
+    withRoute('GET /skills', 'Failed to fetch skills', async (req, res) => {
+      const proxyHeaders: Record<string, string> = {
+        Accept: 'application/json',
+      };
+      if (req.headers.authorization) {
+        proxyHeaders.Authorization = req.headers.authorization;
+      }
+      if (req.headers.cookie) {
+        proxyHeaders.Cookie = req.headers.cookie;
+      }
       const response = await fetch(skillsConfig.baseUrl, {
-        headers: { Accept: 'application/json' },
+        headers: proxyHeaders,
         signal: AbortSignal.timeout(15_000),
       });
       if (!response.ok) {
@@ -188,8 +196,7 @@ export function registerSkillsRoutes(
           );
         }
 
-        const runtimeImage =
-          runtimeEntry.image ?? skillsConfig.agentImage;
+        const runtimeImage = runtimeEntry.image ?? skillsConfig.agentImage;
         if (!runtimeImage) {
           throw new InputError(
             `No container image configured for runtime "${runtime}". Set "image" on the runtime entry or "agentImage" under augment.skillsMarketplace in app-config.yaml`,
