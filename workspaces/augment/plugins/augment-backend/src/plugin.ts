@@ -297,6 +297,8 @@ export const augmentPlugin = createBackendPlugin({
           '/scoring',
           '/benchmarks',
           '/datasets',
+          '/skills',
+          '/feedback',
         ];
 
         for (const path of protectedPaths) {
