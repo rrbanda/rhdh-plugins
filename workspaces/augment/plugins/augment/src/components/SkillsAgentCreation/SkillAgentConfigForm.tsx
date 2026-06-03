@@ -35,10 +35,17 @@ export interface SkillForDeploy {
   description?: string;
 }
 
+export interface SkillAgentDeployConfig {
+  name: string;
+  namespace: string;
+  systemPrompt: string;
+}
+
 export interface SkillAgentConfigFormProps {
   readonly runtimeId: string;
   readonly selectedSkills: SkillForDeploy[];
-  readonly onDeploy: (config: { name: string; systemPrompt: string }) => void;
+  readonly defaultNamespace?: string;
+  readonly onDeploy: (config: SkillAgentDeployConfig) => void;
   readonly deploying?: boolean;
 }
 
@@ -64,6 +71,7 @@ function deriveSystemPrompt(skills: SkillForDeploy[]): string {
 export function SkillAgentConfigForm({
   runtimeId,
   selectedSkills,
+  defaultNamespace,
   onDeploy,
   deploying,
 }: SkillAgentConfigFormProps) {
@@ -77,6 +85,7 @@ export function SkillAgentConfigForm({
   );
 
   const [name, setName] = useState(defaultName);
+  const [namespace, setNamespace] = useState(defaultNamespace ?? '');
   const [systemPrompt, setSystemPrompt] = useState(defaultPrompt);
   const [showInstructions, setShowInstructions] = useState(false);
 
@@ -85,10 +94,18 @@ export function SkillAgentConfigForm({
     setSystemPrompt(defaultPrompt);
   }, [defaultName, defaultPrompt]);
 
+  useEffect(() => {
+    if (defaultNamespace) setNamespace(defaultNamespace);
+  }, [defaultNamespace]);
+
   const handleSubmit = useCallback(() => {
     if (!name.trim()) return;
-    onDeploy({ name: name.trim(), systemPrompt: systemPrompt.trim() });
-  }, [name, systemPrompt, onDeploy]);
+    onDeploy({
+      name: name.trim(),
+      namespace: namespace.trim(),
+      systemPrompt: systemPrompt.trim(),
+    });
+  }, [name, namespace, systemPrompt, onDeploy]);
 
   const skillBodies = useMemo(
     () =>
@@ -111,6 +128,16 @@ export function SkillAgentConfigForm({
         onChange={e => setName(e.target.value)}
         helperText="Lowercase, alphanumeric, and hyphens only"
         size="small"
+      />
+
+      <TextField
+        label="Namespace"
+        fullWidth
+        value={namespace}
+        onChange={e => setNamespace(e.target.value)}
+        helperText="Kubernetes namespace for this agent. Leave empty to auto-generate from your username."
+        size="small"
+        placeholder={defaultNamespace || 'auto-generated'}
       />
 
       <TextField

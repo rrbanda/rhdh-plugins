@@ -17,14 +17,12 @@
 import type { KagentiApiClient } from './client/KagentiApiClient';
 import { KagentiStreamNormalizer } from './stream/KagentiStreamNormalizer';
 
-const DEFAULT_EXTENSION_BASE = 'https://a2a-extensions.adk.kagenti.dev';
-
-function secretsUri(base?: string): string {
-  return `${base ?? DEFAULT_EXTENSION_BASE}/auth/secrets/v1`;
+function secretsUri(base: string): string {
+  return `${base}/auth/secrets/v1`;
 }
 
-function oauthUri(base?: string): string {
-  return `${base ?? DEFAULT_EXTENSION_BASE}/auth/oauth/v1`;
+function oauthUri(base: string): string {
+  return `${base}/auth/oauth/v1`;
 }
 
 export interface ApprovalRequest {
@@ -52,7 +50,7 @@ export interface ApprovalResult {
 
 function buildApprovalMetadata(
   approval: ApprovalRequest,
-  extensionBaseUrl?: string,
+  extensionBaseUrl: string,
 ): Record<string, unknown> {
   if (approval.toolName === 'secrets_response' && approval.toolArguments) {
     let secretValues: Record<string, string>;
@@ -103,7 +101,7 @@ export async function submitApproval(
   namespace: string,
   name: string,
   approval: ApprovalRequest,
-  extensionBaseUrl?: string,
+  extensionBaseUrl: string,
 ): Promise<ApprovalResult> {
   const contextId = approval.responseId;
   const approvalMessage = approval.approved

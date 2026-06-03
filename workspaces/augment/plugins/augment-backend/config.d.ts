@@ -917,6 +917,14 @@ export interface Config {
        * @visibility backend
        */
       workflowId?: string;
+
+      /**
+       * Allow admins to approve their own agent submissions.
+       * Default: false (enforces separation of duties).
+       * Set to true for dev/demo environments with a single admin user.
+       * @visibility backend
+       */
+      allowSelfApproval?: boolean;
     };
 
     /**
@@ -925,6 +933,13 @@ export interface Config {
      * @visibility backend
      */
     kagenti?: {
+      /**
+       * Custom display name shown in the UI provider dropdown.
+       * Default: 'Red Hat OpenShift AI'
+       * @visibility frontend
+       */
+      displayName?: string;
+
       /**
        * Base URL for the Kagenti API
        * @visibility backend

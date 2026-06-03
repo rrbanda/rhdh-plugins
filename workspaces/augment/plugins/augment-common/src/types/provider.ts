@@ -22,7 +22,7 @@
  * Built-in AI provider identifiers shipped with the plugin.
  * @public
  */
-export type BuiltInProviderType = 'llamastack' | 'googleadk' | 'kagenti';
+export type BuiltInProviderType = 'llamastack' | 'kagenti';
 
 /**
  * All accepted provider identifiers.

@@ -162,8 +162,10 @@ export function loadKagentiConfig(config: RootConfigService): KagentiConfig {
   if (requestTimeoutMs <= 0) {
     throw new InputError('augment.kagenti.requestTimeoutMs must be positive');
   }
-  if (streamTimeoutMs <= 0) {
-    throw new InputError('augment.kagenti.streamTimeoutMs must be positive');
+  if (streamTimeoutMs < 0) {
+    throw new InputError(
+      'augment.kagenti.streamTimeoutMs must be non-negative (0 = unlimited)',
+    );
   }
   if (maxRetries < 0) {
     throw new InputError('augment.kagenti.maxRetries must be non-negative');

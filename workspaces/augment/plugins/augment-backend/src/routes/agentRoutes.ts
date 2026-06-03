@@ -538,9 +538,15 @@ export function registerAgentRoutes(
         const isAdminApprove =
           currentStage === 'pending' && nextStage === 'published';
 
+        const allowSelfApproval =
+          ctx.config.getOptionalBoolean(
+            'augment.agentApproval.allowSelfApproval',
+          ) ?? false;
+
         if (
           isAdminApprove &&
           !isWorkflowCallback &&
+          !allowSelfApproval &&
           existing?.createdBy &&
           existing.createdBy === userRef
         ) {

@@ -34,6 +34,7 @@ interface SkillRuntime {
   name: string;
   description: string;
   image?: string;
+  initImage?: string;
   language?: string;
   footprint?: string;
   features?: string[];

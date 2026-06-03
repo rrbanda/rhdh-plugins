@@ -56,6 +56,7 @@ import { BackendApprovalStore } from './BackendApprovalStore';
 import { BackendToolExecutor } from './BackendToolExecutor';
 import type { RuntimeConfigResolver } from '../../services/RuntimeConfigResolver';
 import type { AdminConfigService } from '../../services/AdminConfigService';
+import type { WorkflowConfigService } from '../../services/WorkflowConfigService';
 import type { ToolScopeService } from '../../services/toolscope';
 import { toErrorMessage } from '../../services/utils';
 import { resolveCapabilities } from './ServerCapabilities';
@@ -85,6 +86,7 @@ export class ResponsesApiCoordinator {
   private backendToolExecutor: BackendToolExecutor | null = null;
   private readonly backendApprovalStore = new BackendApprovalStore();
   private toolScopeService: ToolScopeService | null = null;
+  private _workflowService: WorkflowConfigService | null = null;
 
   private initialized = false;
   private vectorStoreReady = false;
@@ -288,6 +290,7 @@ export class ResponsesApiCoordinator {
       getOrchestrator: () => this.getOrchestrator(),
       requireAgentGraphManager: () => this.requireAgentGraphManager(),
       ensureInitialized: () => this.ensureInitialized(),
+      workflowService: this._workflowService ?? undefined,
     };
   }
 
@@ -299,6 +302,10 @@ export class ResponsesApiCoordinator {
 
   getAgentGraphManager(): AgentGraphManager | null {
     return this.agentGraphManager;
+  }
+
+  setWorkflowService(service: WorkflowConfigService): void {
+    this._workflowService = service;
   }
 
   private requireAgentGraphManager(): AgentGraphManager {

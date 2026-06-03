@@ -67,7 +67,7 @@ export type { KagentiProviderOptions };
 
 export class KagentiProvider implements AgenticProvider {
   readonly id = 'kagenti';
-  readonly displayName = 'Kagenti';
+  readonly displayName = 'Red Hat OpenShift AI';
 
   private readonly logger: LoggerService;
   private readonly rootConfig: RootConfigService;
@@ -83,6 +83,7 @@ export class KagentiProvider implements AgenticProvider {
     integrations: false,
     triggers: false,
   };
+  private _initErrors: string[] = [];
   private static readonly MODELS_CACHE_TTL_MS = 60_000;
   private static readonly SESSION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   private readonly cardCache: KagentiAgentCardCache;
@@ -197,21 +198,22 @@ export class KagentiProvider implements AgenticProvider {
       maxRetries: this.kagentiConfig.maxRetries,
       retryBaseDelayMs: this.kagentiConfig.retryBaseDelayMs,
     });
+    this._initErrors = [];
     try {
       await this.tokenManager.getToken();
       this.logger.info('Keycloak token acquired successfully');
     } catch (e) {
-      this.logger.error(
-        `Failed to acquire Keycloak token: ${e instanceof Error ? e.message : e}`,
-      );
+      const msg = `Failed to acquire Keycloak token: ${e instanceof Error ? e.message : e}`;
+      this.logger.error(msg);
+      this._initErrors.push(msg);
     }
     try {
       const h = await this.apiClient.health();
       this.logger.info(`Kagenti health: ${h.status}`);
     } catch (e) {
-      this.logger.error(
-        `Cannot reach Kagenti at ${this.activeBaseUrl}: ${e instanceof Error ? e.message : e}`,
-      );
+      const msg = `Cannot reach Kagenti at ${this.activeBaseUrl}: ${e instanceof Error ? e.message : e}`;
+      this.logger.error(msg);
+      this._initErrors.push(msg);
     }
     try {
       this.featureFlags = await this.apiClient.getFeatureFlags();
@@ -270,7 +272,10 @@ export class KagentiProvider implements AgenticProvider {
       securityMode,
       timestamp: new Date().toISOString(),
       ready: connected,
-      configurationErrors: error ? [error] : [],
+      configurationErrors: [
+        ...(error ? [error] : []),
+        ...this._initErrors,
+      ],
       capabilities: {
         chat: true,
         rag: { available: false, reason: 'Kagenti does not provide RAG' },

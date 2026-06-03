@@ -429,7 +429,7 @@ describe('createSecurityMiddleware', () => {
       );
     });
 
-    it('throws when credentials fail', async () => {
+    it('returns GUEST_USER_REF when credentials fail', async () => {
       const mockCredentials = jest.fn().mockRejectedValue(new Error('No user'));
 
       const middleware = createSecurityMiddleware({
@@ -444,9 +444,8 @@ describe('createSecurityMiddleware', () => {
         permissionsEnabled: false,
       });
 
-      await expect(middleware.getUserRef(createMockRequest())).rejects.toThrow(
-        'No user',
-      );
+      const result = await middleware.getUserRef(createMockRequest());
+      expect(result).toBe('user:default/guest');
     });
   });
 

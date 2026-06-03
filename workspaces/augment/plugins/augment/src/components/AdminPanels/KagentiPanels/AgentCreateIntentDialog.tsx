@@ -68,6 +68,7 @@ import {
 
 export interface AgentCreateIntentDialogProps {
   readonly open: boolean;
+  readonly namespace?: string;
   readonly onClose: () => void;
   readonly onSelectDeploy: (method?: DeploymentMethod) => void;
   readonly onSelectConfigure?: () => void;
@@ -199,6 +200,7 @@ function AccentCard({
 
 export function AgentCreateIntentDialog({
   open,
+  namespace: namespaceProp,
   onClose,
   onSelectDeploy,
   onSelectConfigure,
@@ -269,7 +271,7 @@ export function AgentCreateIntentDialog({
   ];
 
   const handleSkillsDeploy = useCallback(
-    async (config: { name: string; systemPrompt: string }) => {
+    async (config: { name: string; namespace: string; systemPrompt: string }) => {
       setSkillsDeploying(true);
       setDeployResult(null);
       setSkillsStep('deploying');
@@ -301,6 +303,7 @@ export function AgentCreateIntentDialog({
           },
           body: JSON.stringify({
             name: config.name,
+            ...(config.namespace && { namespace: config.namespace }),
             systemPrompt: config.systemPrompt,
             runtime: skillsRuntimeId,
             skills: skillsSelected.map(s => ({
@@ -650,6 +653,7 @@ export function AgentCreateIntentDialog({
             <SkillAgentConfigForm
               runtimeId={skillsRuntimeId}
               selectedSkills={skillsSelected}
+              defaultNamespace={namespaceProp}
               onDeploy={handleSkillsDeploy}
               deploying={skillsDeploying}
             />

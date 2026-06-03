@@ -45,6 +45,8 @@ export interface AdminRouteDeps {
   getUserRef: (req: express.Request) => Promise<string>;
   requireAdminAccess: express.RequestHandler;
   onConfigChanged?: () => void;
+  /** Called after a successful provider hot-swap to rebuild dependent resources */
+  onProviderSwapped?: () => Promise<void>;
   /** For admin session routes */
   sessions?: ChatSessionService;
   missingSessions: (res: express.Response) => boolean;

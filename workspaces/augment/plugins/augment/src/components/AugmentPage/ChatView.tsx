@@ -560,6 +560,7 @@ export function ChatView({
         {/* Agent Creation Dialogs (front door -- no admin required) */}
         <AgentCreateIntentDialog
           open={intentDialogOpen}
+          namespace={kagentiNamespace || undefined}
           onClose={handleCloseIntentDialog}
           onSelectDeploy={handleSelectDeploy}
           onSelectConfigure={handleSelectConfigure}

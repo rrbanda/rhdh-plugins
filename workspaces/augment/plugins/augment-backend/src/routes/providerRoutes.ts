@@ -18,6 +18,7 @@ import { InputError } from '@backstage/errors';
 import type { ProviderType } from '@red-hat-developer-hub/backstage-plugin-augment-common';
 import {
   getAllProviderDescriptors,
+  getConfiguredProviderDescriptors,
   isValidProviderType,
 } from '../providers/registry';
 import { toErrorMessage } from '../services/utils';
@@ -38,8 +39,14 @@ export function registerProviderRoutes(
   router: import('express').Router,
   deps: AdminRouteDeps,
 ): void {
-  const { logger, sendRouteError, adminConfig, providerManager, getUserRef } =
-    deps;
+  const {
+    logger,
+    sendRouteError,
+    adminConfig,
+    providerManager,
+    getUserRef,
+    onProviderSwapped,
+  } = deps;
   const withRoute = createWithRoute(logger, sendRouteError);
 
   router.get(
@@ -48,7 +55,7 @@ export function registerProviderRoutes(
       'GET /admin/providers',
       'Failed to list providers',
       async (_req, res) => {
-        const descriptors = getAllProviderDescriptors();
+        const descriptors = getConfiguredProviderDescriptors(deps.config);
         res.json({
           success: true,
           providers: descriptors,
@@ -103,10 +110,16 @@ export function registerProviderRoutes(
           );
         }
 
-        const descriptor = getAllProviderDescriptors().find(
-          d => d.id === trimmed,
-        );
-        if (descriptor && !descriptor.implemented) {
+        const configured = getConfiguredProviderDescriptors(deps.config);
+        const descriptor = configured.find(d => d.id === trimmed);
+        if (!descriptor) {
+          throw new InputError(
+            `Provider "${trimmed}" is not configured. ` +
+              `Add augment.${trimmed} to app-config.yaml first. ` +
+              `Configured providers: ${configured.map(d => d.id).join(', ') || 'none'}`,
+          );
+        }
+        if (!descriptor.implemented) {
           throw new InputError(
             `Provider "${descriptor.displayName}" is not yet implemented. ` +
               `It cannot be activated.`,
@@ -120,6 +133,9 @@ export function registerProviderRoutes(
           try {
             await providerManager.switchProvider(trimmed as ProviderType);
             logger.info(`Provider hot-swapped to "${trimmed}" by ${userRef}`);
+            if (onProviderSwapped) {
+              await onProviderSwapped();
+            }
           } catch (swapError) {
             logger.error(
               `Provider hot-swap to "${trimmed}" failed: ${toErrorMessage(

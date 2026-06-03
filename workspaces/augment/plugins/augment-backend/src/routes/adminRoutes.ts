@@ -62,6 +62,7 @@ export function registerAdminRoutes(
   adminConfig: AdminConfigService,
   onConfigChanged?: () => void,
   providerManager?: import('../providers').ProviderManager,
+  onProviderSwapped?: () => Promise<void>,
 ): void {
   const {
     router,
@@ -86,13 +87,16 @@ export function registerAdminRoutes(
     get provider() {
       return ctx.provider;
     },
-    orchestrationProvider: ctx.orchestrationProvider,
+    get orchestrationProvider() {
+      return ctx.orchestrationProvider;
+    },
     adminConfig,
     providerManager,
     sendRouteError,
     getUserRef,
     requireAdminAccess,
     onConfigChanged,
+    onProviderSwapped,
     sessions,
     missingSessions,
     missingConversations,

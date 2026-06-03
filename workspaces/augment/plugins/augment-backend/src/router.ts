@@ -258,25 +258,49 @@ export async function createRouter({
   // =============================================================================
 
   const providerDescriptor = getProviderDescriptor(providerManager.provider.id);
-  let orchestrationProvider: ResponsesApiProvider | undefined;
-  if (providerDescriptor?.capabilities.agentLifecycle) {
+
+  async function buildOrchestrationFallback(): Promise<
+    ResponsesApiProvider | undefined
+  > {
+    const desc = getProviderDescriptor(providerManager.provider.id);
+    if (!desc?.capabilities.agentLifecycle) return undefined;
     try {
-      orchestrationProvider = new ResponsesApiProvider({
+      const orch = new ResponsesApiProvider({
         logger: logger.child({ provider: 'orchestration-fallback' }),
         config,
         database,
         adminConfig,
       });
-      await orchestrationProvider.initialize();
+      await orch.initialize();
       logger.info(
         'Orchestration fallback provider created and initialized for hybrid routing',
       );
+      return orch;
     } catch (err) {
       logger.warn(
         `Could not create orchestration fallback provider: ${toErrorMessage(err)}`,
       );
+      return undefined;
     }
   }
+
+  let currentOrchestration = await buildOrchestrationFallback();
+  let activeWorkflowService: WorkflowConfigService | undefined;
+
+  const rebuildOrchestration = async () => {
+    const old = currentOrchestration;
+    currentOrchestration = await buildOrchestrationFallback();
+    if (currentOrchestration && activeWorkflowService) {
+      currentOrchestration.setWorkflowService(activeWorkflowService);
+    }
+    if (old && typeof old.shutdown === 'function') {
+      try {
+        await old.shutdown();
+      } catch {
+        /* non-fatal */
+      }
+    }
+  };
 
   const ctx: RouteContext = {
     router,
@@ -285,7 +309,9 @@ export async function createRouter({
     get provider() {
       return providerManager.provider;
     },
-    orchestrationProvider,
+    get orchestrationProvider() {
+      return currentOrchestration;
+    },
     sessions,
     toErrorMessage,
     sendRouteError,
@@ -404,6 +430,20 @@ export async function createRouter({
   }
 
   const workflowService = new WorkflowConfigService(adminConfig, logger);
+  activeWorkflowService = workflowService;
+
+  // Wire workflow service into chat providers so published workflows
+  // execute their designed graph when chatted with from My Agents.
+  if (currentOrchestration) {
+    currentOrchestration.setWorkflowService(workflowService);
+  }
+  const primaryAsResponses = providerManager.provider as
+    | import('./providers/llamastack').ResponsesApiProvider
+    | undefined;
+  if (typeof primaryAsResponses?.setWorkflowService === 'function') {
+    primaryAsResponses.setWorkflowService(workflowService);
+  }
+
   registerWorkflowRoutes(ctx, workflowService, adminConfig);
   registerDocumentRoutes(ctx);
   registerConfigRoutes(ctx, adminConfig);
@@ -411,7 +451,13 @@ export async function createRouter({
   registerConversationRoutes(ctx);
 
   // Admin routes (requireAdminAccess is applied inside registerAdminRoutes)
-  registerAdminRoutes(ctx, adminConfig, onConfigChanged, providerManager);
+  registerAdminRoutes(
+    ctx,
+    adminConfig,
+    onConfigChanged,
+    providerManager,
+    rebuildOrchestration,
+  );
 
   // Provider-specific routes (only when provider has providerRoutes capability)
   if (providerDescriptor?.capabilities.providerRoutes) {

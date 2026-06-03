@@ -34,6 +34,9 @@ function loadSkillsConfig(config: Config) {
   return {
     baseUrl: section.getString('baseUrl'),
     agentImage: section.getOptionalString('agentImage'),
+    defaultInitImage: section.getOptionalString('defaultInitImage'),
+    skipTlsVerify:
+      section.getOptionalBoolean('skipTlsVerify') ?? false,
     advisorUrl: section.getOptionalString('advisorUrl'),
     llmBaseUrl: section.getOptionalString('llmBaseUrl'),
     llmModel: section.getOptionalString('llmModel'),
@@ -42,6 +45,7 @@ function loadSkillsConfig(config: Config) {
       name: rt.getString('name'),
       description: rt.getOptionalString('description') ?? '',
       image: rt.getOptionalString('image'),
+      initImage: rt.getOptionalString('initImage'),
       language: rt.getOptionalString('language'),
       footprint: rt.getOptionalString('footprint'),
       features: rt.getOptionalStringArray('features'),
@@ -178,8 +182,28 @@ export function registerSkillsRoutes(
         const runtimeEntry = skillsConfig.runtimes.find(
           rt => rt.id === runtime,
         );
+        if (!runtimeEntry) {
+          throw new InputError(
+            `Unknown runtime "${runtime}". Configure it under augment.skillsMarketplace.runtimes in app-config.yaml`,
+          );
+        }
+
         const runtimeImage =
-          runtimeEntry?.image ?? 'ghcr.io/redhat-et/docsclaw:latest';
+          runtimeEntry.image ?? skillsConfig.agentImage;
+        if (!runtimeImage) {
+          throw new InputError(
+            `No container image configured for runtime "${runtime}". Set "image" on the runtime entry or "agentImage" under augment.skillsMarketplace in app-config.yaml`,
+          );
+        }
+
+        const initImage =
+          runtimeEntry.initImage ?? skillsConfig.defaultInitImage;
+        if (!initImage) {
+          throw new InputError(
+            `No init container image configured for runtime "${runtime}". Set "initImage" on the runtime entry or "defaultInitImage" under augment.skillsMarketplace in app-config.yaml. ` +
+              'Use registry.access.redhat.com/ubi9/ubi-minimal:latest for OpenShift or alpine:3.23 for vanilla Kubernetes.',
+          );
+        }
 
         const agentName = name
           .toLocaleLowerCase('en-US')
@@ -193,6 +217,8 @@ export function registerSkillsRoutes(
           systemPrompt: systemPrompt ?? '',
           llmModel: llmModel ?? skillsConfig.llmModel ?? 'granite-3.3-8b',
           runtimeImage,
+          initImage,
+          skipTlsVerify: skillsConfig.skipTlsVerify,
           llmBaseUrl: skillsConfig.llmBaseUrl,
           llmProvider: 'openai',
         };
@@ -312,7 +338,7 @@ export function registerSkillsRoutes(
               configs.push({
                 agentId,
                 published: false,
-                visible: false,
+                visible: true,
                 featured: false,
                 lifecycleStage: 'draft',
                 version: 0,
@@ -321,7 +347,7 @@ export function registerSkillsRoutes(
                 chatEndpoint,
                 namespace,
                 displayName: name,
-                description: `Skill-based agent with ${skills.length} skills`,
+                description: `Skill-based agent with ${skills.length} skill${skills.length !== 1 ? 's' : ''}`,
                 framework: 'docsclaw',
               } as ChatAgentConfig);
               await adminConfig.set('chatAgents', configs, userRef);

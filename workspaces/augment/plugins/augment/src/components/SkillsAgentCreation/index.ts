@@ -21,5 +21,6 @@ export type { SkillBrowserProps, SkillDefinition } from './SkillBrowser';
 export { SkillAgentConfigForm } from './SkillAgentConfigForm';
 export type {
   SkillAgentConfigFormProps,
+  SkillAgentDeployConfig,
   SkillForDeploy,
 } from './SkillAgentConfigForm';

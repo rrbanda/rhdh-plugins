@@ -16,8 +16,9 @@
 
 /**
  * Generates Kubernetes manifests for skill-based agents.
- * Deployment uses an alpine init container that fetches each skill's OCI layer
- * from quay.io, then the runtime container serves the agent with those skills.
+ * Deployment uses a configurable init container (defaults to UBI 9 Minimal)
+ * that fetches each skill's OCI layer from the registry, then the runtime
+ * container serves the agent with those skills.
  */
 
 export interface SkillRef {
@@ -36,6 +37,8 @@ export interface SkillAgentManifestInput {
   systemPrompt: string;
   llmModel: string;
   runtimeImage: string;
+  initImage: string;
+  skipTlsVerify?: boolean;
   llmBaseUrl?: string;
   llmProvider?: string;
 }
@@ -61,7 +64,16 @@ function buildLabels(name: string): Record<string, string> {
   };
 }
 
-function buildInitContainerScript(skills: SkillRef[]): string {
+/**
+ * Builds a shell script that works on both UBI (curl) and Alpine (wget).
+ * Detects which HTTP client is available at runtime. When skipTls is true,
+ * adds --insecure / --no-check-certificate for internal registries with
+ * private CA certificates (common in disconnected environments).
+ */
+function buildInitContainerScript(
+  skills: SkillRef[],
+  skipTls = false,
+): string {
   const fetchCommands = skills.map(s => {
     const slug = (s.skillName ?? s.name)
       .toLocaleLowerCase('en-US')
@@ -76,9 +88,9 @@ function buildInitContainerScript(skills: SkillRef[]): string {
     return [
       `echo "Fetching skill: ${slug} from ${ref}"`,
       `mkdir -p /skills/${slug}`,
-      `MANIFEST=$(wget -qO- "https://${registryHost}/v2/${repoPath}/manifests/${tag}" --header="Accept: application/vnd.oci.image.manifest.v1+json" 2>/dev/null)`,
+      `MANIFEST=$(fetch_url "https://${registryHost}/v2/${repoPath}/manifests/${tag}" "Accept: application/vnd.oci.image.manifest.v1+json")`,
       `DIGEST=$(echo "$MANIFEST" | grep -o '"sha256:[a-f0-9]*"' | tail -1 | tr -d '"')`,
-      `wget -qO- "https://${registryHost}/v2/${repoPath}/blobs/$DIGEST" > /tmp/${slug}.blob 2>/dev/null`,
+      `fetch_blob "https://${registryHost}/v2/${repoPath}/blobs/$DIGEST" /tmp/${slug}.blob`,
       `if tar tzf /tmp/${slug}.blob >/dev/null 2>&1; then`,
       `  tar xzf /tmp/${slug}.blob -C /skills/${slug}/`,
       `else`,
@@ -92,7 +104,32 @@ function buildInitContainerScript(skills: SkillRef[]): string {
   return [
     '#!/bin/sh',
     'set -e',
-    'apk add --no-cache wget ca-certificates >/dev/null 2>&1 || true',
+    '',
+    '# Detect HTTP client: prefer curl (UBI), fall back to wget (Alpine)',
+    'if command -v curl >/dev/null 2>&1; then',
+    ...(skipTls
+      ? [
+          '  fetch_url() { curl -sSL -k -H "$2" "$1"; }',
+          '  fetch_blob() { curl -sSL -k -o "$2" "$1"; }',
+        ]
+      : [
+          '  fetch_url() { curl -sSL -H "$2" "$1"; }',
+          '  fetch_blob() { curl -sSL -o "$2" "$1"; }',
+        ]),
+    'elif command -v wget >/dev/null 2>&1; then',
+    ...(skipTls
+      ? [
+          '  fetch_url() { wget --no-check-certificate -qO- --header="$2" "$1" 2>/dev/null; }',
+          '  fetch_blob() { wget --no-check-certificate -qO "$2" "$1" 2>/dev/null; }',
+        ]
+      : [
+          '  fetch_url() { wget -qO- --header="$2" "$1" 2>/dev/null; }',
+          '  fetch_blob() { wget -qO "$2" "$1" 2>/dev/null; }',
+        ]),
+    'else',
+    '  echo "ERROR: neither curl nor wget found in init image" >&2; exit 1',
+    'fi',
+    '',
     ...fetchCommands,
     'echo "All skills fetched successfully"',
   ].join('\n');
@@ -101,8 +138,16 @@ function buildInitContainerScript(skills: SkillRef[]): string {
 export function buildDeploymentManifest(
   input: SkillAgentManifestInput,
 ): K8sManifest {
-  const { name, namespace, runtimeImage, skills } = input;
+  const { name, namespace, runtimeImage, initImage, skills } = input;
   const labels = buildLabels(name);
+
+  const containerSecurityContext = {
+    allowPrivilegeEscalation: false,
+    capabilities: { drop: ['ALL'] },
+    readOnlyRootFilesystem: true,
+    runAsNonRoot: true,
+    seccompProfile: { type: 'RuntimeDefault' },
+  };
 
   return {
     apiVersion: 'apps/v1',
@@ -114,18 +159,31 @@ export function buildDeploymentManifest(
       template: {
         metadata: { labels },
         spec: {
+          securityContext: { runAsNonRoot: true },
           initContainers: [
             {
               name: 'fetch-skills',
-              image: 'alpine:3.20',
-              command: ['sh', '-c', buildInitContainerScript(skills)],
-              volumeMounts: [{ name: 'skills', mountPath: '/skills' }],
+              image: initImage,
+              command: [
+                'sh',
+                '-c',
+                buildInitContainerScript(skills, input.skipTlsVerify),
+              ],
+              securityContext: {
+                ...containerSecurityContext,
+                readOnlyRootFilesystem: false,
+              },
+              volumeMounts: [
+                { name: 'skills', mountPath: '/skills' },
+                { name: 'tmp', mountPath: '/tmp' },
+              ],
             },
           ],
           containers: [
             {
               name: 'agent-runtime',
               image: runtimeImage,
+              securityContext: containerSecurityContext,
               args: [
                 'serve',
                 '--config-dir',
@@ -134,8 +192,21 @@ export function buildDeploymentManifest(
                 '/skills',
                 '--listen-plain-http',
               ],
-              ports: [{ containerPort: 8000, protocol: 'TCP' }],
+              ports: [
+                { containerPort: 8000, protocol: 'TCP', name: 'http' },
+                { containerPort: 8100, protocol: 'TCP', name: 'health' },
+              ],
               envFrom: [{ secretRef: { name: `${name}-llm-secret` } }],
+              livenessProbe: {
+                httpGet: { path: '/health', port: 8100 },
+                initialDelaySeconds: 5,
+                periodSeconds: 10,
+              },
+              readinessProbe: {
+                httpGet: { path: '/ready', port: 8100 },
+                initialDelaySeconds: 3,
+                periodSeconds: 5,
+              },
               volumeMounts: [
                 {
                   name: 'agent-config',

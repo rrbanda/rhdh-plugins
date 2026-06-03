@@ -16,6 +16,7 @@
 
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { ChatRequest, ChatResponse } from '../../types';
+import type { WorkflowDefinition } from '@red-hat-developer-hub/backstage-plugin-augment-common';
 import { WorkflowHydrator } from './workflow/WorkflowHydrator';
 import { LlamaStackProvider } from './openai-agents-adapters/LlamaStackProvider';
 import { toChatResponse } from './openai-agents-adapters/responseMapper';
@@ -26,6 +27,7 @@ import type { ResponsesApiService } from './ResponsesApiService';
 import type { ChatDepsBuilder } from './ChatDepsBuilder';
 import type { AgentGraphManager } from './AgentGraphManager';
 import type { OpenAIAgentsOrchestrator } from './openai-agents-adapters/OpenAIAgentsOrchestrator';
+import type { WorkflowConfigService } from '../../services/WorkflowConfigService';
 
 export interface ChatOpsContext {
   logger: LoggerService;
@@ -34,6 +36,54 @@ export interface ChatOpsContext {
   getOrchestrator: () => OpenAIAgentsOrchestrator;
   requireAgentGraphManager: () => AgentGraphManager;
   ensureInitialized: () => void;
+  workflowService?: WorkflowConfigService;
+}
+
+/**
+ * Extracts a workflow ID from a model string. Handles two formats:
+ * - Direct workflow ID: "wf-1234567890"
+ * - Per-node agent ID: "wf/wf-1234567890/agent_1" -> "wf-1234567890"
+ */
+function extractWorkflowId(model: string): string | undefined {
+  if (model.startsWith('wf/')) {
+    const parts = model.split('/');
+    return parts.length >= 2 ? parts[1] : undefined;
+  }
+  if (model.startsWith('wf-')) {
+    return model;
+  }
+  return undefined;
+}
+
+async function resolveWorkflowDefinition(
+  ctx: ChatOpsContext,
+  model: string | undefined,
+  agentConfigs: Record<string, any>,
+  defaultAgentKey: string,
+  maxTurns: number,
+): Promise<WorkflowDefinition> {
+  if (model && ctx.workflowService) {
+    const workflowId = extractWorkflowId(model);
+    if (workflowId) {
+      try {
+        const stored = await ctx.workflowService.getWorkflow(workflowId);
+        if (stored.status === 'published') {
+          ctx.logger.info(
+            `[Chat] Using published workflow "${stored.name}" (${workflowId})`,
+          );
+          const def = { ...stored };
+          def.settings = { ...def.settings, maxTurns };
+          return def;
+        }
+      } catch {
+        // Workflow not found — fall through to flat agents migration
+      }
+    }
+  }
+
+  const def = migrateAgentConfigsToWorkflow(agentConfigs, defaultAgentKey);
+  def.settings.maxTurns = maxTurns;
+  return def;
 }
 
 export async function coordinatorChat(
@@ -52,11 +102,13 @@ export async function coordinatorChat(
     agentConfigs[key] = resolved.config;
   }
 
-  const workflowDef = migrateAgentConfigsToWorkflow(
+  const workflowDef = await resolveWorkflowDefinition(
+    ctx,
+    request.model,
     agentConfigs,
     snapshot.defaultAgentKey,
+    snapshot.maxTurns,
   );
-  workflowDef.settings.maxTurns = snapshot.maxTurns;
 
   const provider = new LlamaStackProvider(
     ctx.chatService,
@@ -95,11 +147,13 @@ export async function coordinatorChatStream(
     agentConfigs[key] = resolved.config;
   }
 
-  const workflowDef = migrateAgentConfigsToWorkflow(
+  const workflowDef = await resolveWorkflowDefinition(
+    ctx,
+    request.model,
     agentConfigs,
     snapshot.defaultAgentKey,
+    snapshot.maxTurns,
   );
-  workflowDef.settings.maxTurns = snapshot.maxTurns;
 
   const provider = new LlamaStackProvider(
     ctx.chatService,

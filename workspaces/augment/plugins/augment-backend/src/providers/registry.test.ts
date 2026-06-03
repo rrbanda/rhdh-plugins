@@ -22,8 +22,8 @@ import {
 } from './registry';
 
 describe('provider registry', () => {
-  it('PROVIDER_REGISTRY contains googleadk and kagenti entries', () => {
-    expect(PROVIDER_REGISTRY.has('googleadk')).toBe(true);
+  it('PROVIDER_REGISTRY contains llamastack and kagenti entries', () => {
+    expect(PROVIDER_REGISTRY.has('llamastack')).toBe(true);
     expect(PROVIDER_REGISTRY.has('kagenti')).toBe(true);
   });
 
@@ -38,23 +38,15 @@ describe('provider registry', () => {
     expect(d && d.implemented).toBe(true);
   });
 
-  it('getProviderDescriptor("googleadk") returns descriptor with implemented: false', () => {
-    const d = getProviderDescriptor('googleadk');
-    expect(d).toBeDefined();
-    expect(d && d.id).toBe('googleadk');
-    expect(d && d.implemented).toBe(false);
-  });
-
   it('getProviderDescriptor("unknown") returns undefined', () => {
     expect(getProviderDescriptor('unknown')).toBeUndefined();
   });
 
   it('getAllProviderDescriptors returns all providers sorted by displayName', () => {
     const all = getAllProviderDescriptors();
-    expect(all).toHaveLength(3);
-    expect(all[0].displayName).toBe('Google ADK');
-    expect(all[1].displayName).toBe('Llama Stack');
-    expect(all[2].displayName).toBe('Red Hat AI');
+    expect(all).toHaveLength(2);
+    expect(all[0].displayName).toBe('Llama Stack');
+    expect(all[1].displayName).toBe('Red Hat OpenShift AI');
   });
 
   it('isValidProviderType("kagenti") returns true', () => {
@@ -63,17 +55,6 @@ describe('provider registry', () => {
 
   it('isValidProviderType("unknown") returns false', () => {
     expect(isValidProviderType('unknown')).toBe(false);
-  });
-
-  it('GoogleADK descriptor has chat, conversations, mcpTools true and others false', () => {
-    const d = getProviderDescriptor('googleadk');
-    expect(d).toBeDefined();
-    expect(d?.capabilities.chat).toBe(true);
-    expect(d?.capabilities.conversations).toBe(true);
-    expect(d?.capabilities.mcpTools).toBe(true);
-    expect(d?.capabilities.rag).toBe(false);
-    expect(d?.capabilities.safety).toBe(false);
-    expect(d?.capabilities.evaluation).toBe(false);
   });
 
   it('Kagenti has configFields with baseUrl', () => {

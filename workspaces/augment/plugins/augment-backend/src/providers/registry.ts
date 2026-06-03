@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { RootConfigService } from '@backstage/backend-plugin-api';
 import type {
   ProviderType,
   ProviderDescriptor,
@@ -58,37 +59,12 @@ const BUILT_IN_PROVIDERS: ReadonlyMap<string, ProviderDescriptor> = new Map<
     },
   ],
   [
-    'googleadk',
-    {
-      id: 'googleadk',
-      displayName: 'Google ADK',
-      description:
-        'Google Agent Development Kit -- build agents with Gemini models',
-      implemented: false,
-      capabilities: {
-        chat: true,
-        rag: false,
-        safety: false,
-        evaluation: false,
-        conversations: true,
-        mcpTools: true,
-        tools: false,
-        toolLifecycle: false,
-        agentLifecycle: false,
-        devSpaces: false,
-        contextHydration: false,
-        providerRoutes: false,
-      },
-      configFields: [],
-    },
-  ],
-  [
     'kagenti',
     {
       id: 'kagenti',
-      displayName: 'Red Hat AI',
+      displayName: 'Red Hat OpenShift AI',
       description:
-        'Red Hat AI -- Kubernetes-native AI agent operations platform',
+        'Red Hat OpenShift AI -- Kubernetes-native AI agent operations platform',
       implemented: true,
       capabilities: {
         chat: true,
@@ -224,4 +200,37 @@ export function getAllProviderDescriptors(): readonly ProviderDescriptor[] {
  */
 export function isValidProviderType(id: string): id is ProviderType {
   return BUILT_IN_PROVIDERS.has(id) || dynamicProviders.has(id);
+}
+
+/**
+ * Get provider descriptors filtered for the admin UI dropdown.
+ *
+ * - LlamaStack is hidden (it is an internal inference layer, not a
+ *   user-selectable provider)
+ * - Built-in providers only appear if their config section exists in YAML
+ * - Display names can be overridden via `displayName` in the provider's
+ *   config section
+ * - Extension providers are always shown
+ *
+ * @param config - Root config service to check provider config presence
+ * @returns Filtered and enriched provider descriptors
+ * @internal
+ */
+export function getConfiguredProviderDescriptors(
+  config: RootConfigService,
+): ProviderDescriptor[] {
+  const all = getAllProviderDescriptors();
+  return all
+    .filter(desc => {
+      if (desc.id === 'llamastack') return false;
+      if (BUILT_IN_PROVIDERS.has(desc.id)) {
+        return !!config.getOptionalConfig(`augment.${desc.id}`);
+      }
+      return true;
+    })
+    .map(desc => {
+      const section = config.getOptionalConfig(`augment.${desc.id}`);
+      const overrideName = section?.getOptionalString('displayName');
+      return overrideName ? { ...desc, displayName: overrideName } : desc;
+    });
 }

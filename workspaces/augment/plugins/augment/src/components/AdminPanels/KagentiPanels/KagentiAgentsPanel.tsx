@@ -985,6 +985,7 @@ export function KagentiAgentsPanel({
 
       <AgentCreateIntentDialog
         open={intentOpen}
+        namespace={namespace}
         onClose={() => setIntentOpen(false)}
         onSelectDeploy={method => {
           setIntentOpen(false);
