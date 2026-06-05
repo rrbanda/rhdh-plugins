@@ -227,7 +227,7 @@ export const AgentWizardDeployStep: FC<AgentWizardDeployStepProps> = ({
             onChange={e => setRegistrySecret(e.target.value)}
             size="small"
             sx={{ flex: 1 }}
-            helperText="Secret for registry push credentials."
+            helperText="K8s Secret for push credentials. Leave empty if the secret is already linked to the namespace's service account."
           />
         </Stack>
         <Stack direction="row" spacing={2}>
