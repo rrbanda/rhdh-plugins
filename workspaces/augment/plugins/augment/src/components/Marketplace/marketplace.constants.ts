@@ -19,11 +19,11 @@
  * Change these to adjust grid density, card sizing, and pagination.
  */
 
-export const GRID_COLUMNS = { xs: 1, sm: 2, md: 3, lg: 3 } as const;
+export const GRID_COLUMNS = { xs: 1, sm: 2, md: 3, lg: 3, xl: 4 } as const;
 export const GRID_GAP = 2.5;
 export const CARD_HEIGHT = 150;
 export const PAGE_SIZE = 16;
-export const MAX_WIDTH = 1200;
+export const MAX_WIDTH = 1600;
 
 export const HERO_PADDING = { xs: 2.5, sm: 3 } as const;
 export const SEARCH_PADDING = { py: 1, px: 1.5 } as const;

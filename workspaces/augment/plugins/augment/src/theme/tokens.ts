@@ -532,8 +532,8 @@ export const layout = {
     widthExpanded: '340px',
   },
   content: {
-    maxWidth: '1200px',
-    adminMaxWidth: 960,
+    maxWidth: '1600px',
+    adminMaxWidth: 1200,
   },
 } as const;
 

@@ -101,6 +101,7 @@ export function gridContainerSx(isDark: boolean): SxProps<Theme> {
       sm: `repeat(${GRID_COLUMNS.sm}, 1fr)`,
       md: `repeat(${GRID_COLUMNS.md}, 1fr)`,
       lg: `repeat(${GRID_COLUMNS.lg}, 1fr)`,
+      xl: `repeat(${GRID_COLUMNS.xl}, 1fr)`,
     },
     gap: GRID_GAP,
     alignContent: 'start',
@@ -213,6 +214,7 @@ export function avatarSx(isDark: boolean, color: string): SxProps<Theme> {
 export const pageSx: SxProps<Theme> = {
   maxWidth: MAX_WIDTH,
   width: '100%',
+  mx: 'auto',
   flex: 1,
   minHeight: 0,
   display: 'flex',
