@@ -44,6 +44,8 @@ import type {
   WorkloadType,
 } from './agentWizardTypes';
 
+import type { AuthBridgeMode, MtlsMode } from './agentWizardTypes';
+
 interface AgentWizardRuntimeStepProps {
   workloadType: WorkloadType;
   setWorkloadType: (v: WorkloadType) => void;
@@ -64,7 +66,13 @@ interface AgentWizardRuntimeStepProps {
   setAuthBridgeEnabled: (v: boolean) => void;
   spireEnabled: boolean;
   setSpireEnabled: (v: boolean) => void;
+  authBridgeMode: AuthBridgeMode | '';
+  setAuthBridgeMode: (v: AuthBridgeMode | '') => void;
+  mtlsMode: MtlsMode | '';
+  setMtlsMode: (v: MtlsMode | '') => void;
 }
+
+const SELECT_MENU_PROPS_INLINE = { PaperProps: { sx: { maxHeight: 240 } } };
 
 export const AgentWizardRuntimeStep: FC<AgentWizardRuntimeStepProps> = ({
   workloadType,
@@ -86,6 +94,10 @@ export const AgentWizardRuntimeStep: FC<AgentWizardRuntimeStepProps> = ({
   setAuthBridgeEnabled,
   spireEnabled,
   setSpireEnabled,
+  authBridgeMode,
+  setAuthBridgeMode,
+  mtlsMode,
+  setMtlsMode,
 }) => (
   <Stack spacing={3}>
     <FormControl data-tour="runtime-workload">
@@ -340,5 +352,51 @@ export const AgentWizardRuntimeStep: FC<AgentWizardRuntimeStepProps> = ({
         />
       </Tooltip>
     </Stack>
+
+    {authBridgeEnabled && (
+      <Stack direction="row" spacing={2}>
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel>Auth Bridge Mode</InputLabel>
+          <Select
+            label="Auth Bridge Mode"
+            value={authBridgeMode}
+            onChange={e =>
+              setAuthBridgeMode(e.target.value as AuthBridgeMode | '')
+            }
+            MenuProps={SELECT_MENU_PROPS_INLINE}
+          >
+            <MenuItem value="">
+              <em>Default (platform)</em>
+            </MenuItem>
+            <MenuItem value="proxy-sidecar">Proxy Sidecar</MenuItem>
+            <MenuItem value="envoy-sidecar">Envoy Sidecar</MenuItem>
+            <MenuItem value="lite">Lite</MenuItem>
+            <MenuItem value="waypoint">Waypoint</MenuItem>
+          </Select>
+          <FormHelperText>
+            Identity propagation mode. Leave blank for platform default.
+          </FormHelperText>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>mTLS Mode</InputLabel>
+          <Select
+            label="mTLS Mode"
+            value={mtlsMode}
+            onChange={e => setMtlsMode(e.target.value as MtlsMode | '')}
+            MenuProps={SELECT_MENU_PROPS_INLINE}
+          >
+            <MenuItem value="">
+              <em>Default (platform)</em>
+            </MenuItem>
+            <MenuItem value="disabled">Disabled</MenuItem>
+            <MenuItem value="permissive">Permissive</MenuItem>
+            <MenuItem value="strict">Strict</MenuItem>
+          </Select>
+          <FormHelperText>
+            Mutual TLS enforcement between services.
+          </FormHelperText>
+        </FormControl>
+      </Stack>
+    )}
   </Stack>
 );

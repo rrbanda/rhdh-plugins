@@ -16,6 +16,7 @@
 
 import * as http from 'http';
 import * as https from 'https';
+import { AsyncLocalStorage } from 'async_hooks';
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { KeycloakTokenManager } from './KeycloakTokenManager';
 import type {
@@ -90,7 +91,7 @@ function stripTrailingSlashes(s: string): string {
 
 export class KagentiApiClient {
   private readonly ctx: RequestCoreContext;
-  private _requestContext: KagentiRequestContext = {};
+  private static readonly _als = new AsyncLocalStorage<KagentiRequestContext>();
 
   constructor(options: KagentiApiClientOptions) {
     const baseUrl = stripTrailingSlashes(options.baseUrl);
@@ -111,12 +112,12 @@ export class KagentiApiClient {
       streamTimeoutMs: options.streamTimeoutMs ?? 300_000,
       maxRetries: options.maxRetries ?? 3,
       retryBaseDelayMs: options.retryBaseDelayMs ?? 1000,
-      getUserRef: () => this._requestContext.userRef,
+      getUserRef: () => KagentiApiClient._als.getStore()?.userRef,
     };
   }
 
   setRequestContext(ctx: KagentiRequestContext): void {
-    this._requestContext = ctx;
+    KagentiApiClient._als.enterWith(ctx);
   }
   destroy(): void {
     this.ctx.httpAgent.destroy();

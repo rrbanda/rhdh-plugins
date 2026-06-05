@@ -58,8 +58,13 @@ export function createSecurityMiddleware(deps: SecurityDeps) {
 
   async function getUserRef(req: express.Request): Promise<string> {
     try {
-      const credentials = await httpAuth.credentials(req, { allow: ['user'] });
-      return credentials.principal.userEntityRef;
+      const credentials = await httpAuth.credentials(req, {
+        allow: ['user', 'none'],
+      });
+      if (credentials.principal.type === 'user') {
+        return credentials.principal.userEntityRef;
+      }
+      return GUEST_USER_REF;
     } catch {
       return GUEST_USER_REF;
     }

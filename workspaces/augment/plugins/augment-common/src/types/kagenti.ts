@@ -114,6 +114,29 @@ export interface KagentiShipwrightConfig {
   buildTimeout?: string;
 }
 
+/** Auth bridge sidecar modes supported by Kagenti. @public */
+export type KagentiAuthBridgeMode =
+  | 'proxy-sidecar'
+  | 'envoy-sidecar'
+  | 'lite'
+  | 'waypoint';
+
+/** mTLS enforcement modes. @public */
+export type KagentiMtlsMode = 'disabled' | 'permissive' | 'strict';
+
+/** Outbound token‑exchange policy. @public */
+export type KagentiOutboundPolicy = 'passthrough' | 'exchange';
+
+/**
+ * A single outbound token‑exchange route for the authproxy‑routes ConfigMap.
+ * @public
+ */
+export interface KagentiOutboundRoute {
+  host: string;
+  target_audience: string;
+  token_scopes?: string;
+}
+
 /** @public */
 export interface KagentiCreateAgentRequest {
   name: string;
@@ -137,6 +160,13 @@ export interface KagentiCreateAgentRequest {
   authBridgeEnabled?: boolean;
   spireEnabled?: boolean;
   shipwrightConfig?: KagentiShipwrightConfig;
+  authBridgeMode?: KagentiAuthBridgeMode;
+  mtlsMode?: KagentiMtlsMode;
+  outboundPortsExclude?: string;
+  inboundPortsExclude?: string;
+  defaultOutboundPolicy?: KagentiOutboundPolicy;
+  outboundRoutes?: KagentiOutboundRoute[];
+  persistentStorage?: KagentiPersistentStorageConfig;
 }
 
 /** @public */
@@ -253,12 +283,18 @@ export interface KagentiFeatureFlags {
   sandbox: boolean;
   integrations: boolean;
   triggers: boolean;
+  builds?: boolean;
+  agentSandbox?: boolean;
+  skills?: boolean;
+  authbridgeAPI?: boolean;
+  admin?: boolean;
 }
 
 /** @public */
 export interface KagentiDashboardConfig {
   traces?: string;
   network?: string;
+  mlflow?: string;
   mcpInspector?: string;
   mcpProxy?: string;
   keycloakConsole?: string;

@@ -40,6 +40,10 @@ export async function getVisibleNamespaces(
       namespaces = [config.namespace];
     }
 
+    if (config.namespace && !namespaces.includes(config.namespace)) {
+      namespaces.push(config.namespace);
+    }
+
     return namespaces;
   } catch (err) {
     logger.warn(

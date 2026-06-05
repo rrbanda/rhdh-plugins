@@ -153,8 +153,11 @@ export function AgentLifecycleDetail({
   const handleDelete = useCallback(async () => {
     setDeleteLoading(true);
     try {
-      await api.deleteKagentiAgent(agent.namespace, agent.name);
-      await api.deleteAgentConfig(agentId).catch(() => {});
+      try {
+        await api.deleteKagentiAgent(agent.namespace, agent.name);
+      } catch {
+        await api.deleteAgentConfig(agentId);
+      }
       setPublishToast('Agent deleted');
       onDeleted?.();
     } catch (err) {

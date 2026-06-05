@@ -106,17 +106,32 @@ export function WizardShell({
         maxWidth="md"
         fullWidth
         aria-labelledby={titleId}
+        PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle id={titleId}>
-          {title}
+        <DialogTitle id={titleId} sx={{ pb: 0.5 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
+            {title}
+          </Typography>
           {subtitle && (
-            <Typography variant="body2" color="text.secondary">
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 0.25 }}
+            >
               {subtitle}
             </Typography>
           )}
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
-          <Stepper activeStep={activeStep} sx={{ mb: 3, mt: 1 }}>
+          <Stepper
+            activeStep={activeStep}
+            sx={{
+              mb: 2.5,
+              mt: 1.5,
+              '& .MuiStepLabel-label': { fontWeight: 600, fontSize: '0.85rem' },
+              '& .MuiStepLabel-label.Mui-active': { fontWeight: 700 },
+            }}
+          >
             {steps.map(label => (
               <Step key={label}>
                 <StepLabel
@@ -134,7 +149,7 @@ export function WizardShell({
             <Typography
               variant="body2"
               color="text.secondary"
-              sx={{ mb: 2, mt: -1 }}
+              sx={{ mb: 2.5, fontSize: '0.85rem', lineHeight: 1.5 }}
             >
               {stepDescriptions[steps[activeStep]]}
             </Typography>
@@ -154,14 +169,9 @@ export function WizardShell({
             <Button
               onClick={onClose}
               disabled={submitting}
-              startIcon={
-                <Typography component="span" sx={{ fontSize: '1.1em' }}>
-                  &larr;
-                </Typography>
-              }
-              sx={{ textTransform: 'none' }}
+              sx={{ textTransform: 'none', color: 'text.secondary' }}
             >
-              {activeStep === 0 ? 'Back' : 'Cancel'}
+              Cancel
             </Button>
             <Box sx={{ display: 'flex', gap: 1 }}>
               {activeStep > 0 && (
@@ -178,7 +188,13 @@ export function WizardShell({
                   variant="contained"
                   onClick={onNext}
                   disabled={submitting}
-                  sx={{ textTransform: 'none' }}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderRadius: 2,
+                    px: 3,
+                    boxShadow: 'none',
+                  }}
                 >
                   Next
                 </Button>
@@ -192,7 +208,13 @@ export function WizardShell({
                       <CircularProgress size={18} color="inherit" />
                     ) : undefined
                   }
-                  sx={{ textTransform: 'none' }}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderRadius: 2,
+                    px: 3,
+                    boxShadow: 'none',
+                  }}
                 >
                   {submitting ? submittingLabel : submitLabel}
                 </Button>

@@ -165,16 +165,17 @@ export function cardSx(
     bgcolor: isDark
       ? alpha(theme.palette.background.paper, 0.5)
       : theme.palette.background.paper,
-    border: `1px solid ${alpha(isDark ? theme.palette.common.white : theme.palette.common.black, isDark ? 0.07 : 0.05)}`,
+    border: `1px solid ${alpha(accentColor, isDark ? 0.25 : 0.15)}`,
+    borderTop: `3px solid ${alpha(accentColor, isDark ? 0.6 : 0.5)}`,
     boxShadow: isDark
       ? `0 1px 4px ${alpha('#000', 0.15)}`
-      : `0 1px 4px ${alpha('#000', 0.03)}`,
+      : `0 1px 4px ${alpha('#000', 0.04)}`,
     '&:hover': {
       transform: 'translateY(-2px)',
-      borderColor: alpha(accentColor, isDark ? 0.35 : 0.25),
+      borderColor: alpha(accentColor, isDark ? 0.45 : 0.35),
       boxShadow: isDark
-        ? `0 6px 20px ${alpha('#000', 0.3)}, 0 0 0 1px ${alpha(accentColor, 0.15)}`
-        : `0 6px 20px ${alpha('#000', 0.06)}, 0 0 0 1px ${alpha(accentColor, 0.12)}`,
+        ? `0 6px 20px ${alpha('#000', 0.3)}, 0 0 0 1px ${alpha(accentColor, 0.2)}`
+        : `0 6px 20px ${alpha('#000', 0.06)}, 0 0 0 1px ${alpha(accentColor, 0.15)}`,
     },
   };
 }

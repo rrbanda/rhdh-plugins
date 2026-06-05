@@ -19,7 +19,7 @@
  * Change these to adjust grid density, card sizing, and pagination.
  */
 
-export const GRID_COLUMNS = { xs: 1, sm: 2, md: 3, lg: 4 } as const;
+export const GRID_COLUMNS = { xs: 1, sm: 2, md: 3, lg: 3 } as const;
 export const GRID_GAP = 2.5;
 export const CARD_HEIGHT = 150;
 export const PAGE_SIZE = 16;
@@ -45,6 +45,7 @@ export const FRAMEWORK_COLORS: Record<string, string> = {
   GoogleADK: '#3b82f6',
   LangGraph: '#8b5cf6',
   llamastack: '#f59e0b',
+  ogx: '#f59e0b',
   docsclaw: '#009596',
   Other: '#6b7280',
 };
@@ -53,7 +54,7 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   ADK: 'ADK',
   GoogleADK: 'Google ADK',
   LangGraph: 'LangGraph',
-  llamastack: 'Llama Stack',
+  llamastack: 'OGX',
   docsclaw: 'DocsClaw',
 };
 

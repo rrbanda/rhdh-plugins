@@ -105,6 +105,7 @@ export interface UseAgentWizardFormReturn {
   setImageTag: (v: string) => void;
   buildStrategy: string;
   setBuildStrategy: (v: string) => void;
+  buildsAvailable: boolean;
   buildStrategies: KagentiBuildStrategy[];
   buildStrategyError: string | null;
   startCommand: string;
@@ -136,6 +137,12 @@ export interface UseAgentWizardFormReturn {
   setAuthBridgeEnabled: (v: boolean) => void;
   spireEnabled: boolean;
   setSpireEnabled: (v: boolean) => void;
+  authBridgeMode: import('./agentWizardTypes').AuthBridgeMode | '';
+  setAuthBridgeMode: (
+    v: import('./agentWizardTypes').AuthBridgeMode | '',
+  ) => void;
+  mtlsMode: import('./agentWizardTypes').MtlsMode | '';
+  setMtlsMode: (v: import('./agentWizardTypes').MtlsMode | '') => void;
   duplicateEnvNames: Set<string>;
   portErrors: Map<number, string>;
 }
@@ -171,7 +178,7 @@ export function useAgentWizardForm(
   const [name, setName] = useState('');
   const [namespace, setNamespace] = useState(namespaceProp ?? '');
   const [protocol, setProtocol] = useState('a2a');
-  const [framework, setFramework] = useState('ADK');
+  const [framework, setFramework] = useState('LangGraph');
   const [availableNamespaces, setAvailableNamespaces] = useState<string[]>([]);
 
   // Step 1
@@ -188,6 +195,7 @@ export function useAgentWizardForm(
   const [registrySecret, setRegistrySecret] = useState('');
   const [imageTag, setImageTag] = useState('');
   const [buildStrategy, setBuildStrategy] = useState('');
+  const [buildsAvailable, setBuildsAvailable] = useState(true);
   const [buildStrategies, setBuildStrategies] = useState<
     KagentiBuildStrategy[]
   >([]);
@@ -206,6 +214,12 @@ export function useAgentWizardForm(
   const [createHttpRoute, setCreateHttpRoute] = useState(false);
   const [authBridgeEnabled, setAuthBridgeEnabled] = useState(true);
   const [spireEnabled, setSpireEnabled] = useState(false);
+  const [authBridgeMode, setAuthBridgeMode] = useState<
+    import('./agentWizardTypes').AuthBridgeMode | ''
+  >('');
+  const [mtlsMode, setMtlsMode] = useState<
+    import('./agentWizardTypes').MtlsMode | ''
+  >('');
 
   // ---------------------------------------------------------------------------
   // Polling helpers
@@ -234,7 +248,7 @@ export function useAgentWizardForm(
     setName('');
     setNamespace(namespaceProp ?? '');
     setProtocol('a2a');
-    setFramework('');
+    setFramework('LangGraph');
     setDeploymentMethod(initialDeploymentMethod ?? 'image');
     setContainerImage('');
     setImagePullSecret('');
@@ -256,6 +270,8 @@ export function useAgentWizardForm(
     setCreateHttpRoute(false);
     setAuthBridgeEnabled(true);
     setSpireEnabled(false);
+    setAuthBridgeMode('');
+    setMtlsMode('');
     setBuildProgress({ phase: 'idle', elapsedMs: 0, pollErrorCount: 0 });
     buildNameRef.current = '';
     buildNsRef.current = '';
@@ -270,10 +286,12 @@ export function useAgentWizardForm(
         .then(r => {
           setBuildStrategies(r.strategies ?? []);
           setBuildStrategyError(null);
+          setBuildsAvailable(true);
         })
         .catch(() => {
           setBuildStrategies([]);
           setBuildStrategyError('Failed to load build strategies.');
+          setBuildsAvailable(false);
         });
       api
         .listKagentiNamespaces()
@@ -323,6 +341,8 @@ export function useAgentWizardForm(
       createHttpRoute,
       authBridgeEnabled,
       spireEnabled,
+      authBridgeMode,
+      mtlsMode,
     }),
     [
       name,
@@ -349,6 +369,8 @@ export function useAgentWizardForm(
       createHttpRoute,
       authBridgeEnabled,
       spireEnabled,
+      authBridgeMode,
+      mtlsMode,
     ],
   );
 
@@ -484,8 +506,6 @@ export function useAgentWizardForm(
                 message: result.message,
                 deployFailedAfterBuild: false,
               }));
-              setSuccessOpen(true);
-              onCreated();
             } catch (finErr) {
               setBuildProgress(prev => ({
                 ...prev,
@@ -537,7 +557,7 @@ export function useAgentWizardForm(
         }
       }, BUILD_POLL_INTERVAL_MS);
     },
-    [api, onCreated, stopPolling],
+    [api, stopPolling],
   );
 
   const handleSubmit = useCallback(async () => {
@@ -666,10 +686,14 @@ export function useAgentWizardForm(
   }, [api, buildProgress.deployFailedAfterBuild, onCreated, startBuildPolling]);
 
   const handleCloseBuild = useCallback(() => {
+    const wasComplete = buildProgress.phase === 'complete';
     stopPolling();
     setBuildProgress({ phase: 'idle', elapsedMs: 0, pollErrorCount: 0 });
+    if (wasComplete) {
+      onCreated();
+    }
     onClose();
-  }, [stopPolling, onClose]);
+  }, [stopPolling, onClose, onCreated, buildProgress.phase]);
 
   // ---------------------------------------------------------------------------
   // Row CRUD
@@ -784,6 +808,7 @@ export function useAgentWizardForm(
     setImageTag,
     buildStrategy,
     setBuildStrategy,
+    buildsAvailable,
     buildStrategies,
     buildStrategyError,
     startCommand,
@@ -814,6 +839,10 @@ export function useAgentWizardForm(
     setAuthBridgeEnabled,
     spireEnabled,
     setSpireEnabled,
+    authBridgeMode,
+    setAuthBridgeMode,
+    mtlsMode,
+    setMtlsMode,
     duplicateEnvNames,
     portErrors,
   };

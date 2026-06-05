@@ -402,19 +402,19 @@ async function refreshKagentiCache(
       return new Set(cached);
     }
   }
-  let agentIds: string[] = [];
+  let agentIds: string[] | null = null;
   try {
     const agents = (await primary.listAgents?.()) ?? [];
     agentIds = agents.map(a => a.id);
   } catch {
-    // On failure, return empty set; short TTL will force retry
+    // On failure, return null to signal cache miss -- caller falls back to primary
   }
-  if (cache) {
+  if (cache && agentIds) {
     await cache.set(KAGENTI_AGENTS_CACHE_KEY, agentIds, {
       ttl: agentIds.length > 0 ? KAGENTI_CACHE_TTL_MS : 5_000,
     });
   }
-  return new Set(agentIds);
+  return agentIds ? new Set(agentIds) : null;
 }
 
 async function resolveProvider(
@@ -428,6 +428,9 @@ async function resolveProvider(
     return primary;
   }
   const knownAgents = await refreshKagentiCache(primary, cache);
+  if (!knownAgents) {
+    return primary;
+  }
   if (knownAgents.has(model)) {
     return primary;
   }

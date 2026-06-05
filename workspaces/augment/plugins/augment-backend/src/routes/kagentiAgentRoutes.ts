@@ -206,6 +206,13 @@ export function registerKagentiAgentRoutes(
         if (!req.body?.namespace || typeof req.body.namespace !== 'string') {
           throw new InputError('namespace is required and must be a string');
         }
+        try {
+          ctx.kagenti.validateNamespace(req.body.namespace);
+        } catch (nsErr) {
+          throw new InputError(
+            `namespace '${req.body.namespace}' is not allowed: ${nsErr instanceof Error ? nsErr.message : nsErr}`,
+          );
+        }
         const result = await api.createAgent(req.body);
 
         if (result.success && ctx.adminConfig) {
@@ -237,6 +244,12 @@ export function registerKagentiAgentRoutes(
             logger.warn(
               `Failed to auto-create chatAgents entry for ${agentId}: ${syncErr instanceof Error ? syncErr.message : syncErr}`,
             );
+            res.json({
+              ...result,
+              governanceSyncFailed: true,
+              governanceSyncError: `Agent deployed but governance registration failed: ${syncErr instanceof Error ? syncErr.message : syncErr}`,
+            });
+            return;
           }
         }
 

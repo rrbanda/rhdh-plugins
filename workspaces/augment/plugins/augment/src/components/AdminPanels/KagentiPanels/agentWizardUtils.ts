@@ -92,6 +92,9 @@ export function buildRequest(s: FormState): KagentiCreateAgentRequest {
   if (s.protocol.trim()) body.protocol = s.protocol.trim();
   if (s.framework.trim()) body.framework = s.framework.trim();
 
+  if (s.authBridgeMode) body.authBridgeMode = s.authBridgeMode;
+  if (s.mtlsMode) body.mtlsMode = s.mtlsMode;
+
   if (s.deploymentMethod === 'image') {
     body.containerImage = s.containerImage.trim();
     if (s.imagePullSecret.trim())

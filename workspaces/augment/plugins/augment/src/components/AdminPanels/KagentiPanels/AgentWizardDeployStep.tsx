@@ -38,6 +38,7 @@ import type { BuildArgRow, DeploymentMethod } from './agentWizardTypes';
 interface AgentWizardDeployStepProps {
   deploymentMethod: DeploymentMethod;
   setDeploymentMethod: (v: DeploymentMethod) => void;
+  buildsAvailable: boolean;
   containerImage: string;
   setContainerImage: (v: string) => void;
   imagePullSecret: string;
@@ -73,6 +74,7 @@ interface AgentWizardDeployStepProps {
 export const AgentWizardDeployStep: FC<AgentWizardDeployStepProps> = ({
   deploymentMethod,
   setDeploymentMethod,
+  buildsAvailable,
   containerImage,
   setContainerImage,
   imagePullSecret,
@@ -128,15 +130,26 @@ export const AgentWizardDeployStep: FC<AgentWizardDeployStepProps> = ({
         />
         <FormControlLabel
           value="source"
+          disabled={!buildsAvailable}
           control={<Radio size="small" />}
           label={
             <Box>
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 500,
+                  color: buildsAvailable ? undefined : 'text.disabled',
+                }}
+              >
                 Source from Git
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Build the image from source via Shipwright, then deploy. Takes a
-                few minutes.
+              <Typography
+                variant="caption"
+                color={buildsAvailable ? 'text.secondary' : 'text.disabled'}
+              >
+                {buildsAvailable
+                  ? 'Build the image from source via Shipwright, then deploy. Takes a few minutes.'
+                  : 'Unavailable — Shipwright build system is not installed on this cluster.'}
               </Typography>
             </Box>
           }

@@ -163,16 +163,16 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
   return (
     <Box
       sx={{
-        height: 420,
+        height: 480,
         border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: 2,
+        borderColor: alpha(theme.palette.divider, 0.5),
+        borderRadius: 3,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         bgcolor: isDark
-          ? alpha(theme.palette.background.paper, 0.4)
-          : theme.palette.background.paper,
+          ? alpha(theme.palette.background.paper, 0.3)
+          : alpha(theme.palette.background.default, 0.5),
       }}
     >
       <Box
@@ -232,9 +232,11 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
               <Typography
                 variant="body2"
                 sx={{
-                  fontSize: '0.85rem',
+                  fontSize: '0.875rem',
+                  lineHeight: 1.6,
                   color: isError ? theme.palette.error.main : 'text.primary',
                   whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
                 }}
               >
                 {msg.text}
@@ -258,9 +260,12 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
         sx={{
           display: 'flex',
           gap: 1,
-          p: 1.5,
+          p: 2,
           borderTop: '1px solid',
-          borderColor: 'divider',
+          borderColor: alpha(theme.palette.divider, 0.3),
+          bgcolor: isDark
+            ? alpha(theme.palette.background.paper, 0.5)
+            : theme.palette.background.paper,
         }}
       >
         <TextField
@@ -276,7 +281,13 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
           disabled={sending}
           size="small"
           fullWidth
-          sx={{ flex: 1 }}
+          sx={{
+            flex: 1,
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2.5,
+              fontSize: '0.875rem',
+            },
+          }}
         />
         <Button
           variant="contained"
@@ -285,9 +296,11 @@ export function InlineAgentChat({ agentId, agentName }: InlineAgentChatProps) {
           disabled={!input.trim() || sending}
           sx={{
             textTransform: 'none',
-            borderRadius: 2,
-            minWidth: 60,
+            fontWeight: 600,
+            borderRadius: 2.5,
+            minWidth: 70,
             boxShadow: 'none',
+            '&:hover': { boxShadow: 'none' },
           }}
         >
           Send

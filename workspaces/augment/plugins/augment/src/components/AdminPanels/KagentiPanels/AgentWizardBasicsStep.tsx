@@ -92,23 +92,15 @@ export const AgentWizardBasicsStep: FC<AgentWizardBasicsStepProps> = ({
         helperText="Target Kubernetes namespace for the agent."
       />
     )}
-    <FormControl size="small" fullWidth data-tour="agent-protocol">
-      <InputLabel>Protocol</InputLabel>
-      <Select
-        label="Protocol"
-        value={protocol}
-        onChange={e => setProtocol(e.target.value)}
-        MenuProps={SELECT_MENU_PROPS}
-      >
-        <MenuItem value="a2a">A2A</MenuItem>
-        <MenuItem value="mcp">MCP</MenuItem>
-        <MenuItem value="http">HTTP</MenuItem>
-      </Select>
-      <FormHelperText>
-        A2A = Agent-to-Agent. MCP = Model Context Protocol. HTTP = standard
-        REST.
-      </FormHelperText>
-    </FormControl>
+    <TextField
+      label="Protocol"
+      value="A2A"
+      size="small"
+      fullWidth
+      InputProps={{ readOnly: true }}
+      helperText="Agent-to-Agent protocol. The standard for Kagenti-deployed agents."
+      data-tour="agent-protocol"
+    />
     <FormControl size="small" fullWidth>
       <InputLabel>Framework</InputLabel>
       <Select

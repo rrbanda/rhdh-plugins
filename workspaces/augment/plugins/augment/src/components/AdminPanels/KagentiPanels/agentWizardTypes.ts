@@ -74,6 +74,13 @@ export interface ServicePortRow {
   protocol: PortProtocol;
 }
 
+export type AuthBridgeMode =
+  | 'proxy-sidecar'
+  | 'envoy-sidecar'
+  | 'lite'
+  | 'waypoint';
+export type MtlsMode = 'disabled' | 'permissive' | 'strict';
+
 export interface FormState {
   name: string;
   namespace: string;
@@ -99,6 +106,8 @@ export interface FormState {
   createHttpRoute: boolean;
   authBridgeEnabled: boolean;
   spireEnabled: boolean;
+  authBridgeMode: AuthBridgeMode | '';
+  mtlsMode: MtlsMode | '';
 }
 
 export interface CreateAgentWizardProps {

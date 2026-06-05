@@ -21,6 +21,12 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Button from '@mui/material/Button';
 import Skeleton from '@mui/material/Skeleton';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
@@ -171,6 +177,12 @@ export function MarketplacePage({
     () =>
       agents.filter(a => {
         if (a.createdBy === userRef) return true;
+        if (
+          a.createdBy === 'system:startup' &&
+          a.governanceRegistered &&
+          a.lifecycleStage === 'draft'
+        )
+          return true;
         return false;
       }),
     [agents, userRef],
@@ -202,16 +214,32 @@ export function MarketplacePage({
     [onChatWithAgent],
   );
 
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const handleDeleteAgent = useCallback(
     async (agentId: string) => {
+      const agent = agents.find(a => a.id === agentId);
       try {
-        await api.deleteAgentConfig(agentId);
+        if (agent?.source === 'kagenti' && agentId.includes('/')) {
+          const [ns, name] = agentId.split('/');
+          try {
+            await api.deleteKagentiAgent(ns, name);
+          } catch {
+            await api.deleteAgentConfig(agentId);
+          }
+        } else {
+          await api.deleteAgentConfig(agentId);
+        }
         setAgents(prev => prev.filter(a => a.id !== agentId));
-      } catch {
-        // Silently handle -- user will see agent remain
+        setDeleteTarget(null);
+      } catch (err) {
+        setDeleteError(
+          `Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        );
       }
     },
-    [api],
+    [api, agents],
   );
 
   return (
@@ -395,7 +423,7 @@ export function MarketplacePage({
                     boxShadow: 'none',
                   }}
                 >
-                  + Create Agent
+                  + New Agent
                 </Button>
               )}
               {mySubTab === 'tools' && onCreateTool && (
@@ -438,7 +466,7 @@ export function MarketplacePage({
                     handleChat(id);
                   }
                 }}
-                onDeleteAgent={handleDeleteAgent}
+                onDeleteAgent={id => setDeleteTarget(id)}
                 emptyMessage="Agents you create will appear here."
                 emptyAction={
                   onCreateAgent
@@ -527,6 +555,54 @@ export function MarketplacePage({
           )}
         </Box>
       )}
+      {/* Delete confirmation dialog */}
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>
+          Delete Agent
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Permanently delete <strong>{deleteTarget}</strong>? This will remove
+            the agent and its configuration.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setDeleteTarget(null)}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => deleteTarget && handleDeleteAgent(deleteTarget)}
+            sx={{ textTransform: 'none', fontWeight: 600 }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={!!deleteError}
+        autoHideDuration={4000}
+        onClose={() => setDeleteError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setDeleteError(null)}
+          severity="error"
+          variant="filled"
+        >
+          {deleteError}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

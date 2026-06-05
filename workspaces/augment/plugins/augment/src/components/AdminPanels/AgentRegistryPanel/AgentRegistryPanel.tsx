@@ -480,7 +480,17 @@ export const AgentRegistryPanel: FC<AgentRegistryPanelProps> = ({
       setDeleting(agentId);
       setDeleteAgentId(null);
       try {
-        await api.deleteAgentConfig(agentId);
+        const agent = agents.find(a => a.id === agentId);
+        if (agent?.source === 'kagenti' && agentId.includes('/')) {
+          const [ns, name] = agentId.split('/');
+          try {
+            await api.deleteKagentiAgent(ns, name);
+          } catch {
+            await api.deleteAgentConfig(agentId);
+          }
+        } else {
+          await api.deleteAgentConfig(agentId);
+        }
         await refreshConfigs();
         await fetchAgents();
         setToast(`Deleted: ${agentId}`);
@@ -492,7 +502,7 @@ export const AgentRegistryPanel: FC<AgentRegistryPanelProps> = ({
         setDeleting(null);
       }
     },
-    [api, refreshConfigs, fetchAgents],
+    [api, agents, refreshConfigs, fetchAgents],
   );
 
   const stats = useMemo(() => {

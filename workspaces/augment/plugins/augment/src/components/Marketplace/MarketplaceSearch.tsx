@@ -22,6 +22,7 @@ import Typography from '@mui/material/Typography';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTheme, alpha } from '@mui/material/styles';
 import { searchBarSx } from './marketplace.styles';
+import { getFrameworkLabel } from './marketplace.constants';
 
 interface MarketplaceSearchProps {
   search: string;
@@ -90,7 +91,7 @@ export function MarketplaceSearch({
         {frameworks.map(fw => (
           <Chip
             key={fw}
-            label={fw}
+            label={getFrameworkLabel(fw)}
             size="small"
             variant={selectedFramework === fw ? 'filled' : 'outlined'}
             color={selectedFramework === fw ? 'primary' : 'default'}

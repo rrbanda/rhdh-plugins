@@ -25,6 +25,7 @@ import type { ChatAgent } from '@red-hat-developer-hub/backstage-plugin-augment-
 import {
   getAvatarColor,
   getFrameworkColor,
+  getFrameworkLabel,
   LIFECYCLE_STAGE_CONFIG,
 } from './marketplace.constants';
 import { cardSx, cardAccentSx, avatarSx } from './marketplace.styles';
@@ -85,13 +86,17 @@ export function CompactAgentCard({
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
               variant="body1"
-              noWrap
               title={agent.name}
               sx={{
                 fontWeight: 700,
                 fontSize: '0.9rem',
                 color: theme.palette.text.primary,
                 lineHeight: 1.3,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                wordBreak: 'break-word',
               }}
             >
               {agent.name}
@@ -116,17 +121,20 @@ export function CompactAgentCard({
                 </Typography>
               )}
               {agent.framework && (
-                <Tooltip title={agent.framework} placement="top">
-                  <Box
-                    sx={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      bgcolor: fwColor,
-                      flexShrink: 0,
-                    }}
-                  />
-                </Tooltip>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: '0.55rem',
+                    fontWeight: 600,
+                    color: fwColor,
+                    bgcolor: alpha(fwColor, isDark ? 0.15 : 0.08),
+                    px: 0.5,
+                    borderRadius: 0.5,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {getFrameworkLabel(agent.framework)}
+                </Typography>
               )}
               {isReady && (
                 <Box
@@ -200,8 +208,7 @@ export function CompactAgentCard({
             pl: 7,
           }}
         >
-          {agent.description ||
-            `${agent.name} — an AI agent ready to assist you.`}
+          {agent.description || 'No description yet.'}
         </Typography>
       </Box>
     </Box>

@@ -1291,6 +1291,7 @@ export function registerAgentRoutes(
           featured: false,
           version: 0,
           createdAt: now,
+          createdBy: 'system:startup',
         });
       }
       await saveChatAgentConfigs(configs, 'system:startup');

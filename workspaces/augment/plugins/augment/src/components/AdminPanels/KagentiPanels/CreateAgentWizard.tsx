@@ -140,6 +140,7 @@ export function CreateAgentWizard({
         <AgentWizardDeployStep
           deploymentMethod={form.deploymentMethod}
           setDeploymentMethod={form.setDeploymentMethod}
+          buildsAvailable={form.buildsAvailable}
           containerImage={form.containerImage}
           setContainerImage={form.setContainerImage}
           imagePullSecret={form.imagePullSecret}
@@ -194,6 +195,10 @@ export function CreateAgentWizard({
           setAuthBridgeEnabled={form.setAuthBridgeEnabled}
           spireEnabled={form.spireEnabled}
           setSpireEnabled={form.setSpireEnabled}
+          authBridgeMode={form.authBridgeMode}
+          setAuthBridgeMode={form.setAuthBridgeMode}
+          mtlsMode={form.mtlsMode}
+          setMtlsMode={form.setMtlsMode}
         />
       )}
 
